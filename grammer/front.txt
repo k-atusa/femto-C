@@ -1,0 +1,50 @@
+TSLL front: minimal C
+
+1. 모듈
+파일명 기반 모듈 시스템 사용
+대문자로 시작하는 변수, 구조체, 함수, 필드만 public 하여 다른 파일에서 사용 가능
+#include "filepath"
+
+2. 타입
+원시 타입: i8, i16, i32, i64, u8, u16, u32, u64, f32, f64
+포인터 타입: void*, T*, 함수포인터
+빈 반환값: void
+캐스팅: (T) id
+
+3. 변수
+T id;
+T id = expr;
+
+4. 배열
+배열이름은 첫 항목에 대한 포인터와 완전히 동일하다
+T[N] id;
+T[N] id = {...};
+id[N]은 *(id + N)과 동일하다
+
+5. 포인터
+null, sizeof, malloc, free
+함수포인터 : T id(...); 함수 선언과 동일하다
+
+6. 연산자
+메모리: 역참조 *, 참조 &
+산술: + - * / %
+관계: < <= > >= == !=
+논리: && || !
+비트: & | ~ ^ << >>
+
+7. 제어문
+if (bool) scope, if (bool) scope else scope, if (bool) scope else if (bool) scope
+while (bool) scope
+
+8. 함수
+선언: T id(T id, T id...)
+정의: T id(...) scope
+반환: return expr;
+
+9. 구조체
+struct id {T id; T id; ...}
+사용 시 struct를 붙일 필요 없이 자동으로 타입의 일부로 인식된다
+
+10. 컴파일러 지시
+주석: //... 과 /* ... */
+#order ... 형태
