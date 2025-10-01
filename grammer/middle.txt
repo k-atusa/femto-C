@@ -1,1 +1,57 @@
-(subset of LLVM IR)
+middle: TSLL-IR
+컴파일을 위해 필요한 기능만 남긴 간략화된 LLVM IR
+
+모듈:
+소스 파일 하나당 하나의 모듈 생성
+함수 본문 (define), 외부함수 선언 (declare), 전역변수, 타입 정의
+
+타입:
+정수는 비트 너비로 결정 (i8 i16 i32 i64)
+불리언은 i1
+실수 (float double)
+함수의 반환값이 없음 (void)
+포인터는 T*, void*는 i8*
+함수 포인터는 T (T, T ...)*
+
+타입 캐스팅:
+zext/sext 부호없는/부호있는 정수 확장
+trunc 정수 축소
+uitofp/sitofp 부호없는/부호있는 정수를 실수로
+fptoui/fptosi 실수를 부호없는/부호있는 정수로
+ptrtoint.inttoptr 포인터를 정수로 혹은 반대
+bitcast 비트는 그대로 타입만 변환
+
+SSA:
+SSA는 정적 타입, 단일 할당, 특정 연산 하나의 결과이다
+레지스터 이름 %name
+스택 지역변수는 alloca store load
+
+전역변수/상수:
+@name
+
+함수 정의:
+declare T @name(T...)
+define T @name(T...) {...}
+call
+
+배열과 포인터 접근:
+[N x T] 타입
+지역 배열은 alloca 사용
+전역 배열은 global 사용
+배열과 구조체 메모리 주소 얻기는 gep
+
+연산자:
+add, sub, mul, sdiv/udiv, srem/urem
+fadd, fsub, fmul, fdiv, frem
+and, or, xor, shl, ashr/lshr
+icmp eq ne sgt slt ugt ult
+fcmp oeq ueq one une ogt olt
+
+블록:
+name:로 블록 선언, 진입과 종료 지점은 하나만 가능
+블록 사용은 %name
+ret, br, switch, unreachable
+블록 합치기는 phi
+
+구조체:
+%struct.Name = T {T, T, ...}
