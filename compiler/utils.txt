@@ -1,0 +1,23 @@
+i32 privateCount = 10;
+i32 PublicCount = 20;
+
+struct Point {
+  i64 x;
+  i64 y;
+  void Move(Point* self, i64 dx, i64 dy) {
+    self.x = self.x + dx;
+    self.y = self.y + dy;
+  }
+  void Print(Point* self) {
+    #raw_c printf("(x, y): %d, %d\n", self.x, self.y);
+  }
+}
+
+void Add() {
+  privateCount = privateCount + 1;
+  PublicCount = PublicCount + 1;
+}
+
+void Print() {
+  #raw_c printf("count: %d\n", privateCount + PublicCount);
+}

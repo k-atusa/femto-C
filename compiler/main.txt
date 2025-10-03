@@ -1,0 +1,28 @@
+#include "utils.txt" utils
+
+void main() {
+  utils.Print();
+  utils.Add();
+  utils.Print();
+
+  utils.Point p;
+  p.Print();
+  p.Move(5, 5);
+  p.Print();
+
+  sum(0);
+  sum(4,5);
+  sum(-1, 0, 1);
+}
+
+i64 sum1<sum>(i64 p0) {
+  return p0;
+}
+
+i64 sum2<sum>(i64 p0, i64 p1) {
+  return p0+p1;
+}
+
+i64 sum3<sum>(i64 p0, i64 p1, i64 p2) {
+  return p0+p1+p2;
+}
