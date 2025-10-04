@@ -91,3 +91,43 @@ enum id {id, id = literal, ...}
 컴파일러가 스코프 컴파일 시 스택에 쌓았다가 종료시 역순으로 자동삽입함 (선언 시점의 값을 기억하지 않음, 단순 치환과 동일)
 #const id (id에 값을 재할당하는 시도를 막음, 포인터로 이 제약이 풀릴 수 있음)
 #volatile id (id와 관련된 최적화를 막음)
+
+==================== EBNF Expression #1 ====================
+
+<module> ::= {<var_declare> | <function_declare> | <struct_declare> | <enum_declare> | <compiler> | <comment>}
+
+<compiler> ::= "#" ("include" _literal_string_ <identifier> | "defer" <statement> | "const" <identifier> | "volatile" <identifier> | "raw_c" <literal_string> | "raw_ir" <literal_string>) "\n"
+
+<function_declare> ::= <type> <identifier> ["<" <identifier> ">"] "(" {<type> <identifier> ","} [<type> <identifier>] ")" <block>
+
+<struct_declare> ::= "struct" <identifier> "{" {(<type> <identifier> ";" | <function_declare>)} "}"
+
+<enum_declare> ::= "enum" <identifier> "{" {<identifier> ["=" _literal_int_] ","} <identifier> ["=" _literal_int_] "}"
+
+<block> ::= "{" {<statement>} "}"
+
+<statement> ::= <var_declare> | <var_assign> | (<function_call> ";") | <control_if> | <control_while> | <control_for> | <control_switch> | <compiler> | <comment> | ("break" ";") | ("continue" ";")
+
+<var_declare> ::= <type> <identifier> ["=" <expression>] ";"
+
+<var_assign> ::= <identifier> "=" <expression> ";"
+
+<function_call> ::= <identifier> "(" {<expression> ","} [<expression>] ")"
+
+<control_if> ::= "if" "(" <expression> ")" <block> {"else" "if" "(" <expression> ")" <block>} ["else" <block>]
+
+<control_while> ::= "while" "(" <expression> ")" <block>
+
+<control_for> ::= "for" "(" <statement> <expression> <statement> ")" <block>
+
+<control_switch> ::= "switch" "(" <expression> ")" "{" {"case" _literal_int_ ":" {<statement>}} ["default" ":" {<statement>}] "}"
+
+<literal> ::= _literal_int_ | _literal_float_ | _literal_char_ | _literal_string_ | "null" | "true" | "false"
+
+<type> ::= "void" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64" | (<type> "*") | (<type> "<" {<type> ","} [<type>] ">") | (<type> "[" _literal_int_ "]")
+
+<identifier> ::= A-Za-z {0-9A-Za-z_}
+
+<expression> ::= <literal> | <identifier> | <function_call> | (_single_operator_ <expression>) | (<expression> _double_operator_ <expression>) | (<expression> "[" <expression> "]") | ("(" <expression> ")")
+
+<comment> ::= ("//" {_char_} "\n") | ("/*" {_char_} "*/")
