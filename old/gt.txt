@@ -1,0 +1,66 @@
+#include "path/to/code.c" name
+
+i8 i16 i32 i64 u8 u16 u32 u64 f32 f64
+void true false null
+
+// 주석 문자
+void* f(i32<i32, i32> g) {
+  return 0;
+}
+
+struct Point {
+  i32 x;
+  i32 y;
+  i64 Add(Point* self) {
+    return (i64)(self.x + self.y);
+  }
+}
+
+/* 여러 줄
+주석
+예시입니다. */
+
+i8 a;
+i32 b = (i32) a;
+"가나다abc" 'a'
+123 123.45 -13 -0.0 0x0df3 0XA34F -123
+
+a + b - c * d / e % f < g <= h > i >= j == k != l
+a & b | c ^ d << e >> f
+*a &a -a !a ~a
+
+if () {
+}
+
+if () {
+} else {
+}
+
+if () {
+} else if () {
+} else {
+}
+
+while () {
+}
+
+for () {
+}
+
+switch () {
+  case 0:
+    break;
+  case 1:
+    continue;
+  default:
+}
+
+enum color {
+  RED,
+  GREEN = 10,
+  BLUE
+}
+
+#defer
+#const
+#volatile

@@ -1,0 +1,9 @@
+void*< void**<>, void< void<void[][], void*> > >[4][64]
+/*
+an array of 
+  a function that returns void pointer and gets
+    a function that returns pointer of void pointer and gets nothing, and
+    a function that returns nothing and gets
+      a function that returns nothing and gets pointer of void pointer and void pointer
+that length is 4x64
+*/

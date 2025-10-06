@@ -23,7 +23,7 @@ struct Point {
 i8 a;
 i32 b = (i32) a;
 "가나다abc" 'a'
-123 123.45 -13 -0.0 0x0df3 0XA34F
+123 123.45 -13 -0.0 0x0df3 0XA34F -123
 
 a + b - c * d / e % f < g <= h > i >= j == k != l
 a & b | c ^ d << e >> f
