@@ -86,139 +86,138 @@ struct ValueNode {
     }
 };
 
-enum class TokenizeStatus {
-    DEFAULT,
-    SHORT_COMMENT,
-    LONG_COMMENT,
-    IDENTIFIER,
-    DOUBLE_OP,
-    NUMBER,
-    CHAR,
-    CHAR_ESCAPE,
-    STRING,
-    STRING_ESCAPE
-};
-
-enum class TokenType {
+enum class TypeNodeType {
     NONE,
-    // Literals and identifiers
-    LIT_INT10,
-    LIT_INT16,
-    LIT_FLOAT,
-    LIT_CHAR,
-    LIT_STRING,
-    IDENTIFIER,
-    // + - * / %
-    OP_PLUS,
-    OP_MINUS,
-    OP_MUL,
-    OP_DIV,
-    OP_REMAIN,
-    // < <= > >= == !=
-    OP_LITTER,
-    OP_LITTER_EQ,
-    OP_GREATER,
-    OP_GREATER_EQ,
-    OP_EQ,
-    OP_NOT_EQ,
-    // && || ! & | ~ ^ << >>
-    OP_LOGIC_AND,
-    OP_LOGIC_OR,
-    OP_LOGIC_NOT,
-    OP_BIT_AND,
-    OP_BIT_OR,
-    OP_BIT_NOT,
-    OP_BIT_XOR,
-    OP_BIT_LSHIFT,
-    OP_BIT_RSHIFT,
-    // = . , : ; # ( ) { } [ ]
-    OP_ASSIGN,
-    OP_DOT,
-    OP_COMMA,
-    OP_COLON,
-    OP_SEMICOLON,
-    OP_HASH,
-    OP_LPAREN,
-    OP_RPAREN,
-    OP_LBRACE,
-    OP_RBRACE,
-    OP_LBRACKET,
-    OP_RBRACKET,
-    // Keywords
-    KEY_I8,
-    KEY_I16,
-    KEY_I32,
-    KEY_I64,
-    KEY_U8,
-    KEY_U16,
-    KEY_U32,
-    KEY_U64,
-    KEY_F32,
-    KEY_F64,
-    KEY_VOID,
-    KEY_NULL,
-    KEY_TRUE,
-    KEY_FALSE,
-    KEY_SIZEOF,
-    KEY_IF,
-    KEY_ELSE,
-    KEY_WHILE,
-    KEY_FOR,
-    KEY_SWITCH,
-    KEY_CASE,
-    KEY_DEFAULT,
-    KEY_BREAK,
-    KEY_CONTINUE,
-    KEY_RETURN,
-    KEY_STRUCT,
-    KEY_ENUM
+    PRIMITIVE,
+    POINTER,
+    ARRAY,
+    FUNCTION,
+    STRUCT,
+    ENUM
 };
 
-class Token {
+// represents a type in the type system
+class TypeNode {
     public:
-    TokenType type;
-    LocNode location;
-    ValueNode value;
-    std::string text;
+    TypeNodeType type;
+    std::string name;
+    int size; // size in bytes
+    std::unique_ptr<TypeNode> direct; // ptr & arr target, func return
+    std::vector<std::unique_ptr<TypeNode>> indirects; // func params, struct members
 
-    Token() : type(TokenType::NONE), location(), value(), text("") {}
+    TypeNode() : type(TypeNodeType::NONE), name(""), size(0), direct(nullptr), indirects() {}
+    TypeNode(TypeNodeType tp, const std::string& n, int s) : type(tp), name(n), size(s), direct(nullptr), indirects() {}
 
-    std::string toString() {
-        std::string result;
-        result += "Tkn type: " + std::to_string(static_cast<int>(type));
-        result += ", location: " + std::to_string(location.source_id) + "." + std::to_string(location.line);
-        result += ", value: " + value.toString();
-        result += ", text: " + text;
-        return result;
+    std::string toString(int depth = 0, bool verbose = false) {
+        if (verbose) {
+            std::string indent(depth * 2, ' ');
+            std::string result;
+            result += indent + "TypeNode type: " + std::to_string(static_cast<int>(type)) + "\n";
+            result += indent + "name: " + name + "\n";
+            result += indent + "size: " + std::to_string(size) + "\n";
+            if (direct) {
+                result += indent + "direct:\n" + direct->toString(depth + 1);
+            }
+            for (const auto& ind : indirects) {
+                result += indent + "indirect:\n" + ind->toString(depth + 1);
+            }
+            return result + "\n";
+        } else {
+            switch (type) {
+                case TypeNodeType::PRIMITIVE:
+                    return name;
+                case TypeNodeType::POINTER:
+                    return direct ? direct->toString() + "*" : "invalid";
+                case TypeNodeType::ARRAY:
+                    if (direct && direct->size > 0) {
+                        return direct->toString() + "[" + std::to_string(size / direct->size) + "]";
+                    } else {
+                        return "invalid";
+                    }
+                case TypeNodeType::FUNCTION: {
+                    if (!direct) return "invalid";
+                    std::string result = direct->toString() + "<";
+                    for (size_t i = 0; i < indirects.size(); ++i) {
+                        result += indirects[i]->toString();
+                        if (i < indirects.size() - 1) result += ",";
+                    }
+                    return result + ">";
+                }
+                case TypeNodeType::STRUCT:
+                    return "struct " + name;
+                case TypeNodeType::ENUM:
+                    return "enum " + name;
+                default:
+                    return "invalid";
+            }
+        }
     }
 };
 
-enum class PNodeType {
-    NONE,
-    A
-};
-
-class PNode {
+// one table per source
+class TypeTable {
     public:
-    PNodeType type;
-    LocNode location;
-    ValueNode value;
-    std::unique_ptr<PNode> type_node;
-    std::vector<std::unique_ptr<PNode>> children;
+    int source_id; // 0 for self
+    std::string source_name; // alias for the namespace
+    std::vector<std::unique_ptr<TypeNode>> types;
 
-    PNode() : type(PNodeType::NONE), location(), value(), type_node(nullptr), children() {}
+    TypeTable() : source_id(0), source_name(""), types() {}
+    TypeTable(int id, const std::string& name) : source_id(id), source_name(name), types() {}
 
     std::string toString(int depth = 0) {
         std::string indent(depth * 2, ' ');
         std::string result;
-        result += indent + "PNode type: " + std::to_string(static_cast<int>(type)) + "\n";
-        result += indent + "location: " + std::to_string(location.source_id) + "." + std::to_string(location.line) + "\n";
-        result += indent + "value: " + value.toString() + "\n";
-        if (type_node) {
-            result += indent + "type_node:\n" + type_node->toString(depth + 1);
+        result += indent + "TypeTable source: " + std::to_string(source_id) + " (" + source_name + ")\n";
+        for (const auto& type : types) {
+            result += type->toString(depth + 1, true);
         }
-        for (const auto& child : children) {
-            result += indent + "child:\n" + child->toString(depth + 1);
+        return result + "\n";
+    }
+};
+
+enum class NameNodeType {
+    NONE,
+    GLOBAL,
+    LOCAL,
+    PARAM,
+    MEMBER,
+    STRUCT,
+    ENUM,
+    FUNCTION
+};
+
+// represents a named entity in the program
+class NameNode {
+    public:
+    NameNodeType type;
+    std::string name;
+    std::string alias;
+    int name_id;
+
+    NameNode() : type(NameNodeType::NONE), name(""), alias(""), name_id(-1) {}
+    NameNode(NameNodeType tp, const std::string& nm, const std::string& al, int i) : type(tp), name(nm), alias(al), name_id(i) {}
+
+    std::string toString() const {
+        return "NameNode type: " + std::to_string(static_cast<int>(type)) + ", name: " + name + "<" + alias + ">, id: " + std::to_string(name_id);
+    }
+};
+
+// one table per source & scope
+class NameTable {
+    public:
+    int source_id; // 0 for self
+    std::string source_name; // alias for the namespace
+    std::vector<std::unique_ptr<NameNode>> names;
+
+    NameTable() : source_id(0), source_name(""), names() {}
+    NameTable(int id, const std::string& name) : source_id(id), source_name(name), names() {}
+
+    std::string toString(int depth = 0) {
+        std::string indent(depth * 2, ' ');
+        std::string result;
+        result += indent + "NameTable source: " + std::to_string(source_id) + " (" + source_name + ")\n";
+        for (const auto& name : names) {
+            result += indent + name->toString() + "\n";
         }
         return result + "\n";
     }
