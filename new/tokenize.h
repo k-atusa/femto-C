@@ -1,7 +1,7 @@
 #ifndef TOKENIZE_H
 #define TOKENIZE_H
 
-#include "baseNode.h"
+#include "basicFunc.h"
 
 enum class TokenizeStatus {
     DEFAULT,
@@ -110,6 +110,7 @@ class Token {
     }
 };
 
+// tokenize source code into tokens, [can raise exception]
 std::vector<Token> tokenize(const std::string& source, const std::string filename, const int source_id);
 
 #endif // TOKENIZE_H

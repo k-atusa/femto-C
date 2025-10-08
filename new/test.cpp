@@ -1,14 +1,9 @@
-#include "tokenize.h"
-#include "baseNode.h"
 #include "sourceIO.h"
+#include <iostream>
 
 int main() {
-    std::string s = readFile("test_in.txt");
-    std::vector<Token> t = tokenize(s, "test_in.txt", 0);
-    std::string out;
-    for (auto& token : t) {
-        out += token.toString() + "\n";
-    }
-    writeFile("test_out.txt", out);
+    std::cout << getWorkingDir("parser.cpp") << std::endl;
+    std::cout << absPath("./lib.txt", "../test") << std::endl;
+    std::cout << absPath("../test/main.txt", "./") << std::endl;
     return 0;
 }

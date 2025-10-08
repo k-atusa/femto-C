@@ -1,0 +1,7 @@
+#include "lib.txt" lib
+
+void main() {
+  lib.Point p;
+  p.X = 2;
+  p.Y = 4;
+}
