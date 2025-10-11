@@ -103,11 +103,8 @@ class Token {
     Token() : type(TokenType::NONE), location(), value(), text("") {}
 
     std::string toString() {
-        std::string result;
-        result += "Tkn type: " + std::to_string(static_cast<int>(type));
-        result += ", location: " + std::to_string(location.source_id) + "." + std::to_string(location.line);
-        result += ", value: " + value.toString();
-        result += ", text: " + text;
+        std::string result = "Tkn type: " + std::to_string(static_cast<int>(type)) + ", location: " + std::to_string(location.source_id) + "." + std::to_string(location.line);
+        result += ", value: " + value.toString() + ", text: " + text;
         return result;
     }
 };

@@ -1,0 +1,40 @@
+// utils.tsllc
+// 다른 모듈의 타입을 임포트하여 함수와 변수를 정의하는 유틸리티 모듈입니다.
+
+// --- 모듈 임포트 ---
+#include "datatypes.txt" Data
+
+// --- 컴파일러 지시어를 사용한 공개 전역 상수 ---
+#const i32 MAX_USERS = 100;
+
+// --- 공개 전역 변수 (리터럴로 초기화) ---
+u8* AppName = "TSLL-C Parser Test";
+i8 IsDebugMode = true;
+
+// --- 비공개 전역 변수 ---
+i32 internalCounter = 0;
+
+// --- 기본 공개 함수 선언 ---
+i32 Add(i32 a, i32 b) {
+    return a + b;
+}
+
+// --- 다른 모듈의 타입을 인자로 받는 공개 함수 ---
+// 함수 본문은 pass3 이후에 처리되므로, 여기서는 선언 자체의 유효성을 검증합니다.
+Data.Point CreatePoint(i32 x, i32 y) {
+    Data.Point p;
+    p.X = x;
+    p.Y = y;
+    return p;
+}
+
+// --- 가변 인자 함수 선언 ---
+// #va_arg 지시어와 명세에 따른 마지막 두 인자(void**, 정수)를 테스트합니다.
+#va_arg void Log(u8* format, void** args, i32 count) {
+    // ...
+}
+
+// --- 비공개 함수 ---
+void incrementCounter() {
+    internalCounter = internalCounter + 1;
+}

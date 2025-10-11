@@ -115,6 +115,9 @@ std::string SourceTable::toString() {
     for (size_t i = 0; i < sources.size(); ++i) {
         result += "SrcID " + std::to_string(i) + ": " + sources[i] + "\n";
     }
+    if (sources.size() > 0) {
+        result = result.substr(0, result.length() - 1);
+    }
     return result;
 }
 
@@ -173,20 +176,15 @@ std::unique_ptr<TypeNode> TypeNode::clone() const {
 std::string TypeNode::toString(int depth, bool verbose) {
     if (verbose) {
         std::string indent(depth * 2, ' ');
-        std::string result;
-        result += indent + "TypeNode type: " + std::to_string(static_cast<int>(type)) + "\n";
-        result += indent + "name: " + name + "\n";
-        result += indent + "size: " + std::to_string(size) + "\n";
-        result += indent + "length: " + std::to_string(length) + "\n";
-        result += indent + "offset: " + std::to_string(offset) + "\n";
-        result += indent + "allign requirement: " + std::to_string(allign_req) + "\n";
+        std::string result = indent + "TypeNode type: " + std::to_string(static_cast<int>(type)) + ", name: " + name + ", size: " + std::to_string(size) + "\n";
+        result += indent + "length: " + std::to_string(length) + ", offset: " + std::to_string(offset) + ", allign requirement: " + std::to_string(allign_req) + "\n";
         if (direct) {
             result += indent + "direct:\n" + direct->toString(depth + 1, true) + "\n";
         }
         for (const auto& ind : indirects) {
             result += indent + "indirect:\n" + ind->toString(depth + 1, true) + "\n";
         }
-        return result;
+        return result.substr(0, result.length() - 1);
     } else {
         switch (type) {
             case TypeNodeType::PRIMITIVE: case TypeNodeType::STRUCT: case TypeNodeType::ENUM: case TypeNodeType::ABSTRACT:
@@ -236,12 +234,11 @@ int TypeTable::findType(const std::string& name) {
 
 std::string TypeTable::toString(int depth) {
     std::string indent(depth * 2, ' ');
-    std::string result;
-    result += indent + "TypeTable id: " + std::to_string(source_id) + "\n";
+    std::string result = indent + "TypeTable id: " + std::to_string(source_id) + "\n\n";
     for (const auto& type : types) {
-        result += type->toString(depth + 1, true);
+        result += type->toString(depth + 1, true) + "\n\n";
     }
-    return result + "\n";
+    return result.substr(0, result.length() - 2);
 }
 
 // name table methods
@@ -266,10 +263,9 @@ int NameTable::findName(const std::string& name) {
 
 std::string NameTable::toString(int depth) {
     std::string indent(depth * 2, ' ');
-    std::string result;
-    result += indent + "NameTable id: " + std::to_string(source_id) + "\n";
+    std::string result = indent + "NameTable id: " + std::to_string(source_id) + "\n";
     for (const auto& name : names) {
         result += indent + name->toString() + "\n";
     }
-    return result + "\n";
+    return result.substr(0, result.length() - 1);
 }

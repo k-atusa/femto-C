@@ -12,12 +12,11 @@ std::string SrcModule::toString(const std::string& path) {
 }
 
 std::string Parser::toString() {
-    std::string result = "Program." + std::to_string(ArchSize) + ":\n";
-    result += srcTable.toString() + "\n";
+    std::string result = "Program." + std::to_string(ArchSize) + ":\n" + srcTable.toString() + "\n\n\n\n";
     for (const auto& mod : modTables) {
         result += mod->toString(srcTable.getSource(mod->source_id)) + "\n\n\n\n";
     }
-    return result;
+    return result.substr(0, result.length() - 4);
 }
 
 // returns error message or empty if ok
@@ -183,7 +182,7 @@ bool comepleteTypes(TypeNode& node, SrcModule& curSrc) {
                 node.indirects = std::move(copyTgt->indirects);
             }
         } else {
-            throw std::runtime_error("E0332 type " + node.name + " is not defined"); // E0332
+            throw std::runtime_error("E0331 type " + node.name + " is not defined"); // E0331
         }
     }
     return modified;
@@ -301,20 +300,20 @@ std::string Parser::pass1(TokenProvider& prov, SrcModule& curSrc, const std::str
             std::string struct_name = name_node->name.substr(0, name_node->name.find("."));
             int type_pos = curSrc.table_types.findType(struct_name);
             if (type_pos < 0) {
-                return "E0333 Struct not exists while matching " + name_node->name; // E0333
+                return "E0332 Struct not exists while matching " + name_node->name; // E0332
             }
             if (curSrc.table_types.types[type_pos]->type != TypeNodeType::STRUCT) {
-                return "E0334 Not struct type while matching " + name_node->name; // E0334
+                return "E0333 Not struct type while matching " + name_node->name; // E0333
             }
             name_node->type_node = curSrc.table_types.types[type_pos]->indirects[name_node->tag_value]->clone();
         } else if (name_node->type == NameNodeType::ITEM) {
             std::string enum_name = name_node->name.substr(0, name_node->name.find("."));
             int type_pos = curSrc.table_types.findType(enum_name);
             if (type_pos < 0) {
-                return "E0335 Enum not exists while matching " + name_node->name; // E0335
+                return "E0334 Enum not exists while matching " + name_node->name; // E0334
             }
             if (curSrc.table_types.types[type_pos]->type != TypeNodeType::ENUM) {
-                return "E0336 Not enum type while matching " + name_node->name; // E0336
+                return "E0335 Not enum type while matching " + name_node->name; // E0335
             }
             name_node->type_node = curSrc.table_types.types[type_pos]->clone();
         }
@@ -384,9 +383,10 @@ std::unique_ptr<TypeNode> Parser::parseGenericType(TokenProvider& prov, SrcModul
                     }
                 }
             }
-            if (newType->type != TypeNodeType::ABSTRACT
-                    && newType->type != TypeNodeType::ENUM
-                    && newType->type != TypeNodeType::PRECOMPILE1) {
+            if (newType->type != TypeNodeType::ABSTRACT // struct in current module
+                    && newType->type != TypeNodeType::STRUCT // struct in another module
+                    && newType->type != TypeNodeType::ENUM // enum
+                    && newType->type != TypeNodeType::PRECOMPILE1) { // name that not declared yet
                 throw std::runtime_error("E0316 Expected struct or enum with name " + tkn.text + " at " + findLocation(tkn.location)); // E0316
             }
             break;
@@ -510,7 +510,8 @@ std::unique_ptr<TypeNode> Parser::parseEnumDef(const std::string enum_name, Toke
             if (tkn.type == TokenType::OP_SEMICOLON || tkn.type == TokenType::OP_COMMA) {
                 break;
             } else if (tkn.type == TokenType::OP_RBRACE) {
-                throw std::runtime_error("E0328 Enum type not completed at " + findLocation(tkn.location)); // E0328
+                prov.rewind();
+                break;
             }
         }
         std::string name;
@@ -526,16 +527,16 @@ std::unique_ptr<TypeNode> Parser::parseEnumDef(const std::string enum_name, Toke
             name = buffer[0].text;
             previous = (buffer[2].type == TokenType::OP_MINUS) ? (-buffer[3].value.int_value) - 1 : buffer[3].value.int_value - 1;
         } else {
-            throw std::runtime_error("E0329 Invalid enum item at " + findLocation(buffer[0].location)); // E0329
+            throw std::runtime_error("E0328 Invalid enum item at " + findLocation(buffer[0].location)); // E0328
         }
 
         // add enum_type.item with int value
         if (!curSrc.table_names.addName(std::make_unique<NameNode>(NameNodeType::ITEM, enum_name + "." + name, ++previous))) {
-            throw std::runtime_error("E0330 name " + enum_name + "." + name + "is double defined at " + findLocation(buffer[0].location)); // E0330
+            throw std::runtime_error("E0329 name " + enum_name + "." + name + "is double defined at " + findLocation(buffer[0].location)); // E0329
         }
         for (auto i : values) {
             if (i == previous) {
-                throw std::runtime_error("E0331 conflicting value " + std::to_string(previous) + " with name " + enum_name + "." + name + " at " + findLocation(buffer[0].location)); // E0331
+                throw std::runtime_error("E0330 conflicting value " + std::to_string(previous) + " with name " + enum_name + "." + name + " at " + findLocation(buffer[0].location)); // E0330
             }
         }
         if (previous < min) min = previous;
