@@ -88,7 +88,9 @@ enum class TokenType {
     KEY_CONTINUE,
     KEY_RETURN,
     KEY_STRUCT,
-    KEY_ENUM
+    KEY_ENUM,
+    // for pass2
+    PRECOMPILE2
 };
 
 class Token {
@@ -112,5 +114,20 @@ class Token {
 
 // tokenize source code into tokens, [can raise exception]
 std::vector<Token> tokenize(const std::string& source, const std::string filename, const int source_id);
+
+class TokenProvider {
+    public:
+    std::vector<Token> tokens;
+    Token nulltkn;
+    int pos;
+
+    TokenProvider(std::vector<Token> data) : tokens(std::move(data)), nulltkn(), pos(0) {}
+
+    bool canPop(int num);
+    Token& pop();
+    Token& seek();
+    void rewind();
+    bool match(std::vector<TokenType> types);
+};
 
 #endif // TOKENIZE_H

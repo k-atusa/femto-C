@@ -1,0 +1,10 @@
+struct Point {
+  i32 X;
+  i32 Y;
+}
+
+enum Color {
+  RED = 10;
+  GREEN = 20;
+  BLUE = 30;
+}

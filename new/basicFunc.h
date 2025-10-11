@@ -15,6 +15,7 @@ class CompileMessage {
     int level;
 
     CompileMessage() : level(3) {} // default level 3
+    CompileMessage(int lvl) : level(lvl) {}
 
     void Log(const std::string& msg, int lvl) {
         if (lvl >= level) {
@@ -73,16 +74,16 @@ enum class ValueType {
 // for saving literal values
 struct ValueNode {
     ValueType type;
-    int int_value;
+    int64_t int_value;
     double float_value;
     char char_value;
     std::string string_value;
 
-    ValueNode() : type(ValueType::NONE) {}
-    ValueNode(int val) : type(ValueType::INT10), int_value(val) {}
-    ValueNode(double val) : type(ValueType::FLOAT), float_value(val) {}
-    ValueNode(char val) : type(ValueType::CHAR), char_value(val) {}
-    ValueNode(const std::string& val) : type(ValueType::STRING), string_value(val) {}
+    ValueNode() : type(ValueType::NONE), int_value(0), float_value(0.0), char_value(0), string_value("") {}
+    ValueNode(int64_t val) : type(ValueType::INT10), int_value(val), float_value(0.0), char_value(0), string_value("") {}
+    ValueNode(double val) : type(ValueType::FLOAT), int_value(val), float_value(val), char_value(0), string_value("") {}
+    ValueNode(char val) : type(ValueType::CHAR), int_value(val), float_value(0.0), char_value(val), string_value("") {} // can use char as int
+    ValueNode(const std::string& val) : type(ValueType::STRING), int_value(0), float_value(0.0), char_value(0), string_value(val) {}
 
     std::string toString() const;
 };
@@ -95,7 +96,7 @@ enum class TypeNodeType {
     FUNCTION,
     STRUCT,
     ENUM,
-    PRECOMPILE1
+    PRECOMPILE1 // struct or enum in source
 };
 
 // represents a type in the type system
@@ -104,11 +105,14 @@ class TypeNode {
     TypeNodeType type;
     std::string name;
     int size; // size in bytes
+    int length; // array length
+    int offset; // struct member offset
+    int allign_req; // allign requirement
     std::unique_ptr<TypeNode> direct; // ptr & arr target, func return
     std::vector<std::unique_ptr<TypeNode>> indirects; // func params, struct members
 
-    TypeNode() : type(TypeNodeType::NONE), name(""), size(0), direct(nullptr), indirects() {}
-    TypeNode(TypeNodeType tp, const std::string& n, int s) : type(tp), name(n), size(s), direct(nullptr), indirects() {}
+    TypeNode() : type(TypeNodeType::NONE), name(""), size(0), length(-1), offset(-1), allign_req(1), direct(nullptr), indirects() {}
+    TypeNode(TypeNodeType tp, const std::string& n, int s) : type(tp), name(n), size(s), length(-1), offset(-1), allign_req(s), direct(nullptr), indirects() {}
 
     bool isEqual(const TypeNode& other) const;
     std::unique_ptr<TypeNode> clone() const;
@@ -133,11 +137,12 @@ enum class NameNodeType {
     NONE,
     GLOBAL,
     LOCAL,
-    PARAM,
-    MEMBER,
-    STRUCT,
-    ENUM,
     FUNCTION,
+    STRUCT, // not used, struct info is in TypeTable
+    MEMBER,
+    METHOD,
+    ENUM, // not used, enum info is in TypeTable
+    ITEM,
     MODULE
 };
 
@@ -146,14 +151,20 @@ class NameNode {
     public:
     NameNodeType type;
     std::string name;
-    std::string alias;
-    int name_id;
+    int tag_value; // source_id, struct member pos, enum value, va_arg 1, const 2, volatile 3
+    std::unique_ptr<TypeNode> type_node; // type info for global, local, function, member, method, item
 
-    NameNode() : type(NameNodeType::NONE), name(""), alias(""), name_id(-1) {}
-    NameNode(NameNodeType tp, const std::string& nm, const std::string& al, int i) : type(tp), name(nm), alias(al), name_id(i) {}
+    NameNode() : type(NameNodeType::NONE), name(""), tag_value(-1), type_node(nullptr) {}
+    NameNode(NameNodeType tp, const std::string& nm, int tag) : type(tp), name(nm), tag_value(tag), type_node(nullptr) {}
+    NameNode(NameNodeType tp, const std::string& nm, int tag, std::unique_ptr<TypeNode> tn) : type(tp), name(nm), tag_value(tag), type_node(std::move(tn)) {}
 
+    std::unique_ptr<NameNode> clone() { return std::make_unique<NameNode>(type, name, tag_value, type_node->clone()); }
     std::string toString() const {
-        return "NameNode type: " + std::to_string(static_cast<int>(type)) + ", name: " + name + "<" + alias + ">, id: " + std::to_string(name_id);
+        if (type_node == nullptr) {
+            return "_ " + name + ", type: " + std::to_string(static_cast<int>(type)) + ", tag: " + std::to_string(tag_value);
+        } else {
+            return type_node->toString() + " " + name + ", type: " + std::to_string(static_cast<int>(type)) + ", tag: " + std::to_string(tag_value);
+        }
     }
 };
 

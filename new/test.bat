@@ -1,3 +1,3 @@
-clang++ -std=c++23 tokenize.cpp test.cpp -o test_exe.exe
-test_exe.exe
+clang++ -std=c++23 -Wall basicFunc.cpp tokenize.cpp parser.cpp test.cpp -o cplr.exe
+cplr.exe
 pause

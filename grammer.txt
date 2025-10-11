@@ -90,12 +90,12 @@ enum id {id, id = literal, ...}
 열거형은 정수형의 별칭이다. 정수를 받는 자리에 쓸 수 있다
 리터럴 지정 없는 열거형은 0부터 시작하며 다음 이름에 1씩 더한 수를 부여한다
 리터럴로 해당하는 정수를 직접 지정할 수 있다
-열거형은 해당 정수들을 모두 표현할 수 있는 타입 중 가장 작은 타입을 부여받는다 (signed int 우선)
+열거형은 해당 정수들을 모두 표현할 수 있는 부호 있는 정수 타입 중 가장 작은 타입을 부여받는다
 
 16. 컴파일러 지시
 주석: //... 과 /* ... */
 컴파일러 지시: #order ... 형태
-#defer stat (지연 평가는 scope 끝나기 직전에 자동삽입)
+#defer stat (지연 문장은 scope 끝나기 직전에 자동삽입)
 컴파일러가 스코프 컴파일 시 스택에 쌓았다가 종료시 역순으로 자동삽입함 (선언 시점의 값을 기억하지 않음, 단순 치환과 동일)
 #const T id = expr; (id에 값을 재할당하는 시도를 막음, 포인터로 이 제약이 풀릴 수 있음)
 #volatile T id = expr; (id와 관련된 최적화를 막음)
@@ -103,3 +103,46 @@ enum id {id, id = literal, ...}
 #func_c id id ... "..." (id를 사용하여 C 함수를 호출, id는 컴파일 시 이름 매핑을 위해 필요)
 #raw_ir "..." (컴파일 타겟 IR에 직접 코드 삽입)
 #func_ir id id ... "..." (id를 사용하여 IR 함수를 호출, id는 컴파일 시 이름 매핑을 위해 필요)
+
+<module> ::= {<comment> | <compiler> | <var_declare> | <function_declare> | <struct_declare> | <enum_declare>}
+
+<comment> ::= ("//" {_char_} "\n") | ("/*" {_char_} "*/")
+
+<compiler> ::= "#" ("include" _string_ <identifier>) | ("raw_c" _string_) | ("func_c" {<identifier>} _string_) | ("raw_ir" _string_) | ("func_ir" {<identifier>} _string_)
+    | ("const" <var_declare>) | ("volatile" <var_declare>) | ("va_arg" <function_declare>) | ("defer" <statement>)
+
+<function_declare> ::= <type> [<identifier> "."] <identifier> "(" {<type> <identifier> ","} [<type> <identifier>] ")" <block>
+
+<struct_declare> ::= "struct" <identifier> "{" {<type> <identifier> ";"} "}"
+
+<enum_declare> ::= "enum" <identifier> "{" {<identifier> ["=" _int_] ","} "}"
+
+<block> ::= "{" {<statement>} "}"
+
+<statement> ::= <var_declare> | <var_assign> | (<function_call> ";") | <control_if> | <control_while> | <control_for> | <control_switch> | <compiler> | <comment> | ("break" ";") | ("continue" ";")
+
+<var_declare> ::= <type> <identifier> ["=" <expression>] ";"
+
+<var_assign> ::= <lvalue> "=" <expression> ";"
+
+<function_call> ::= <identifier> "(" {<expression> ","} [<expression>] ")"
+
+<control_if> ::= "if" "(" <expression> ")" <block> {"else" "if" "(" <expression> ")" <block>} ["else" <block>]
+
+<control_while> ::= "while" "(" <expression> ")" <block>
+
+<control_for> ::= "for" "(" <statement> <expression> <statement> ")" <block>
+
+<control_switch> ::= "switch" "(" <expression> ")" "{" {"case" _int_ ":" {<statement>}} ["default" ":" {<statement>}] "}"
+
+<literal> ::= _int_ | _float_ | _char_ | _string_ | "null" | "true" | "false"
+
+<type> ::= "void" | "i8" | "i16" | "i32" | "i64" | "u8" | "u16" | "u32" | "u64" | "f32" | "f64"
+    | (<type> "*") | (<type> "[" "]") | (<type> "[" _int_ "]") | (<type> "(" {<type> ","} [<type>] ")") | <identifier> "." <identifier>
+
+<identifier> ::= A-Za-z {0-9A-Za-z_}
+
+<lvalue> ::= <identifier> | (<identifier> "." <lvalue>) | ("*" <lvalue>) | (<lvalue> "[" <expression> "]") | ("(" <lvalue> ")")
+
+<expression> ::= <literal> | <identifier> | <function_call> | "sizeof" "(" <expression> ")" | "(" <type> ")" <expression>
+    | (_single_operator_ <expression>) | (<expression> _double_operator_ <expression>) | (<expression> "[" <expression> "]") | ("(" <expression> ")")

@@ -158,6 +158,9 @@ bool TypeNode::isEqual(const TypeNode& other) const {
 
 std::unique_ptr<TypeNode> TypeNode::clone() const {
     auto newNode = std::make_unique<TypeNode>(type, name, size);
+    newNode->length = length;
+    newNode->offset = offset;
+    newNode->allign_req = allign_req;
     if (direct) {
         newNode->direct = direct->clone();
     }
@@ -167,45 +170,44 @@ std::unique_ptr<TypeNode> TypeNode::clone() const {
     return newNode;
 }
 
-std::string TypeNode::toString(int depth = 0, bool verbose = false) {
+std::string TypeNode::toString(int depth, bool verbose) {
     if (verbose) {
         std::string indent(depth * 2, ' ');
         std::string result;
         result += indent + "TypeNode type: " + std::to_string(static_cast<int>(type)) + "\n";
         result += indent + "name: " + name + "\n";
         result += indent + "size: " + std::to_string(size) + "\n";
+        result += indent + "length: " + std::to_string(length) + "\n";
+        result += indent + "offset: " + std::to_string(offset) + "\n";
+        result += indent + "allign requirement: " + std::to_string(allign_req) + "\n";
         if (direct) {
-            result += indent + "direct:\n" + direct->toString(depth + 1);
+            result += indent + "direct:\n" + direct->toString(depth + 1, true) + "\n";
         }
         for (const auto& ind : indirects) {
-            result += indent + "indirect:\n" + ind->toString(depth + 1);
+            result += indent + "indirect:\n" + ind->toString(depth + 1, true) + "\n";
         }
-        return result + "\n";
+        return result;
     } else {
         switch (type) {
-            case TypeNodeType::PRIMITIVE:
+            case TypeNodeType::PRIMITIVE: case TypeNodeType::STRUCT: case TypeNodeType::ENUM:
                 return name;
             case TypeNodeType::POINTER:
                 return direct ? direct->toString() + "*" : "invalid";
             case TypeNodeType::ARRAY:
                 if (direct && direct->size > 0) {
-                    return direct->toString() + "[" + std::to_string(size / direct->size) + "]";
+                    return direct->toString() + "[" + std::to_string(length) + "]";
                 } else {
                     return "invalid";
                 }
             case TypeNodeType::FUNCTION: {
                 if (!direct) return "invalid";
-                std::string result = direct->toString() + "<";
+                std::string result = direct->toString() + "(";
                 for (size_t i = 0; i < indirects.size(); ++i) {
                     result += indirects[i]->toString();
                     if (i < indirects.size() - 1) result += ",";
                 }
-                return result + ">";
+                return result + ")";
             }
-            case TypeNodeType::STRUCT:
-                return "struct " + name;
-            case TypeNodeType::ENUM:
-                return "enum " + name;
             default:
                 return "invalid";
         }
@@ -232,10 +234,10 @@ int TypeTable::findType(const std::string& name) {
     return -1;
 }
 
-std::string TypeTable::toString(int depth = 0) {
+std::string TypeTable::toString(int depth) {
     std::string indent(depth * 2, ' ');
     std::string result;
-    result += indent + "TypeTable id: " + std::to_string(source_id) + ")\n";
+    result += indent + "TypeTable id: " + std::to_string(source_id) + "\n";
     for (const auto& type : types) {
         result += type->toString(depth + 1, true);
     }
@@ -245,26 +247,8 @@ std::string TypeTable::toString(int depth = 0) {
 // name table methods
 bool NameTable::addName(std::unique_ptr<NameNode> name){
     for (const auto& existing : names) {
-        if (existing->type == NameNodeType::FUNCTION && name->type == NameNodeType::FUNCTION) {
-            if (existing->name == name->name && existing->alias == name->alias) {
-                return false; // already exists
-            }
-        } else {
-            std::string cmp0;
-            std::string cmp1;
-            if (existing->type == NameNodeType::MODULE || existing->type == NameNodeType::FUNCTION) {
-                cmp0 = existing->alias;
-            } else {
-                cmp0 = existing->name;
-            }
-            if (name->type == NameNodeType::MODULE || name->type == NameNodeType::FUNCTION) {
-                cmp1 = name->alias;
-            } else {
-                cmp1 = name->name;
-            }
-            if (cmp0 == cmp1) {
-                return false; // already exists
-            }
+        if (existing->name == name->name) {
+            return false; // already exists
         }
     }
     names.push_back(std::move(name));
@@ -272,24 +256,18 @@ bool NameTable::addName(std::unique_ptr<NameNode> name){
 }
 
 int NameTable::findName(const std::string& name) {
-    for (size_t i = 0; i < names.size(); ++i) {
-        std::string cmp;
-        if (names[i]->type == NameNodeType::MODULE || names[i]->type == NameNodeType::FUNCTION) {
-            cmp = names[i]->alias;
-        } else {
-            cmp = names[i]->name;
-        }
-        if (cmp == name) {
+    for (size_t i = 0; i < names.size(); i++) {
+        if (names[i]->name == name) {
             return static_cast<int>(i);
         }
     }
     return -1;
 }
 
-std::string NameTable::toString(int depth = 0) {
+std::string NameTable::toString(int depth) {
     std::string indent(depth * 2, ' ');
     std::string result;
-    result += indent + "NameTable id: " + std::to_string(source_id) + ")\n";
+    result += indent + "NameTable id: " + std::to_string(source_id) + "\n";
     for (const auto& name : names) {
         result += indent + name->toString() + "\n";
     }

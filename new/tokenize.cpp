@@ -14,7 +14,7 @@ TokenType isDoubleOp(char c1, char c2) {
     if (c1 == '&' && c2 == '&') return TokenType::OP_LOGIC_AND;
     if (c1 == '|' && c2 == '|') return TokenType::OP_LOGIC_OR;
     if (c1 == '<' && c2 == '<') return TokenType::OP_BIT_LSHIFT;
-    // if (c1 == '>' && c2 == '>') return TokenType::OP_BIT_RSHIFT; // function pointer conflict
+    if (c1 == '>' && c2 == '>') return TokenType::OP_BIT_RSHIFT;
     return TokenType::NONE;
 }
 
@@ -88,7 +88,7 @@ TokenType isNumber(const std::string& text) {
             isHex = true;
         } else if (c == '.' && !isHex && !isFloat) {
             isFloat = true;
-        } else if (!('0' <= c && c <= '9' || isHex && ('a' <= c && c <= 'f' || 'A' <= c && c <= 'F'))) {
+        } else if (!(('0' <= c && c <= '9') || (isHex && (('a' <= c && c <= 'f') || ('A' <= c && c <= 'F'))))) {
             return TokenType::NONE;
         }
     }
@@ -117,7 +117,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
 
         switch (status) {
             case TokenizeStatus::DEFAULT:
-                if ('A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' || c == '_' || c > 127) { // id start
+                if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c == '_' || c > 127) { // id start
                     buffer.clear();
                     buffer.push_back(c);
                     status = TokenizeStatus::IDENTIFIER;
@@ -214,7 +214,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                 break;
 
             case TokenizeStatus::IDENTIFIER:
-                if ('A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' || c == '_' || c > 127 || '0' <= c && c <= '9') { // id continue
+                if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c == '_' || c > 127 || ('0' <= c && c <= '9')) { // id continue
                     buffer.push_back(c);
                 } else { // id end
                     std::string id_str(buffer.begin(), buffer.end());
@@ -257,7 +257,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
             }
 
             case TokenizeStatus::NUMBER:
-                if ('0' <= c && c <= '9' || 'a' <= c && c <= 'f' || 'A' <= c && c <= 'F' || c == 'x' || c == 'X' || c == '.') { // number continue
+                if (('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F') || c == 'x' || c == 'X' || c == '.') { // number continue
                     buffer.push_back(c);
                 } else { // number end
                     std::string num_str(buffer.begin(), buffer.end());
@@ -270,9 +270,9 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     tkn.location = LocNode(source_id, line);
                     tkn.text = num_str;
                     if (num_type == TokenType::LIT_INT10) {
-                        tkn.value = ValueNode(std::stoi(num_str));
+                        tkn.value = ValueNode(std::stoll(num_str));
                     } else if (num_type == TokenType::LIT_INT16) {
-                        tkn.value = ValueNode(std::stoi(num_str, nullptr, 16));
+                        tkn.value = ValueNode(std::stoll(num_str, nullptr, 16));
                     } else if (num_type == TokenType::LIT_FLOAT) {
                         tkn.value = ValueNode(std::stod(num_str));
                     }
@@ -356,4 +356,44 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
         }
     }
     return result;
+}
+
+// token provider functions
+bool TokenProvider::canPop(int num) {
+    return pos + num - 1 < tokens.size();
+}
+
+Token& TokenProvider::pop() {
+    if (pos >= tokens.size()) {
+        return nulltkn;
+    }
+    return tokens[pos++];
+}
+
+Token& TokenProvider::seek() {
+    if (pos >= tokens.size()) {
+        return nulltkn;
+    }
+    return tokens[pos];
+}
+
+void TokenProvider::rewind() {
+    if (pos > 0) {
+        pos--;
+    }
+}
+
+bool TokenProvider::match(std::vector<TokenType> types) {
+    if (!canPop(types.size())) {
+        return false;
+    }
+    for (int i = 0; i < types.size(); i++) {
+        if (types[i] == TokenType::PRECOMPILE2) {
+            continue;
+        }
+        if (tokens[pos + i].type != types[i]) {
+            return false;
+        }
+    }
+    return true;
 }
