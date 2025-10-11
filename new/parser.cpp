@@ -109,10 +109,14 @@ int Parser::findModule(int id) {
 bool comepleteTypes(TypeNode& node, SrcModule& curSrc) {
     bool modified = false; // complete lower nodes first
     if (node.direct) {
-        modified = modified || comepleteTypes(*node.direct, curSrc);
+        if (comepleteTypes(*node.direct, curSrc)) {
+            modified = true;
+        }
     }
     for (auto& ind : node.indirects) {
-        modified = modified || comepleteTypes(*ind, curSrc);
+        if (comepleteTypes(*ind, curSrc)) {
+            modified = true;
+        }
     }
 
     if (node.size < 0 && node.type == TypeNodeType::ARRAY) { // incomplete array
@@ -123,7 +127,11 @@ bool comepleteTypes(TypeNode& node, SrcModule& curSrc) {
         }
 
     } else if (node.size < 0 && node.type == TypeNodeType::STRUCT) { // incomplete struct
+        // check if all indirects are complete
         int allign_req = 1;
+        if (node.indirects.size() == 0) {
+            return modified;
+        }
         for (auto& ind : node.indirects) {
             if (ind->size < 0) {
                 return modified;
@@ -147,10 +155,23 @@ bool comepleteTypes(TypeNode& node, SrcModule& curSrc) {
         }
         node.size = offset;
 
+    } else if (node.size < 0 && node.type == TypeNodeType::ABSTRACT) { // abstract struct
+        int type_pos = curSrc.table_types.findType(node.name);
+        if (type_pos >= 0 && curSrc.table_types.types[type_pos]->size >= 0) {
+            node.size = curSrc.table_types.types[type_pos]->size;
+            node.offset = curSrc.table_types.types[type_pos]->offset;
+            node.allign_req = curSrc.table_types.types[type_pos]->allign_req;
+            modified = true;
+        }
+
     } else if (node.type == TypeNodeType::PRECOMPILE1) { // struct or enum
         int type_pos = curSrc.table_types.findType(node.name);
         if (type_pos >= 0) {
-            node.type = curSrc.table_types.types[type_pos]->type;
+            if (curSrc.table_types.types[type_pos]->type == TypeNodeType::STRUCT) {
+                node.type = TypeNodeType::ABSTRACT;
+            } else {
+                node.type = curSrc.table_types.types[type_pos]->type;
+            }
             node.length = curSrc.table_types.types[type_pos]->length;
             modified = true;
             if (curSrc.table_types.types[type_pos]->size >= 0) {
@@ -260,7 +281,9 @@ std::string Parser::pass1(TokenProvider& prov, SrcModule& curSrc, const std::str
         while (isModified) {
             isModified = false;
             for (auto& node : curSrc.table_types.types) {
-                isModified = isModified || comepleteTypes(*node, curSrc);
+                if (comepleteTypes(*node, curSrc)) {
+                    isModified = true;
+                }
             }
         }
     } catch (const std::runtime_error& e) {
@@ -347,13 +370,21 @@ std::unique_ptr<TypeNode> Parser::parseGenericType(TokenProvider& prov, SrcModul
                 newType->name = tkn.text + "." + newType->name;
             } else { // just name
                 int type_pos = curSrc.table_types.findType(tkn.text);
-                if (type_pos != -1 && curSrc.table_types.types[type_pos]->size >= 0) {
-                    newType = curSrc.table_types.types[type_pos]->clone();
-                } else {
+                if (type_pos < 0) { // name that not declared yet
                     newType = std::make_unique<TypeNode>(TypeNodeType::PRECOMPILE1, tkn.text, -1);
+                } else {
+                    auto& copyTgt = curSrc.table_types.types[type_pos];
+                    if (copyTgt->type == TypeNodeType::STRUCT) { // struct
+                        newType = std::make_unique<TypeNode>(TypeNodeType::ABSTRACT, copyTgt->name, copyTgt->size);
+                        newType->allign_req = copyTgt->allign_req;
+                        newType->length = copyTgt->length;
+                        newType->offset = copyTgt->offset;
+                    } else { // enum
+                        newType = copyTgt->clone();
+                    }
                 }
             }
-            if (newType->type != TypeNodeType::STRUCT
+            if (newType->type != TypeNodeType::ABSTRACT
                     && newType->type != TypeNodeType::ENUM
                     && newType->type != TypeNodeType::PRECOMPILE1) {
                 throw std::runtime_error("E0316 Expected struct or enum with name " + tkn.text + " at " + findLocation(tkn.location)); // E0316

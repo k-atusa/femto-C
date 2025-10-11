@@ -1,26 +1,5 @@
-#include "base.txt" base
-#include "lib.txt" lib
-
-void main() {
-  base.Point p;
-  p.X = base.Color.RED;
-  p.Y = base.Color.GREEN;
-  ;
-
-  lib.File f;
-  f.Open("test.txt");
-  f.GetSize();
-  f.Close();
-}
-;
-
-struct t {
-  u8 a;
-  i32 b;
-  u8[6] c;
-  i64[4] d;
-  i16 e;
-}
-
-base.Point gv0;
-base.Color gv1 = base.BLUE;
+struct a { b v; }
+struct b { c v; }
+struct c { d v; }
+struct d { e v; }
+struct e { a v; }

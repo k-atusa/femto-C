@@ -189,7 +189,7 @@ std::string TypeNode::toString(int depth, bool verbose) {
         return result;
     } else {
         switch (type) {
-            case TypeNodeType::PRIMITIVE: case TypeNodeType::STRUCT: case TypeNodeType::ENUM:
+            case TypeNodeType::PRIMITIVE: case TypeNodeType::STRUCT: case TypeNodeType::ENUM: case TypeNodeType::ABSTRACT:
                 return name;
             case TypeNodeType::POINTER:
                 return direct ? direct->toString() + "*" : "invalid";

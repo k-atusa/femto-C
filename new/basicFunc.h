@@ -96,6 +96,7 @@ enum class TypeNodeType {
     FUNCTION,
     STRUCT,
     ENUM,
+    ABSTRACT, // abstract struct, for defining looping struct
     PRECOMPILE1 // struct or enum in source
 };
 
