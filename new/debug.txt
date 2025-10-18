@@ -1,211 +1,23 @@
 Program.8:
 SrcID 0: C:\Users\427ta\Desktop\TSLL\test\main.txt
-SrcID 1: C:\Users\427ta\Desktop\TSLL\test\datatypes.txt
-SrcID 2: C:\Users\427ta\Desktop\TSLL\test\utils.txt
-
-
-
-Module: C:\Users\427ta\Desktop\TSLL\test\datatypes.txt
-module name table:
-NameTable id: 1
-i32 Point.X, type: 5, tag: 0
-i32 Point.Y, type: 5, tag: 1
-Point Rectangle.TopLeft, type: 5, tag: 0
-i32 Rectangle.Width, type: 5, tag: 1
-i32 Rectangle.Height, type: 5, tag: 2
-Status Status.OK, type: 8, tag: 0
-Status Status.PENDING, type: 8, tag: 1
-Status Status.WARNING, type: 8, tag: 2
-Status Status.ERROR, type: 8, tag: -1
-Status Status.TIMEOUT, type: 8, tag: -2
-NodeB* NodeA.next, type: 5, tag: 0
-i32 NodeA.data, type: 5, tag: 1
-NodeA* NodeB.prev, type: 5, tag: 0
-i32 NodeB.data, type: 5, tag: 1
-u8* internalConfig.key, type: 5, tag: 0
-u8* internalConfig.value, type: 5, tag: 1
-i32(Rectangle*) Rectangle.Area, type: 6, tag: 0
-
-module type table:
-TypeTable id: 1
-
-  TypeNode type: 5, name: Point, size: 8
-  length: -1, offset: -1, allign requirement: 4
-  indirect:
-    TypeNode type: 1, name: i32, size: 4
-    length: -1, offset: 0, allign requirement: 4
-  indirect:
-    TypeNode type: 1, name: i32, size: 4
-    length: -1, offset: 4, allign requirement: 4
-
-  TypeNode type: 5, name: Rectangle, size: 16
-  length: -1, offset: -1, allign requirement: 4
-  indirect:
-    TypeNode type: 7, name: Point, size: 8
-    length: -1, offset: 0, allign requirement: 4
-  indirect:
-    TypeNode type: 1, name: i32, size: 4
-    length: -1, offset: 8, allign requirement: 4
-  indirect:
-    TypeNode type: 1, name: i32, size: 4
-    length: -1, offset: 12, allign requirement: 4
-
-  TypeNode type: 6, name: Status, size: 1
-  length: -1, offset: -1, allign requirement: 1
-
-  TypeNode type: 5, name: NodeA, size: 16
-  length: -1, offset: -1, allign requirement: 8
-  indirect:
-    TypeNode type: 2, name: pointer, size: 8
-    length: -1, offset: 0, allign requirement: 8
-    direct:
-      TypeNode type: 7, name: NodeB, size: 16
-      length: -1, offset: -1, allign requirement: 8
-  indirect:
-    TypeNode type: 1, name: i32, size: 4
-    length: -1, offset: 8, allign requirement: 4
-
-  TypeNode type: 5, name: NodeB, size: 16
-  length: -1, offset: -1, allign requirement: 8
-  indirect:
-    TypeNode type: 2, name: pointer, size: 8
-    length: -1, offset: 0, allign requirement: 8
-    direct:
-      TypeNode type: 7, name: NodeA, size: 16
-      length: -1, offset: -1, allign requirement: 8
-  indirect:
-    TypeNode type: 1, name: i32, size: 4
-    length: -1, offset: 8, allign requirement: 4
-
-  TypeNode type: 5, name: internalConfig, size: 16
-  length: -1, offset: -1, allign requirement: 8
-  indirect:
-    TypeNode type: 2, name: pointer, size: 8
-    length: -1, offset: 0, allign requirement: 8
-    direct:
-      TypeNode type: 1, name: u8, size: 1
-      length: -1, offset: -1, allign requirement: 1
-  indirect:
-    TypeNode type: 2, name: pointer, size: 8
-    length: -1, offset: 8, allign requirement: 8
-    direct:
-      TypeNode type: 1, name: u8, size: 1
-      length: -1, offset: -1, allign requirement: 1
-
-export name table:
-NameTable id: 1
-i32 Point.X, type: 5, tag: 0
-i32 Point.Y, type: 5, tag: 1
-Point Rectangle.TopLeft, type: 5, tag: 0
-i32 Rectangle.Width, type: 5, tag: 1
-i32 Rectangle.Height, type: 5, tag: 2
-Status Status.OK, type: 8, tag: 0
-Status Status.PENDING, type: 8, tag: 1
-Status Status.WARNING, type: 8, tag: 2
-Status Status.ERROR, type: 8, tag: -1
-Status Status.TIMEOUT, type: 8, tag: -2
-i32(Rectangle*) Rectangle.Area, type: 6, tag: 0
-
-export type table:
-TypeTable id: 1
-
-  TypeNode type: 5, name: Point, size: 8
-  length: -1, offset: -1, allign requirement: 4
-  indirect:
-    TypeNode type: 1, name: i32, size: 4
-    length: -1, offset: 0, allign requirement: 4
-  indirect:
-    TypeNode type: 1, name: i32, size: 4
-    length: -1, offset: 4, allign requirement: 4
-
-  TypeNode type: 5, name: Rectangle, size: 16
-  length: -1, offset: -1, allign requirement: 4
-  indirect:
-    TypeNode type: 7, name: Point, size: 8
-    length: -1, offset: 0, allign requirement: 4
-  indirect:
-    TypeNode type: 1, name: i32, size: 4
-    length: -1, offset: 8, allign requirement: 4
-  indirect:
-    TypeNode type: 1, name: i32, size: 4
-    length: -1, offset: 12, allign requirement: 4
-
-  TypeNode type: 6, name: Status, size: 1
-  length: -1, offset: -1, allign requirement: 1
-
-  TypeNode type: 5, name: NodeA, size: 16
-  length: -1, offset: -1, allign requirement: 8
-  indirect:
-    TypeNode type: 2, name: pointer, size: 8
-    length: -1, offset: 0, allign requirement: 8
-    direct:
-      TypeNode type: 7, name: NodeB, size: 16
-      length: -1, offset: -1, allign requirement: 8
-  indirect:
-    TypeNode type: 1, name: i32, size: 4
-    length: -1, offset: 8, allign requirement: 4
-
-  TypeNode type: 5, name: NodeB, size: 16
-  length: -1, offset: -1, allign requirement: 8
-  indirect:
-    TypeNode type: 2, name: pointer, size: 8
-    length: -1, offset: 0, allign requirement: 8
-    direct:
-      TypeNode type: 7, name: NodeA, size: 16
-      length: -1, offset: -1, allign requirement: 8
-  indirect:
-    TypeNode type: 1, name: i32, size: 4
-    length: -1, offset: 8, allign requirement: 4
-
-
-
-Module: C:\Users\427ta\Desktop\TSLL\test\utils.txt
-module name table:
-NameTable id: 2
-_ Data, type: 9, tag: 1
-i32 MAX_USERS, type: 1, tag: 2
-u8* AppName, type: 1, tag: 0
-i8 IsDebugMode, type: 1, tag: 0
-i32 internalCounter, type: 1, tag: 0
-i32(i32,i32) Add, type: 3, tag: 0
-Data.Point(i32,i32) CreatePoint, type: 3, tag: 0
-void(u8*,void**,i32) Log, type: 3, tag: 1
-void() incrementCounter, type: 3, tag: 0
-
-module type table:
-TypeTable id: 2
-
-export name table:
-NameTable id: 2
-i32 MAX_USERS, type: 1, tag: 2
-u8* AppName, type: 1, tag: 0
-i8 IsDebugMode, type: 1, tag: 0
-i32(i32,i32) Add, type: 3, tag: 0
-Data.Point(i32,i32) CreatePoint, type: 3, tag: 0
-void(u8*,void**,i32) Log, type: 3, tag: 1
-
-export type table:
-TypeTable id: 2
 
 
 
 Module: C:\Users\427ta\Desktop\TSLL\test\main.txt
 module name table:
 NameTable id: 0
-_ Types, type: 9, tag: 1
-_ Util, type: 9, tag: 2
-Types.Point globalCenter, type: 1, tag: 0
-i32 exitCode, type: 1, tag: 0
-Types.NodeA* headNode, type: 1, tag: 0
-void() Initialize, type: 3, tag: 0
-void() main, type: 3, tag: 0
+t t.a, type: 8, tag: 2147483648
+t t.b, type: 8, tag: -4294967296
+t t.c, type: 8, tag: -1000000000
 
 module type table:
 TypeTable id: 0
 
+  TypeNode type: 6, name: t, size: 8
+  length: -1, offset: -1, allign requirement: 8
+
 export name table:
 NameTable id: 0
-void() Initialize, type: 3, tag: 0
 
 export type table:
 TypeTable id: 0

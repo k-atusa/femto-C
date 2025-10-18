@@ -1,38 +1,5 @@
-// main.tsllc
-// 여러 모듈을 조합하여 사용하는 최종 프로그램입니다.
-
-#include "datatypes.txt" Types
-#include "utils.txt" Util
-
-// --- 전역 변수 선언 (초기화 없음) ---
-// 다른 모듈의 타입을 사용하여 전역 변수를 선언합니다.
-Types.Point globalCenter;
-i32 exitCode;
-
-// --- 포인터 타입 전역 변수 (null 리터럴로 초기화) ---
-Types.NodeA* headNode = null;
-
-// --- main 함수보다 먼저 정의된 함수 ---
-// 이 함수가 Util.Add를 문제없이 참조하는지 확인하여 호이스팅을 테스트합니다.
-void Initialize() {
-    globalCenter.X = Util.Add(5, 5);
-    globalCenter.Y = 10;
-    exitCode = 0;
-}
-
-// --- 프로그램 진입점 ---
-void main() {
-    Initialize();
-
-    Types.Rectangle rect;
-    rect.TopLeft = globalCenter;
-    rect.Width = 100;
-    rect.Height = 50;
-    
-    // 메서드 호출 테스트 (컴파일러가 함수 호출로 변환)
-    i32 area = rect.Area();
-
-    // 가변 인자 함수 호출 테스트
-    u8* name = "TSLL-C";
-    Util.Log("Area is %d, Name is %s", &area, &name);
+enum t {
+  a = 2147483648,
+  b = -4294967296,
+  c = -1000000000
 }

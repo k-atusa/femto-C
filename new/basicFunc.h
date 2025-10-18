@@ -96,7 +96,7 @@ enum class TypeNodeType {
     FUNCTION,
     STRUCT,
     ENUM,
-    ABSTRACT, // abstract struct, for defining looping struct
+    ABSTRACT, // abstract memory chunk, for defining looping struct
     PRECOMPILE1 // struct or enum in source
 };
 
@@ -152,12 +152,12 @@ class NameNode {
     public:
     NameNodeType type;
     std::string name;
-    int tag_value; // source_id, struct member pos, enum value, va_arg 1, const 2, volatile 3
+    int64_t tag_value; // source_id, struct member pos, enum value, va_arg 1, const 2, volatile 3
     std::unique_ptr<TypeNode> type_node; // type info for global, local, function, member, method, item
 
     NameNode() : type(NameNodeType::NONE), name(""), tag_value(-1), type_node(nullptr) {}
-    NameNode(NameNodeType tp, const std::string& nm, int tag) : type(tp), name(nm), tag_value(tag), type_node(nullptr) {}
-    NameNode(NameNodeType tp, const std::string& nm, int tag, std::unique_ptr<TypeNode> tn) : type(tp), name(nm), tag_value(tag), type_node(std::move(tn)) {}
+    NameNode(NameNodeType tp, const std::string& nm, int64_t tag) : type(tp), name(nm), tag_value(tag), type_node(nullptr) {}
+    NameNode(NameNodeType tp, const std::string& nm, int64_t tag, std::unique_ptr<TypeNode> tn) : type(tp), name(nm), tag_value(tag), type_node(std::move(tn)) {}
 
     std::unique_ptr<NameNode> clone() { return std::make_unique<NameNode>(type, name, tag_value, type_node->clone()); }
     std::string toString() const {
