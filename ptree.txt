@@ -1,11 +1,9 @@
-기본 노드 ParseNode
+기본 노드 ParseNode : type, location, parent
 
-선언 노드 DeclNode extends ParseNode
 문장 노드 StatNode extends ParseNode
-표현식 노드 ExprNode extends ParseNode
+표현식 노드 ExprNode extends ParseNode : type_node
 
-변수 선언 VarDecl extends DeclNode
-함수 선언 FuncDecl extends DeclNode
+함수 블럭 FuncStat extends StatNode
 
 블록 BlockStat extends StatNode
 값 할당 VarStat extends StatNode

@@ -3,6 +3,53 @@
 
 #include "tokenize.h"
 
+// parse node types
+enum class ParseNodeType {
+    NONE,
+
+    DECL_VAR, // variable declaration
+    DECL_FUNC, // function declaration
+
+    STAT_BLOCK, // series of statements
+    STAT_VAR, // set variable
+    STAT_EXPR, // function call
+    STAT_IF, // if statement
+    STAT_WHILE, // while statement
+    STAT_FOR, // for statement
+    STAT_SWITCH, // switch statement
+    STAT_RETURN, // return statement
+    STAT_CTRL, // compiler control, break, continue
+
+    EXPR_LITERAL, // literal
+    EXPR_VAR, // variable
+    EXPR_FUNC, // function call
+    EXPR_UNARY, // sizeof, cast, *, &, -, !, ~
+    EXPR_BINARY // ., *, /, %, +, -, <<, >>, <, <=, >, >=, ==, !=, &, ^, |, &&, ||
+};
+
+// parent class of parsing node
+class ParseNode {
+    public:
+    ParseNodeType type;
+    LocNode location;
+    std::string text;
+    std::unique_ptr<TypeNode> type_node; // for expression node
+    std::unique_ptr<NameTable> name_table; // for block node
+    ParseNode* parent;
+    std::vector<std::unique_ptr<ParseNode>> children;
+
+    ParseNode() : type(ParseNodeType::NONE), location(), text(""), type_node(nullptr), name_table(nullptr), parent(nullptr) {}
+    ParseNode(ParseNodeType tp, LocNode loc, std::string txt, ParseNode* p) : type(tp), location(loc), text(txt), type_node(nullptr), name_table(nullptr), parent(p) {}
+    std::string toString(int indent = 0) const {
+        std::string indent_str(indent, ' ');
+        std::string result = indent_str + "ParseNode type: " + std::to_string(static_cast<int>(type)) + ", text: " + text + "\n";
+        for (const auto& child : children) {
+            result += child->toString(indent + 1) + "\n";
+        }
+        return result.substr(0, result.length() - 1);
+    }
+};
+
 // represents a source module
 class SrcModule {
     public:
