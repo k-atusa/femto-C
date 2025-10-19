@@ -473,11 +473,15 @@ std::unique_ptr<TypeNode> Parser::parseStructDef(const std::string name, TokenPr
         }
         Token tkn_name = prov.pop();
         Token tkn_end = prov.pop();
-        if (tkn_name.type != TokenType::IDENTIFIER || (tkn_end.type != TokenType::OP_SEMICOLON && tkn_end.type != TokenType::OP_COMMA)) {
+        if (tkn_name.type != TokenType::IDENTIFIER || 
+                (tkn_end.type != TokenType::OP_SEMICOLON && tkn_end.type != TokenType::OP_COMMA && tkn_end.type != TokenType::OP_RBRACE)) {
             throw std::runtime_error("E0324 Invalid struct member at " + findLocation(tkn_name.location)); // E0324
         }
         if (!curSrc.table_names.addName(std::make_unique<NameNode>(NameNodeType::MEMBER, name + "." + tkn_name.text, pos++))) { // add struct_type.member with member index
             throw std::runtime_error("E0325 name " + name + "." + tkn_name.text + "is double defined at " + findLocation(tkn_name.location)); // E0325
+        }
+        if (tkn_end.type == TokenType::OP_RBRACE) {
+            break;
         }
     }
     return newType;

@@ -1,0 +1,28 @@
+기본 노드 ParseNode
+
+선언 노드 DeclNode extends ParseNode
+문장 노드 StatNode extends ParseNode
+표현식 노드 ExprNode extends ParseNode
+
+변수 선언 VarDecl extends DeclNode
+함수 선언 FuncDecl extends DeclNode
+
+블록 BlockStat extends StatNode
+값 할당 VarStat extends StatNode
+표현식 문장 ExprStat extends StatNode
+if문 IfStat extends StatNode
+while문 WhileStat extends StatNode
+for문 ForStat extends StatNode
+switch문 SwitchStat extends StatNode
+return문 ReturnStat extends StatNode
+기타 문장 (컴파일러 지시, 루프 제어) CtrlStat extends StatNode
+
+리터럴 LiteralExpr extends ExprNode
+변수 사용 VarExpr extends ExprNode
+함수 사용 FuncExpr extends ExprNode
+타입 캐스팅 CastExpr extends ExprNode
+sizeof 구하기 SizeofExpr extends ExprNode
+멤버 접근 DorOpExpr extends ExprNode
+포인터 연산 PtrOpExpr extends ExprNode
+단항연산자 UnaryOpExpr extends ExprNode
+이항연산자 BinaryOpExpr extends ExprNode

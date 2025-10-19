@@ -6,15 +6,20 @@ SrcID 0: C:\Users\427ta\Desktop\TSLL\test\main.txt
 Module: C:\Users\427ta\Desktop\TSLL\test\main.txt
 module name table:
 NameTable id: 0
-t t.a, type: 8, tag: 2147483648
-t t.b, type: 8, tag: -4294967296
-t t.c, type: 8, tag: -1000000000
+i8 a.a, type: 5, tag: 0
+i64 a.b, type: 5, tag: 1
 
 module type table:
 TypeTable id: 0
 
-  TypeNode type: 6, name: t, size: 8
+  TypeNode type: 5, name: a, size: 16
   length: -1, offset: -1, allign requirement: 8
+  indirect:
+    TypeNode type: 1, name: i8, size: 1
+    length: -1, offset: 0, allign requirement: 1
+  indirect:
+    TypeNode type: 1, name: i64, size: 8
+    length: -1, offset: 8, allign requirement: 8
 
 export name table:
 NameTable id: 0
