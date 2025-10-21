@@ -33,8 +33,9 @@ class ParseNode {
     ParseNodeType type;
     LocNode location;
     std::string text;
+    ValueNode value_node; // for literal
     std::unique_ptr<TypeNode> type_node; // for expression node
-    std::unique_ptr<NameTable> name_table; // for block node
+    std::unique_ptr<NameTable> name_node; // for block node
     ParseNode* parent;
     std::vector<std::unique_ptr<ParseNode>> children;
 
