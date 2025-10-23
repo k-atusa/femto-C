@@ -91,6 +91,11 @@ std::string Literal::toString() {
 
 // TpInfo methods
 bool TpInfo::isEqual(const TpInfo& other) const {
+    if (node_type == TpInfoType::MEMCHUNK || other.node_type == TpInfoType::MEMCHUNK) {
+        if (size == other.size && allign_req == other.allign_req) {
+            return true;
+        }
+    }
     if (node_type != other.node_type || name != other.name || size != other.size) {
         return false;
     }
@@ -151,4 +156,49 @@ std::string TpInfo::toString() {
         default:
             return "invalid";
     }
+}
+
+// SrcFile methods
+bool SrcFile::isEqual(const SrcFile& other) const {
+    if (isTemplate) {
+        return path == other.path && tmp_size == other.tmp_size && tmp_allign == other.tmp_allign;
+    } else {
+        return path == other.path;
+    }
+}
+
+std::string SrcFile::toString() {
+    std::string result = path;
+    if (isTemplate) {
+        result += "<";
+        for (size_t i = 0; i < tmp_size.size(); i++) {
+            result += std::to_string(tmp_size[i]);
+            if (i < tmp_size.size() - 1) {
+                result += ",";
+            }
+        }
+        result += ">";
+    }
+    return result;
+}
+
+int SrcNmTable::findSrc(SrcFile& tgt) {
+    auto it = lookup.find(tgt.path);
+    if (it != lookup.end()) {
+        return it->second;
+    } else {
+        for (size_t i = 0; i < sources.size(); i++) {
+            if (tgt.isEqual(*sources[i])) {
+                return i;
+            }
+        }
+        return -1;
+    }
+}
+
+void SrcNmTable::addSrc(std::unique_ptr<SrcFile> src) {
+    if (!src->isTemplate) {
+        lookup[src->path] = sources.size();
+    }
+    sources.push_back(std::move(src));
 }

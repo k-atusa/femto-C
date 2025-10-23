@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <memory>
 #include <iostream>
 #include <fstream>
@@ -104,6 +105,34 @@ class TpInfo {
     bool isEqual(const TpInfo& other) const;
     std::unique_ptr<TpInfo> clone() const;
     std::string toString();
+};
+
+// indicates single source file
+class SrcFile {
+    public:
+    int src_id;
+    bool isFinished;
+    bool isTemplate;
+    std::string path;
+    std::vector<int> tmp_size;
+    std::vector<int> tmp_allign;
+
+    SrcFile() : src_id(-1), isFinished(false), isTemplate(false), path(""), tmp_size(), tmp_allign() {}
+    SrcFile(int id, bool isTmp, const std::string& filepath) : src_id(id), isFinished(false), isTemplate(isTmp), path(filepath), tmp_size(), tmp_allign() {}
+
+    bool isEqual(const SrcFile& other) const;
+    std::string toString();
+};
+
+class SrcNmTable {
+    public:
+    std::vector<std::unique_ptr<SrcFile>> sources;
+    std::unordered_map<std::string, int> lookup; // not saved for templates
+
+    SrcNmTable() : sources(), lookup() {}
+
+    int findSrc(SrcFile& tgt); // returns ScrFile pos
+    void addSrc(std::unique_ptr<SrcFile> src);
 };
 
 #endif // BASE_FUNC_H
