@@ -183,17 +183,19 @@ std::string SrcFile::toString() {
 }
 
 int SrcNmTable::findSrc(SrcFile& tgt) {
-    auto it = lookup.find(tgt.path);
-    if (it != lookup.end()) {
-        return it->second;
-    } else {
+    if (tgt.isTemplate) {
         for (size_t i = 0; i < sources.size(); i++) {
             if (tgt.isEqual(*sources[i])) {
                 return i;
             }
         }
-        return -1;
+    } else {
+        auto it = lookup.find(tgt.path);
+        if (it != lookup.end()) {
+            return it->second;
+        }
     }
+    return -1;
 }
 
 void SrcNmTable::addSrc(std::unique_ptr<SrcFile> src) {
