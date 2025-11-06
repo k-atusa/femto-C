@@ -83,6 +83,7 @@ TokenType isKeyword(const std::string& word) {
 
 TokenType isCplrOrd(const std::string& word) {
     if (word == "#include") return TokenType::ORDER_INCLUDE;
+    if (word == "#template") return TokenType::ORDER_TEMPLATE;
     if (word == "#defer") return TokenType::ORDER_DEFER;
     if (word == "#define") return TokenType::ORDER_DEFINE;
     if (word == "#const") return TokenType::ORDER_CONST;
