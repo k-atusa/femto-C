@@ -3,8 +3,6 @@
 
 #include <string>
 #include <vector>
-#include <unordered_map>
-#include <memory>
 #include <iostream>
 #include <fstream>
 #include <stdexcept>
@@ -72,67 +70,6 @@ struct Literal {
     Literal(const std::string& v): node_type(LiteralType::STRING), int_value(0), float_value(0.0), char_value(0), string_value(v) {}
 
     std::string toString();
-};
-
-// indicates single type component
-enum class TpInfoType {
-    NONE,
-    PRIMITIVE,
-    POINTER,
-    SLICE,
-    ARRAY,
-    FUNCTION,
-    STRUCT, // only for decl node
-    ENUM,
-    MEMCHUNK, // for template, structs
-    PRECOMPILE1 // struct or enum in source
-};
-
-class TpInfo {
-    public:
-    TpInfoType node_type;
-    std::string name;
-    int size; // size in bytes
-    int length; // array length
-    int offset; // struct member offset
-    int allign_req; // allign requirement
-    std::unique_ptr<TpInfo> direct; // ptr & arr target, func return
-    std::vector<std::unique_ptr<TpInfo>> indirects; // func params, struct members
-
-    TpInfo() : node_type(TpInfoType::NONE), name(""), size(0), length(-1), offset(-1), allign_req(1), direct(nullptr), indirects() {}
-    TpInfo(TpInfoType tp, const std::string& n, int s) : node_type(tp), name(n), size(s), length(-1), offset(-1), allign_req(s), direct(nullptr), indirects() {}
-
-    bool isEqual(const TpInfo& other) const;
-    std::unique_ptr<TpInfo> clone() const;
-    std::string toString();
-};
-
-// indicates single source file
-class SrcFile {
-    public:
-    int src_id;
-    bool isFinished;
-    bool isTemplate;
-    std::string path;
-    std::vector<int> tmp_size;
-    std::vector<int> tmp_allign;
-
-    SrcFile() : src_id(-1), isFinished(false), isTemplate(false), path(""), tmp_size(), tmp_allign() {}
-    SrcFile(int id, bool isTmp, const std::string& filepath) : src_id(id), isFinished(false), isTemplate(isTmp), path(filepath), tmp_size(), tmp_allign() {}
-
-    bool isEqual(const SrcFile& other) const;
-    std::string toString();
-};
-
-class SrcNmTable {
-    public:
-    std::vector<std::unique_ptr<SrcFile>> sources;
-    std::unordered_map<std::string, int> lookup; // not saved for templates
-
-    SrcNmTable() : sources(), lookup() {}
-
-    int findSrc(SrcFile& tgt); // returns ScrFile pos
-    void addSrc(std::unique_ptr<SrcFile> src);
 };
 
 #endif // BASE_FUNC_H
