@@ -423,7 +423,7 @@ void TokenProvider::rewind() {
     }
 }
 
-bool TokenProvider::match(std::vector<TokenType> types) {
+bool TokenProvider::match(const std::vector<TokenType>& types) {
     if (!canPop(types.size())) {
         return false;
     }

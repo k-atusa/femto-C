@@ -140,7 +140,7 @@ class TokenProvider {
     Token& pop();
     Token& seek();
     void rewind();
-    bool match(std::vector<TokenType> types);
+    bool match(const std::vector<TokenType>& types);
 };
 
 #endif // TOKENIZER_H
