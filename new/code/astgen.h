@@ -1,7 +1,9 @@
 #ifndef ASTGEN_H
 #define ASTGEN_H
 
+#include <format>
 #include "baseFunc.h"
+#include "tokenizer.h"
 
 // AST node types
 enum class ASTNodeType {
@@ -28,6 +30,7 @@ enum class ASTNodeType {
     ASSIGN,
     // short statement
     RETURN,
+    DEFINE,
     DEFER,
     BREAK,
     CONTINUE,
@@ -48,10 +51,11 @@ class ASTNode {
     public:
     ASTNodeType type;
     Location location;
-    std::string text;
+    std::string text; // used for name or raw code
 
     ASTNode(): type(ASTNodeType::NONE), location(), text("") {}
-    ASTNode(ASTNodeType t): type(t), location(), text() {}
+    ASTNode(ASTNodeType t): type(t), location(), text("") {}
+    ASTNode(ASTNodeType tp, const std::string& tx): type(tp), location(), text(tx) {}
 
     std::string toString() const { return std::to_string((int)type) + " " + text; }
 };
@@ -60,10 +64,10 @@ class ASTNode {
 class IncludeNode: public ASTNode {
     public:
     std::string path; // normal or template source file path
-    std::string name; // import name
+    std::string& name; // import name
     std::vector<std::unique_ptr<TypeNode>> args; // template type arguments
 
-    IncludeNode(): ASTNode(ASTNodeType::INCLUDE), path(""), name(""), args() {}
+    IncludeNode(): ASTNode(ASTNodeType::INCLUDE), path(""), name(text), args() {}
 };
 
 // template variable node
@@ -77,11 +81,11 @@ class DeclTemplateNode: public ASTNode {
 // raw code node
 class RawCodeNode: public ASTNode {
     public:
-    std::string code; // raw code, raw function name
+    std::string& code; // raw code, raw function name
     std::vector<std::unique_ptr<ASTNode>> args; // raw function arguments
 
-    RawCodeNode(): ASTNode(ASTNodeType::NONE), code(""), args() {}
-    RawCodeNode(ASTNodeType tp): ASTNode(tp), code(""), args() {}
+    RawCodeNode(): ASTNode(ASTNodeType::NONE), code(text), args() {}
+    RawCodeNode(ASTNodeType tp): ASTNode(tp), code(text), args() {}
 };
 
 // literal node
@@ -103,9 +107,9 @@ class LiteralArrayNode: public ASTNode {
 // name node
 class NameNode: public ASTNode {
     public:
-    std::string name; // variable or function name
+    std::string& name; // variable or function name
 
-    NameNode(): ASTNode(ASTNodeType::NAME), name("") {}
+    NameNode(): ASTNode(ASTNodeType::NAME), name(text) {}
 };
 
 // operator node, ordered by priority
@@ -174,19 +178,23 @@ enum class TypeNodeType {
     ARRAY,
     SLICE,
     FUNCTION,
-    NAME // for struct, enum, template
+    NAME, // for struct, enum, template
+    FOREIGN // from other source file
 };
 
 class TypeNode: public ASTNode {
     public:
     TypeNodeType subtype;
-    std::string name; // type name
+    std::string& name; // type name
+    std::string include_tgt; // include name for FOREIGN type
     std::unique_ptr<TypeNode> direct; // ptr, arr, slice target & func return
     std::vector<std::unique_ptr<TypeNode>> indirect; // func args
     int64_t length; // array length
+    int type_size; // total size in bytes
+    int type_align; // align requirement in bytes
 
-    TypeNode(): ASTNode(ASTNodeType::TYPE), subtype(TypeNodeType::NONE), name(""), direct(nullptr), indirect(), length(-1) {}
-    TypeNode(TypeNodeType tp, const std::string& nm): ASTNode(ASTNodeType::TYPE), subtype(tp), name(nm), direct(nullptr), indirect(), length(-1) {}
+    TypeNode(): ASTNode(ASTNodeType::TYPE), subtype(TypeNodeType::NONE), name(text), include_tgt(""), direct(nullptr), indirect(), length(-1) {}
+    TypeNode(TypeNodeType tp, const std::string& nm): ASTNode(ASTNodeType::TYPE, nm), subtype(tp), name(text), include_tgt(""), direct(nullptr), indirect(), length(-1) {}
 };
 
 // statement node
@@ -205,7 +213,7 @@ class LongStatNode: public ASTNode {
 
 class ShortStatNode: public ASTNode {
     public:
-    std::unique_ptr<ASTNode> statExpr; // for return, defer
+    std::unique_ptr<ASTNode> statExpr; // for return, defer, define
 
     ShortStatNode(): ASTNode(ASTNodeType::NONE), statExpr(nullptr) {}
     ShortStatNode(ASTNodeType tp): ASTNode(tp), statExpr(nullptr) {}
@@ -218,6 +226,9 @@ class ScopeNode: public ASTNode {
     ASTNode* parent;
 
     ScopeNode(): ASTNode(ASTNodeType::SCOPE), body(), parent(nullptr) {}
+
+    LongStatNode* findVarByName(const std::string& name); // find variable declaration, nullptr if not found
+    LongStatNode* findDefineByName(const std::string& name); // find compile-time constant declaration, nullptr if not found
 };
 
 class IfNode: public ASTNode {
@@ -260,20 +271,21 @@ class SwitchNode: public ASTNode {
 // declaration nodes
 class DeclFuncNode: public ASTNode {
     public:
-    std::string func_name;
+    std::string& full_name; // mangled name (struct.func)
     std::string struct_name; // for method
+    std::string func_name; // for method
     std::vector<std::unique_ptr<TypeNode>> param_types;
     std::vector<std::string> param_names;
     std::unique_ptr<TypeNode> return_type;
     std::unique_ptr<ScopeNode> body;
     bool isVaArg;
 
-    DeclFuncNode(): ASTNode(ASTNodeType::DECL_FUNC), func_name(""), struct_name(""), param_types(), param_names(), return_type(nullptr), body(nullptr), isVaArg(false) {}
+    DeclFuncNode(): ASTNode(ASTNodeType::DECL_FUNC), full_name(text), struct_name(""), func_name(""), param_types(), param_names(), return_type(nullptr), body(nullptr), isVaArg(false) {}
 };
 
 class DeclStructNode: public ASTNode {
     public:
-    std::string struct_name;
+    std::string& struct_name;
     int struct_size; // total size in bytes
     int struct_align; // align requirement in bytes
     std::vector<std::unique_ptr<TypeNode>> member_types;
@@ -281,30 +293,53 @@ class DeclStructNode: public ASTNode {
     std::vector<int> member_sizes;
     std::vector<int> member_offsets;
 
-    DeclStructNode(): ASTNode(ASTNodeType::DECL_STRUCT), struct_name(""), struct_size(-1), struct_align(-1), member_types(), member_names(), member_sizes(), member_offsets() {}
+    DeclStructNode(): ASTNode(ASTNodeType::DECL_STRUCT), struct_name(text), struct_size(-1), struct_align(-1), member_types(), member_names(), member_sizes(), member_offsets() {}
 };
 
 class DeclEnumNode: public ASTNode {
     public:
-    std::string enum_name;
+    std::string& enum_name;
     int enum_size; // size in bytes
     std::vector<std::string> member_names;
     std::vector<int64_t> member_values;
 
-    DeclEnumNode(): ASTNode(ASTNodeType::DECL_ENUM), enum_name(""), enum_size(-1), member_names(), member_values() {}
+    DeclEnumNode(): ASTNode(ASTNodeType::DECL_ENUM), enum_name(text), enum_size(-1), member_names(), member_values() {}
 };
 
 // abstract source file
 class SrcFile {
     public:
     std::string path;
-    std::string unique_name; // for compile non-duplicate
-    std::vector<ASTNode> nodes;
+    std::string unique_name; // for non-duplicate compile
+    std::unique_ptr<ScopeNode> nodes;
     bool isFinished;
 
     SrcFile(): path(""), unique_name(""), nodes(), isFinished(false) {}
     SrcFile(const std::string& fpath): path(fpath), unique_name(""), nodes(), isFinished(false) {}
     SrcFile(const std::string& fpath, const std::string& uname): path(fpath), unique_name(uname), nodes(), isFinished(false) {}
+
+    ASTNode* findNodeByName(ASTNodeType tp, const std::string& name, bool checkExported); // find include, tmp, var, func, struct, enum
+    std::unique_ptr<TypeNode> parseType(TokenProvider& tp); // parse type from tokens
+};
+
+// parser class
+class ASTGen {
+    public:
+    CompileMessage prt;
+    int arch; // target architecture in bytes
+    std::vector<std::vector<std::string>> nameStack; // for scope name mangling
+    std::vector<std::unique_ptr<SrcFile>> srcFiles;
+
+    ASTGen(): prt(3), arch(8), nameStack(), srcFiles() {}
+    ASTGen(int p, int a): prt(p), arch(a), nameStack(), srcFiles() {}
+
+    std::string parse(const std::string& path); // returns error message or empty if ok
+
+    private:
+    std::string getLocString(const Location& loc) { return std::format("{}:{}", srcFiles[loc.source_id]->path, loc.line); }
+    int findSource(const std::string& path); // find source file index, -1 if not found
+
+
 };
 
 #endif // ASTGEN_H

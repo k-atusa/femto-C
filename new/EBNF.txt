@@ -1,6 +1,6 @@
 <type> ::= <typeBase> {<typeSubfix>}
 
-<typeBase> ::= KEYWORD | ID | (ID "." <typeBase>)
+<typeBase> ::= KEYWORD | ID | (ID "." ID)
 
 <typeSubfix> ::= "*" | ("[" (LINT | ID) "]") | "[]" | ("(" {<type> ","} [<type>] ")")
 
