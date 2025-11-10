@@ -30,7 +30,6 @@ enum class ASTNodeType {
     ASSIGN,
     // short statement
     RETURN,
-    DEFINE,
     DEFER,
     BREAK,
     CONTINUE,
@@ -213,7 +212,7 @@ class LongStatNode: public ASTNode {
 
 class ShortStatNode: public ASTNode {
     public:
-    std::unique_ptr<ASTNode> statExpr; // for return, defer, define
+    std::unique_ptr<ASTNode> statExpr; // for return, defer
 
     ShortStatNode(): ASTNode(ASTNodeType::NONE), statExpr(nullptr) {}
     ShortStatNode(ASTNodeType tp): ASTNode(tp), statExpr(nullptr) {}
@@ -228,7 +227,6 @@ class ScopeNode: public ASTNode {
     ScopeNode(): ASTNode(ASTNodeType::SCOPE), body(), parent(nullptr) {}
 
     LongStatNode* findVarByName(const std::string& name); // find variable declaration, nullptr if not found
-    LongStatNode* findDefineByName(const std::string& name); // find compile-time constant declaration, nullptr if not found
 };
 
 class IfNode: public ASTNode {

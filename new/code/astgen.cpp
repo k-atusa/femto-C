@@ -17,23 +17,6 @@ LongStatNode* ScopeNode::findVarByName(const std::string& name) {
     return nullptr;
 }
 
-LongStatNode* ScopeNode::findDefineByName(const std::string& name) {
-    for (auto& node : body) {
-        if (node->type == ASTNodeType::DEFINE) {
-            ShortStatNode* defNode = static_cast<ShortStatNode*>(node.get());
-            LongStatNode* varNode = static_cast<LongStatNode*>(defNode->statExpr.get());
-            if (varNode->varName && varNode->varName->text == name) {
-                return varNode;
-            }
-        }
-    }
-    if (parent != nullptr && parent->type == ASTNodeType::SCOPE) {
-        ScopeNode* parentScope = static_cast<ScopeNode*>(parent);
-        return parentScope->findDefineByName(name);
-    }
-    return nullptr;
-}
-
 // SrcFile functions
 ASTNode* SrcFile::findNodeByName(ASTNodeType tp, const std::string& name, bool checkExported) {
     ASTNode* result = nullptr;
