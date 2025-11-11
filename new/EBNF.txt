@@ -62,3 +62,4 @@
 
 
 <program> ::= {COMMENT | <cplrOrder> | <declareVar> | <declareFunc> | <declareStruct> | <declareEnum>}
+참고용 EBNF 식이며, 약간의 오류나 부정확함이 포함되어 있을 수 있음.

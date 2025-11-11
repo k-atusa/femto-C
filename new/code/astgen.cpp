@@ -136,6 +136,7 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
                     ptrType->direct = std::move(result);
                     result = std::move(ptrType);
                 }
+                break;
 
             case TokenType::OP_LBRACKET:
                 if (result->type_size == 0) {
@@ -191,6 +192,7 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
                 } else {
                     throw std::runtime_error(std::format("E02xx invalid type modifier at {}:{}", path, tkn.location.line)); // E02xx
                 }
+                break;
 
             case TokenType::OP_LPAREN: // function
                 {
@@ -201,19 +203,24 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
                     funcType->type_align = arch;
                     funcType->direct = std::move(result);
                     result = std::move(funcType);
-                    while (tp.canPop(1) && tp.seek().type != TokenType::OP_RPAREN) {
-                        std::unique_ptr<TypeNode> argType = parseType(tp, current, arch);
-                        result->indirect.push_back(std::move(argType));
-                        if (tp.seek().type == TokenType::OP_COMMA) {
-                            tp.pop();
+                    if (tp.seek().type != TokenType::OP_RPAREN) {
+                        while (tp.canPop(1)) {
+                            std::unique_ptr<TypeNode> argType = parseType(tp, current, arch);
+                            result->indirect.push_back(std::move(argType));
+                            if (tp.seek().type == TokenType::OP_COMMA) {
+                                tp.pop();
+                            } else if (tp.seek().type == TokenType::OP_RPAREN) {
+                                break;
+                            } else {
+                                throw std::runtime_error(std::format("E02xx expected ',' at {}:{}", path, tkn.location.line)); // E02xx
+                            }
                         }
                     }
-                    if (tp.seek().type == TokenType::OP_RPAREN) {
-                        tp.pop();
-                    } else {
+                    if (tp.pop().type != TokenType::OP_RPAREN) {
                         throw std::runtime_error(std::format("E02xx expected ')' at {}:{}", path, tkn.location.line)); // E02xx
                     }
                 }
+                break;
 
             default:
                 tp.rewind();

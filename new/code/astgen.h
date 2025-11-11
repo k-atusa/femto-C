@@ -56,7 +56,7 @@ class ASTNode {
     ASTNode(ASTNodeType t): type(t), location(), text("") {}
     ASTNode(ASTNodeType tp, const std::string& tx): type(tp), location(), text(tx) {}
 
-    std::string toString() const { return std::to_string((int)type) + " " + text; }
+    virtual std::string toString(int indent) { return std::string(indent, '  ') + std::format("AST {} {}", (int)type, text); }
 };
 
 // include node
@@ -67,6 +67,14 @@ class IncludeNode: public ASTNode {
     std::vector<std::unique_ptr<TypeNode>> args; // template type arguments
 
     IncludeNode(): ASTNode(ASTNodeType::INCLUDE), path(""), name(text), args() {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + std::format("INCLUDE {} {}", path, name);
+        for (auto& arg : args) {
+            result += "\n" + arg->toString(indent + 1);
+        }
+        return result;
+    }
 };
 
 // template variable node
@@ -75,6 +83,8 @@ class DeclTemplateNode: public ASTNode {
     std::string& name; // template argument name
 
     DeclTemplateNode(): ASTNode(ASTNodeType::DECL_TEMPLATE), name(text) {}
+
+    std::string toString(int indent) { return std::string(indent, '  ') + std::format("DECLTMP {}", name); }
 };
 
 // raw code node
@@ -85,6 +95,14 @@ class RawCodeNode: public ASTNode {
 
     RawCodeNode(): ASTNode(ASTNodeType::NONE), code(text), args() {}
     RawCodeNode(ASTNodeType tp): ASTNode(tp), code(text), args() {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + std::format("RAW {}", code);
+        for (auto& arg : args) {
+            result += "\n" + arg->toString(indent + 1);
+        }
+        return result;
+    }
 };
 
 // literal node
@@ -93,6 +111,8 @@ class LiteralNode: public ASTNode {
     Literal literal; // atom value
 
     LiteralNode(): ASTNode(ASTNodeType::LITERAL), literal() {}
+
+    std::string toString(int indent) { return std::string(indent, '  ') + std::format("LITERAL {}", literal.toString()); }
 };
 
 // literal array node
@@ -101,6 +121,14 @@ class LiteralArrayNode: public ASTNode {
     std::vector<std::unique_ptr<ASTNode>> elements; // array element expressions
 
     LiteralArrayNode(): ASTNode(ASTNodeType::LITERAL_ARRAY), elements() {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + "LITERAL_ARRAY";
+        for (auto& element : elements) {
+            result += "\n" + element->toString(indent + 1);
+        }
+        return result;
+    }
 };
 
 // name node
@@ -109,6 +137,8 @@ class NameNode: public ASTNode {
     std::string& name; // variable or function name
 
     NameNode(): ASTNode(ASTNodeType::NAME), name(text) {}
+
+    std::string toString(int indent) { return std::string(indent, '  ') + std::format("NAME {}", name); }
 };
 
 // operator node, ordered by priority
@@ -139,6 +169,14 @@ class TripleOpNode: public ASTNode {
 
     TripleOpNode(): ASTNode(ASTNodeType::TRIPLE_OP), subtype(OperatorType::NONE), base(nullptr), left(nullptr), right(nullptr) {}
     TripleOpNode(OperatorType tp): ASTNode(ASTNodeType::TRIPLE_OP), subtype(tp), base(nullptr), left(nullptr), right(nullptr) {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + std::format("TRIPLE_OP {}", subtype);
+        result += "\n" + base->toString(indent + 1);
+        result += "\n" + left->toString(indent + 1);
+        result += "\n" + right->toString(indent + 1);
+        return result;
+    }
 };
 
 class BinaryOpNode: public ASTNode {
@@ -149,6 +187,13 @@ class BinaryOpNode: public ASTNode {
 
     BinaryOpNode(): ASTNode(ASTNodeType::BINARY_OP), subtype(OperatorType::NONE), left(nullptr), right(nullptr) {}
     BinaryOpNode(OperatorType tp): ASTNode(ASTNodeType::BINARY_OP), subtype(tp), left(nullptr), right(nullptr) {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + std::format("BINARY_OP {}", subtype);
+        result += "\n" + left->toString(indent + 1);
+        result += "\n" + right->toString(indent + 1);
+        return result;
+    }
 };
 
 class UnaryOpNode: public ASTNode {
@@ -158,6 +203,12 @@ class UnaryOpNode: public ASTNode {
 
     UnaryOpNode(): ASTNode(ASTNodeType::UNARY_OP), subtype(OperatorType::NONE), operand(nullptr) {}
     UnaryOpNode(OperatorType tp): ASTNode(ASTNodeType::UNARY_OP), subtype(tp), operand(nullptr) {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + std::format("UNARY_OP {}", subtype);
+        result += "\n" + operand->toString(indent + 1);
+        return result;
+    }
 };
 
 // function call node
@@ -167,6 +218,15 @@ class FuncCallNode: public ASTNode {
     std::vector<std::unique_ptr<ASTNode>> args; // argument expressions
 
     FuncCallNode(): ASTNode(ASTNodeType::FUNC_CALL), func_expr(nullptr), args() {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + "FUNC_CALL";
+        result += "\n" + func_expr->toString(indent + 1);
+        for (auto& arg : args) {
+            result += "\n" + arg->toString(indent + 1);
+        }
+        return result;
+    }
 };
 
 // type node
@@ -194,6 +254,40 @@ class TypeNode: public ASTNode {
 
     TypeNode(): ASTNode(ASTNodeType::TYPE), subtype(TypeNodeType::NONE), name(text), include_tgt(""), direct(nullptr), indirect(), length(-1) {}
     TypeNode(TypeNodeType tp, const std::string& nm): ASTNode(ASTNodeType::TYPE, nm), subtype(tp), name(text), include_tgt(""), direct(nullptr), indirect(), length(-1) {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + std::format("TYPE {} {} {} {} {} {}", name, include_tgt, subtype, length, type_size, type_align);
+        if (direct) result += "\n" + direct->toString(indent + 1);
+        for (auto& ind : indirect) {
+            result += "\n" + ind->toString(indent + 1);
+        }
+        return result;
+    }
+
+    std::string toString() {
+        std::string result;
+        switch(subtype) {
+            case TypeNodeType::PRIMITIVE: case TypeNodeType::NAME:
+                result = name;
+                break;
+            case TypeNodeType::FOREIGN:
+                result = include_tgt + "." + name;
+                break;
+            case TypeNodeType::POINTER: case TypeNodeType::ARRAY: case TypeNodeType::SLICE:
+                result = direct->toString() + name;
+                break;
+            case TypeNodeType::FUNCTION:
+                result = direct->toString() + "(";
+                for (auto& arg : indirect) {
+                    result += arg->toString() + ",";
+                }
+                if (indirect.size() > 0) result.pop_back();
+                result += ")";
+                break;
+            default: result = "unknown";
+        }
+        return result;
+    }
 };
 
 // statement node
@@ -208,6 +302,14 @@ class LongStatNode: public ASTNode {
 
     LongStatNode(): ASTNode(ASTNodeType::NONE), varType(nullptr), varName(nullptr), varExpr(nullptr), isDefine(false), isConst(false), isVolatile(false) {}
     LongStatNode(ASTNodeType tp): ASTNode(tp), varType(nullptr), varName(nullptr), varExpr(nullptr), isDefine(false), isConst(false), isVolatile(false) {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + std::format("LONGSTAT {} {} {} {}", type, isDefine, isConst, isVolatile);
+        if (varType) result += "\n" + varType->toString(indent + 1);
+        if (varName) result += "\n" + varName->toString(indent + 1);
+        if (varExpr) result += "\n" + varExpr->toString(indent + 1);
+        return result;
+    }
 };
 
 class ShortStatNode: public ASTNode {
@@ -216,6 +318,12 @@ class ShortStatNode: public ASTNode {
 
     ShortStatNode(): ASTNode(ASTNodeType::NONE), statExpr(nullptr) {}
     ShortStatNode(ASTNodeType tp): ASTNode(tp), statExpr(nullptr) {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + std::format("SHORTSTAT {}", type);
+        if (statExpr) result += "\n" + statExpr->toString(indent + 1);
+        return result;
+    }
 };
 
 // control statement node
@@ -225,6 +333,14 @@ class ScopeNode: public ASTNode {
     ASTNode* parent;
 
     ScopeNode(): ASTNode(ASTNodeType::SCOPE), body(), parent(nullptr) {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + "SCOPE";
+        for (auto& node : body) {
+            result += "\n" + node->toString(indent + 1);
+        }
+        return result;
+    }
 
     LongStatNode* findVarByName(const std::string& name); // find variable declaration, nullptr if not found
     Literal findDefinedLiteral(const std::string& name); // find defined literal variable, type NONE if not found
@@ -237,6 +353,14 @@ class IfNode: public ASTNode {
     std::unique_ptr<ScopeNode> elseBody;
 
     IfNode(): ASTNode(ASTNodeType::IF), cond(nullptr), flowBody(nullptr), elseBody(nullptr) {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + "IF";
+        if (cond) result += "\n" + cond->toString(indent + 1);
+        if (flowBody) result += "\n" + flowBody->toString(indent + 1);
+        if (elseBody) result += "\n" + elseBody->toString(indent + 1);
+        return result;
+    }
 };
 
 class WhileNode: public ASTNode {
@@ -245,6 +369,13 @@ class WhileNode: public ASTNode {
     std::unique_ptr<ScopeNode> body;
 
     WhileNode(): ASTNode(ASTNodeType::WHILE), cond(nullptr), body(nullptr) {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + "WHILE";
+        if (cond) result += "\n" + cond->toString(indent + 1);
+        if (body) result += "\n" + body->toString(indent + 1);
+        return result;
+    }
 };
 
 class ForNode: public ASTNode {
@@ -255,6 +386,15 @@ class ForNode: public ASTNode {
     std::unique_ptr<ScopeNode> body;
 
     ForNode(): ASTNode(ASTNodeType::FOR), init(nullptr), cond(nullptr), step(nullptr), body(nullptr) {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + "FOR";
+        if (init) result += "\n" + init->toString(indent + 1);
+        if (cond) result += "\n" + cond->toString(indent + 1);
+        if (step) result += "\n" + step->toString(indent + 1);
+        if (body) result += "\n" + body->toString(indent + 1);
+        return result;
+    }
 };
 
 class SwitchNode: public ASTNode {
@@ -265,6 +405,15 @@ class SwitchNode: public ASTNode {
     std::unique_ptr<ScopeNode> defaultBody;
 
     SwitchNode(): ASTNode(ASTNodeType::SWITCH), cond(nullptr), case_exprs(), case_bodies(), defaultBody(nullptr) {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + "SWITCH";
+        if (cond) result += "\n" + cond->toString(indent + 1);
+        for (auto& expr : case_exprs) result += "\n" + expr->toString(indent + 1);
+        for (auto& body : case_bodies) result += "\n" + body->toString(indent + 1);
+        if (defaultBody) result += "\n" + defaultBody->toString(indent + 1);
+        return result;
+    }
 };
 
 // declaration nodes
@@ -280,6 +429,14 @@ class DeclFuncNode: public ASTNode {
     bool isVaArg;
 
     DeclFuncNode(): ASTNode(ASTNodeType::DECL_FUNC), full_name(text), struct_name(""), func_name(""), param_types(), param_names(), return_type(nullptr), body(nullptr), isVaArg(false) {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + "DECLFUNC " + full_name;
+        for (auto& type : param_types) result += "\n" + type->toString(indent + 1);
+        if (return_type) result += "\n" + return_type->toString(indent + 1);
+        if (body) result += "\n" + body->toString(indent + 1);
+        return result;
+    }
 };
 
 class DeclStructNode: public ASTNode {
@@ -293,6 +450,15 @@ class DeclStructNode: public ASTNode {
     std::vector<int> member_offsets;
 
     DeclStructNode(): ASTNode(ASTNodeType::DECL_STRUCT), struct_name(text), struct_size(-1), struct_align(-1), member_types(), member_names(), member_sizes(), member_offsets() {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + std::format("DECLSTRUCT {} {} {}", struct_name, struct_size, struct_align);
+        for (auto& type : member_types) result += "\n" + type->toString(indent + 1);
+        for (auto& name : member_names) result += "\n" + name;
+        for (auto& size : member_sizes) result += "\n" + std::to_string(size);
+        for (auto& offset : member_offsets) result += "\n" + std::to_string(offset);
+        return result;
+    }
 };
 
 class DeclEnumNode: public ASTNode {
@@ -303,6 +469,13 @@ class DeclEnumNode: public ASTNode {
     std::vector<int64_t> member_values;
 
     DeclEnumNode(): ASTNode(ASTNodeType::DECL_ENUM), enum_name(text), enum_size(-1), member_names(), member_values() {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + std::format("DECLENUM {} {}", enum_name, enum_size);
+        for (auto& name : member_names) result += "\n" + name;
+        for (auto& value : member_values) result += "\n" + std::to_string(value);
+        return result;
+    }
 };
 
 // abstract source file
@@ -316,6 +489,12 @@ class SrcFile {
     SrcFile(): path(""), unique_name(""), nodes(), isFinished(false) {}
     SrcFile(const std::string& fpath): path(fpath), unique_name(""), nodes(), isFinished(false) {}
     SrcFile(const std::string& fpath, const std::string& uname): path(fpath), unique_name(uname), nodes(), isFinished(false) {}
+
+    std::string toString() {
+        std::string result = std::format("SrcFile {} {}", path, unique_name);
+        if (nodes) result += "\n" + nodes->toString(0);
+        return result;
+    }
 
     ASTNode* findNodeByName(ASTNodeType tp, const std::string& name, bool checkExported); // find include, tmp, var, func, struct, enum
     std::unique_ptr<TypeNode> parseType(TokenProvider& tp, ScopeNode& current, int arch); // parse type from tokens
@@ -331,6 +510,12 @@ class ASTGen {
 
     ASTGen(): prt(3), arch(8), nameStack(), srcFiles() {}
     ASTGen(int p, int a): prt(p), arch(a), nameStack(), srcFiles() {}
+
+    std::string toString() {
+        std::string result = "ASTGen";
+        for (auto& src : srcFiles) result += "\n\n\n" + src->toString();
+        return result;
+    }
 
     std::string parse(const std::string& path); // returns error message or empty if ok
 
