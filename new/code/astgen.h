@@ -72,9 +72,9 @@ class IncludeNode: public ASTNode {
 // template variable node
 class DeclTemplateNode: public ASTNode {
     public:
-    std::vector<std::string> arg_names; // template type arguments names
+    std::string& name; // template argument name
 
-    DeclTemplateNode(): ASTNode(ASTNodeType::DECL_TEMPLATE), arg_names() {}
+    DeclTemplateNode(): ASTNode(ASTNodeType::DECL_TEMPLATE), name(text) {}
 };
 
 // raw code node
@@ -133,12 +133,12 @@ enum class OperatorType {
 class TripleOpNode: public ASTNode {
     public:
     OperatorType subtype;
-    std::unique_ptr<ASTNode> expr0;
-    std::unique_ptr<ASTNode> expr1;
-    std::unique_ptr<ASTNode> expr2;
+    std::unique_ptr<ASTNode> base;
+    std::unique_ptr<ASTNode> left;
+    std::unique_ptr<ASTNode> right;
 
-    TripleOpNode(): ASTNode(ASTNodeType::TRIPLE_OP), subtype(OperatorType::NONE), expr0(nullptr), expr1(nullptr), expr2(nullptr) {}
-    TripleOpNode(OperatorType tp): ASTNode(ASTNodeType::TRIPLE_OP), subtype(tp), expr0(nullptr), expr1(nullptr), expr2(nullptr) {}
+    TripleOpNode(): ASTNode(ASTNodeType::TRIPLE_OP), subtype(OperatorType::NONE), base(nullptr), left(nullptr), right(nullptr) {}
+    TripleOpNode(OperatorType tp): ASTNode(ASTNodeType::TRIPLE_OP), subtype(tp), base(nullptr), left(nullptr), right(nullptr) {}
 };
 
 class BinaryOpNode: public ASTNode {
@@ -227,6 +227,7 @@ class ScopeNode: public ASTNode {
     ScopeNode(): ASTNode(ASTNodeType::SCOPE), body(), parent(nullptr) {}
 
     LongStatNode* findVarByName(const std::string& name); // find variable declaration, nullptr if not found
+    Literal findDefinedLiteral(const std::string& name); // find defined literal variable, type NONE if not found
 };
 
 class IfNode: public ASTNode {
@@ -317,7 +318,7 @@ class SrcFile {
     SrcFile(const std::string& fpath, const std::string& uname): path(fpath), unique_name(uname), nodes(), isFinished(false) {}
 
     ASTNode* findNodeByName(ASTNodeType tp, const std::string& name, bool checkExported); // find include, tmp, var, func, struct, enum
-    std::unique_ptr<TypeNode> parseType(TokenProvider& tp); // parse type from tokens
+    std::unique_ptr<TypeNode> parseType(TokenProvider& tp, ScopeNode& current, int arch); // parse type from tokens
 };
 
 // parser class
