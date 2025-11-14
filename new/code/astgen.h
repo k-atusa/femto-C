@@ -55,6 +55,7 @@ class ASTNode {
     ASTNode(): type(ASTNodeType::NONE), location(), text("") {}
     ASTNode(ASTNodeType t): type(t), location(), text("") {}
     ASTNode(ASTNodeType tp, const std::string& tx): type(tp), location(), text(tx) {}
+    virtual ~ASTNode() = default;
 
     virtual std::string toString(int indent) { return std::string(indent, '  ') + std::format("AST {} {}", (int)type, text); }
 };
@@ -505,11 +506,10 @@ class ASTGen {
     public:
     CompileMessage prt;
     int arch; // target architecture in bytes
-    std::vector<std::vector<std::string>> nameStack; // for scope name mangling
     std::vector<std::unique_ptr<SrcFile>> srcFiles;
 
-    ASTGen(): prt(3), arch(8), nameStack(), srcFiles() {}
-    ASTGen(int p, int a): prt(p), arch(a), nameStack(), srcFiles() {}
+    ASTGen(): prt(3), arch(8), srcFiles() {}
+    ASTGen(int p, int a): prt(p), arch(a), srcFiles() {}
 
     std::string toString() {
         std::string result = "ASTGen";
@@ -522,8 +522,10 @@ class ASTGen {
     private:
     std::string getLocString(const Location& loc) { return std::format("{}:{}", srcFiles[loc.source_id]->path, loc.line); }
     int findSource(const std::string& path); // find source file index, -1 if not found
+    bool isTypeStart(TokenProvider& tp, ScopeNode& current, SrcFile& src);
 
-
+    std::unique_ptr<ASTNode> parseAtomicExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse atomic expression
+    std::unique_ptr<ASTNode> parsePrattExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src, int level); // parse pratt expression
 };
 
 #endif // ASTGEN_H

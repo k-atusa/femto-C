@@ -76,7 +76,6 @@ enum class TokenType {
     KEY_NULL,
     KEY_TRUE,
     KEY_FALSE,
-    KEY_SIZEOF,
     KEY_IF,
     KEY_ELSE,
     KEY_WHILE,
@@ -90,6 +89,7 @@ enum class TokenType {
     KEY_STRUCT,
     KEY_ENUM,
     // integrated functions
+    IFUNC_SIZEOF,
     IFUNC_CAST,
     IFUNC_MAKE,
     IFUNC_LEN,

@@ -62,7 +62,6 @@ TokenType isKeyword(const std::string& word) {
     if (word == "null") return TokenType::KEY_NULL;
     if (word == "true") return TokenType::KEY_TRUE;
     if (word == "false") return TokenType::KEY_FALSE;
-    if (word == "sizeof") return TokenType::KEY_SIZEOF;
     if (word == "if") return TokenType::KEY_IF;
     if (word == "else") return TokenType::KEY_ELSE;
     if (word == "while") return TokenType::KEY_WHILE;
@@ -75,6 +74,7 @@ TokenType isKeyword(const std::string& word) {
     if (word == "return") return TokenType::KEY_RETURN;
     if (word == "struct") return TokenType::KEY_STRUCT;
     if (word == "enum") return TokenType::KEY_ENUM;
+    if (word == "sizeof") return TokenType::IFUNC_SIZEOF;
     if (word == "cast") return TokenType::IFUNC_CAST;
     if (word == "make") return TokenType::IFUNC_MAKE;
     if (word == "len") return TokenType::IFUNC_LEN;
