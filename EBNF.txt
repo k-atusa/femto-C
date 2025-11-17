@@ -1,0 +1,65 @@
+<type> ::= <typeBase> {<typeSubfix>}
+
+<typeBase> ::= KEYWORD | ID | (ID "." ID)
+
+<typeSubfix> ::= "*" | ("[" (LINT | ID) "]") | "[]" | ("(" {<type> ","} [<type>] ")")
+
+
+<expression> ::= (("*" | "&" | "+" | "-" | "!" | "~") <expression>)
+	| (<expression> ("+" | "-" | "*" | "/" | "%" | "<" | "<=" | ">" | ">=" | "==" | "!=" | "&&" | "||" | "&" | "|" | "^" | "<<" | ">>" | ".") <expression>)
+	| ("sizeof" "(" (<type> | <expression>) ")")
+	| ("cast" "<" <type> ">" "(" <expression> ")")
+	| ("make" "(" <expression> "," <expression> ")")
+	| ("len" "(" <expression> ")")
+	| <atomExpr>
+
+<atomExpr> ::= KEYWORD | LITERAL | ID | "(" <expression> ")"
+	| (<expression> "(" {<expression> ","} [<expression>] ")")
+	| (<expression> "[" <expression> "]")
+	| (<expression> "[" <expression> ":" <expression> "]")
+
+
+<scope> ::= "{" {<statement>} "}"
+
+<statement> ::= <shortStat> | <longStat> | ";"
+
+<simpleStat> ::= <declareVar> | <assignment> | (<expression> ";")
+
+<shortStat> ::= "break;" | "continue;" | ("#defer" <simpleStat>) | ("return" <expression> ";")
+
+<longStat> ::= <simpleStat> | <ctrlStat>
+
+<declareVar> ::= ["#define" | "#const" | "#volatile"] <type> ID ["=" <expression>] ";"
+
+<assignment> ::= <expression> "=" <expression> ";"
+
+
+<ctrlStat> ::= <ifStat> | <whileStat> | <forStat> | <switchStat>
+
+<ifStat> ::= "if" "(" <expression> ")" <scope> {"else" "if" "(" <expression> ")" <scope>} ["else" <scope>]
+
+<whileStat> ::= "while" "(" <expression> ")" <scope>
+
+<forStat> ::= "for" "(" <simpleStat> <expression> ";" <simpleStat> ")" <scope>
+
+<switchStat> ::= "switch" "(" <expression> ")" "{" {"case" LINT ":" {<statement>}} ["default:" {<statement>}] "}"
+
+
+<declareFunc> ::= ["#va_arg"] <type> [ID "."] ID "(" {<type> ID ","} [<type> ID] ")" <scope>
+
+<declareStruct> ::= "struct" ID "{" {<type> ID ";"} "}"
+
+<declareEnum> ::= "enum" ID "{" {ID ["=" ["+" | "-"] LINT] ","} "}"
+
+
+<cplrOrder> ::= <includeOrder> | <templateOrder> | <rawCodeOrder>
+
+<includeOrder> ::= "#include" ["<" {ID ","} ID ">"] LSTRING ID
+
+<templateOrder> ::= "#template" "<" {ID ","} ID ">"
+
+<rawCodeOrder> ::= (("#raw_c" | "#raw_ir") LSTRING) | (("#func_c" | "#func_ir") "<" {ID ","} ID ">" LSTRING)
+
+
+<program> ::= {COMMENT | <cplrOrder> | <declareVar> | <declareFunc> | <declareStruct> | <declareEnum>}
+참고용 EBNF 식이며, 약간의 오류나 부정확함이 포함되어 있을 수 있음.
