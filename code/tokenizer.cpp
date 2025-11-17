@@ -295,13 +295,17 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     tkn.type = num_type;
                     tkn.location = Location(source_id, line);
                     tkn.text = num_str;
-                    if (num_type == TokenType::LIT_INT) {
-                        tkn.value = Literal(std::stoll(num_str));
-                    } else if (num_type == TokenType::LIT_INT_HEX) {
-                        tkn.type = TokenType::LIT_INT;
-                        tkn.value = Literal(std::stoll(num_str, nullptr, 16));
-                    } else if (num_type == TokenType::LIT_FLOAT) {
-                        tkn.value = Literal(std::stod(num_str));
+                    try {
+                        if (num_type == TokenType::LIT_INT) {
+                            tkn.value = Literal(std::stoll(num_str));
+                        } else if (num_type == TokenType::LIT_INT_HEX) {
+                            tkn.type = TokenType::LIT_INT;
+                            tkn.value = Literal(std::stoll(num_str, nullptr, 16));
+                        } else if (num_type == TokenType::LIT_FLOAT) {
+                            tkn.value = Literal(std::stod(num_str));
+                        }
+                    } catch (std::exception& e) {
+                        throw std::runtime_error(std::format("E0111 number literal conversion fail at {}:{}", filename, line)); // E0111
                     }
                     result.push_back(tkn);
                     status = TokenizeStatus::DEFAULT;
@@ -415,7 +419,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
         }
     }
     if (status != TokenizeStatus::DEFAULT) {
-        throw std::runtime_error(std::format("E0110 source not completed at {}:{}", filename, line));
+        throw std::runtime_error(std::format("E0110 source not completed at {}:{}", filename, line)); // E0110
     }
     return result;
 }
