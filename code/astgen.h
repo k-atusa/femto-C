@@ -126,7 +126,7 @@ class LiteralArrayNode: public ASTNode {
 // name node
 class NameNode: public ASTNode {
     public:
-    std::string& name; // variable or function name
+    std::string& name; // name of variable, function, member, enum
 
     NameNode(): ASTNode(ASTNodeType::NAME), name(text) {}
 

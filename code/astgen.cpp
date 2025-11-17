@@ -518,9 +518,6 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
 
         case TokenType::IDENTIFIER: // variable name
             {
-                if (current.findVarByName(tkn.text) == nullptr) {
-                    throw std::runtime_error(std::format("E03xx undefined variable {} at {}", tkn.text, getLocString(tkn.location))); // E03xx
-                }
                 std::unique_ptr<ASTNode> nameNode = std::make_unique<ASTNode>(ASTNodeType::NAME, tkn.text);
                 nameNode->location = tkn.location;
                 result = std::move(nameNode);
