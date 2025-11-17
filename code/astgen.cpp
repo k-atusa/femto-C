@@ -362,16 +362,117 @@ bool ASTGen::isTypeStart(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
     return false;
 }
 
-// parse Struct declaration
-std::unique_ptr<DeclStructNode> ASTGen::parseStruct(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
-    // to be implemented
-    return nullptr;
+// parse Struct declaration, after struct keyword
+std::unique_ptr<DeclStructNode> ASTGen::parseStruct(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag) {
+    std::unique_ptr<DeclStructNode> structNode = std::make_unique<DeclStructNode>();
+    Token& idTkn = tp.pop();
+    if (idTkn.type != TokenType::IDENTIFIER) {
+        throw std::runtime_error(std::format("E03xx expected struct name at {}", getLocString(idTkn.location))); // E03xx
+    }
+    structNode->struct_name = idTkn.text;
+    structNode->location = idTkn.location;
+    if (tp.pop().type != TokenType::OP_LBRACE) {
+        throw std::runtime_error(std::format("E03xx expected '{{' at {}", getLocString(idTkn.location))); // E03xx
+    }
+    while (tp.canPop(1)) {
+        std::unique_ptr<TypeNode> fieldType = src.parseType(tp, current, arch);
+        if (fieldType == nullptr) {
+            throw std::runtime_error(std::format("E03xx expected field type at {}", getLocString(tp.seek().location))); // E03xx
+        } else if (fieldType->type_size == 0) {
+            throw std::runtime_error(std::format("E03xx field type cannot be void at {}", getLocString(fieldType->location))); // E03xx
+        }
+        Token& fieldIdTkn = tp.pop();
+        if (fieldIdTkn.type != TokenType::IDENTIFIER) {
+            throw std::runtime_error(std::format("E03xx expected field name at {}", getLocString(fieldIdTkn.location))); // E03xx
+        }
+        structNode->member_types.push_back(std::move(fieldType));
+        structNode->member_names.push_back(fieldIdTkn.text);
+        structNode->member_offsets.push_back(-1);
+        Token& sepTkn = tp.seek();
+        if (sepTkn.type == TokenType::OP_RBRACE) {
+            break;
+        } else if (sepTkn.type == TokenType::OP_COMMA || sepTkn.type == TokenType::OP_SEMICOLON) {
+            tp.pop();
+            if (tp.seek().type == TokenType::OP_RBRACE) {
+                break;
+            }
+        } else {
+            throw std::runtime_error(std::format("E03xx expected ',' at {}", getLocString(sepTkn.location))); // E03xx
+        }
+    }
+    if (tp.pop().type != TokenType::OP_RBRACE) {
+        throw std::runtime_error(std::format("E03xx expected '}}' at {}", getLocString(tp.seek().location))); // E03xx
+    }
+    structNode->isExported = ((tag & 0x010000) != 0);
+    return structNode;
 }
 
-// parse Enum declaration
-std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
-    // to be implemented
-    return nullptr;
+// parse Enum declaration, after enum keyword
+std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag) {
+    std::unique_ptr<DeclEnumNode> enumNode = std::make_unique<DeclEnumNode>();
+    Token& idTkn = tp.pop();
+    if (idTkn.type != TokenType::IDENTIFIER) {
+        throw std::runtime_error(std::format("E03xx expected enum name at {}", getLocString(idTkn.location))); // E03xx
+    }
+    enumNode->enum_name = idTkn.text;
+    enumNode->location = idTkn.location;
+    if (tp.pop().type != TokenType::OP_LBRACE) {
+        throw std::runtime_error(std::format("E03xx expected '{{' at {}", getLocString(idTkn.location))); // E03xx
+    }
+    int64_t prevValue = -1;
+    int64_t maxValue = 0;
+    int64_t minValue = 0;
+    while (tp.canPop(1)) {
+        Token& nameTkn = tp.pop();
+        if (nameTkn.type != TokenType::IDENTIFIER) {
+            throw std::runtime_error(std::format("E03xx expected enumerator name at {}", getLocString(nameTkn.location))); // E03xx
+        }
+        enumNode->member_names.push_back(nameTkn.text);
+        if (tp.seek().type == TokenType::OP_EQ) { // init with value
+            tp.pop();
+            int64_t negMult = 1;
+            if (tp.seek().type == TokenType::OP_MINUS) { // negative value
+                negMult = -1;
+                tp.pop();
+            } else if (tp.seek().type == TokenType::OP_PLUS) {
+                tp.pop();
+            }
+            if (tp.seek().type == TokenType::LIT_INT || tp.seek().type == TokenType::LIT_CHAR) { // literal value
+                Token& valueTkn = tp.pop();
+                prevValue = negMult * valueTkn.value.int_value - 1;
+            } else if (tp.seek().type == TokenType::IDENTIFIER) { // defined literal
+                Token& valueTkn = tp.pop();
+                prevValue = negMult * current.findDefinedLiteral(valueTkn.text).int_value - 1;
+            } else {
+                throw std::runtime_error(std::format("E03xx expected enumerator value at {}", getLocString(nameTkn.location))); // E03xx
+            }
+        }
+        prevValue++;
+        for (size_t i = 0; i < enumNode->member_values.size(); i++) {
+            if (enumNode->member_values[i] == prevValue) {
+                throw std::runtime_error(std::format("E03xx duplicate enumerator value {} at {}", prevValue, getLocString(nameTkn.location))); // E03xx
+            }
+        }
+        enumNode->member_values.push_back(prevValue);
+        maxValue = std::max(maxValue, prevValue);
+        minValue = std::min(minValue, prevValue);
+        Token& sepTkn = tp.seek();
+        if (sepTkn.type == TokenType::OP_RBRACE) {
+            break;
+        } else if (sepTkn.type == TokenType::OP_COMMA || sepTkn.type == TokenType::OP_SEMICOLON) {
+            tp.pop();
+            if (tp.seek().type == TokenType::OP_RBRACE) {
+                break;
+            }
+        } else {
+            throw std::runtime_error(std::format("E03xx expected ',' at {}", getLocString(sepTkn.location))); // E03xx
+        }
+    }
+    if (tp.pop().type != TokenType::OP_RBRACE) {
+        throw std::runtime_error(std::format("E03xx expected '}}' at {}", getLocString(tp.seek().location))); // E03xx
+    }
+    enumNode->isExported = ((tag & 0x010000) != 0);
+    return enumNode;
 }
 
 // parse atomic expression
@@ -450,7 +551,7 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
                     }
                 }
                 if (tp.pop().type != TokenType::OP_RBRACE) {
-                    throw std::runtime_error(std::format("E03xx expected '}' at {}", getLocString(tkn.location))); // E03xx
+                    throw std::runtime_error(std::format("E03xx expected '}}' at {}", getLocString(tkn.location))); // E03xx
                 }
                 result = std::move(arrNode);
             }

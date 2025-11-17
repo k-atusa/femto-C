@@ -66,7 +66,7 @@ struct Literal {
     Literal(): node_type(LiteralType::NONE) {}
     Literal(int64_t v): node_type(LiteralType::INT), int_value(v), float_value(0.0), char_value(0), string_value("") {}
     Literal(double v): node_type(LiteralType::FLOAT), int_value(0), float_value(v), char_value(0), string_value("") {}
-    Literal(char v): node_type(LiteralType::CHAR), int_value(0), float_value(0.0), char_value(v), string_value("") {}
+    Literal(char v): node_type(LiteralType::CHAR), int_value(v), float_value(0.0), char_value(v), string_value("") {}
     Literal(const std::string& v): node_type(LiteralType::STRING), int_value(0), float_value(0.0), char_value(0), string_value(v) {}
 
     std::string toString();

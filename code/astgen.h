@@ -441,17 +441,15 @@ class DeclStructNode: public ASTNode {
     int struct_align; // align requirement in bytes
     std::vector<std::unique_ptr<TypeNode>> member_types;
     std::vector<std::string> member_names;
-    std::vector<int> member_sizes;
     std::vector<int> member_offsets;
     bool isExported;
 
-    DeclStructNode(): ASTNode(ASTNodeType::DECL_STRUCT), struct_name(text), struct_size(-1), struct_align(-1), member_types(), member_names(), member_sizes(), member_offsets(), isExported(false) {}
+    DeclStructNode(): ASTNode(ASTNodeType::DECL_STRUCT), struct_name(text), struct_size(-1), struct_align(-1), member_types(), member_names(), member_offsets(), isExported(false) {}
 
     std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + std::format("DECLSTRUCT {} {} {} {}", struct_name, struct_size, struct_align, isExported);
         for (auto& type : member_types) result += "\n" + type->toString(indent + 1);
         for (auto& name : member_names) result += "\n" + name;
-        for (auto& size : member_sizes) result += "\n" + std::to_string(size);
         for (auto& offset : member_offsets) result += "\n" + std::to_string(offset);
         return result;
     }
@@ -520,11 +518,20 @@ class ASTGen {
     int findSource(const std::string& path); // find source file index, -1 if not found
     bool isTypeStart(TokenProvider& tp, ScopeNode& current, SrcFile& src);
 
-    std::unique_ptr<DeclStructNode> parseStruct(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse struct declaration
-    std::unique_ptr<DeclEnumNode> parseEnum(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse enum declaration
+    std::unique_ptr<DeclStructNode> parseStruct(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse struct declaration
+    std::unique_ptr<DeclEnumNode> parseEnum(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse enum declaration
 
     std::unique_ptr<ASTNode> parseAtomicExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse atomic expression
     std::unique_ptr<ASTNode> parsePrattExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src, int level); // parse pratt expression
 };
+
+/*
+tag
+0x000001 define
+0x000010 const
+0x000100 volatile
+0x001000 extern
+0x010000 exported
+*/
 
 #endif // ASTGEN_H
