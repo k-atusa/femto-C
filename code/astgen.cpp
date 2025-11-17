@@ -475,6 +475,11 @@ std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& cu
     return enumNode;
 }
 
+// parse function declaration
+std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag) {
+/////
+}
+
 // parse atomic expression
 std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
     Token& tkn = tp.pop();
@@ -756,4 +761,19 @@ std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& cu
         }
     }
     return lhs;
+}
+
+// parse general statement
+std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag) {
+
+}
+
+// parse toplevel declaration
+std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag) {
+
+}
+
+// parse scope
+std::unique_ptr<ScopeNode> ASTGen::parseScope(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
+    
 }

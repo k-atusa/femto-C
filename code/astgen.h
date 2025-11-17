@@ -520,9 +520,14 @@ class ASTGen {
 
     std::unique_ptr<DeclStructNode> parseStruct(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse struct declaration
     std::unique_ptr<DeclEnumNode> parseEnum(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse enum declaration
+    std::unique_ptr<DeclFuncNode> parseFunc(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse function declaration
 
     std::unique_ptr<ASTNode> parseAtomicExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse atomic expression
     std::unique_ptr<ASTNode> parsePrattExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src, int level); // parse pratt expression
+
+    std::unique_ptr<ASTNode> parseStatement(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse general statement
+    std::unique_ptr<ASTNode> parseTopLevel(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse toplevel declaration
+    std::unique_ptr<ScopeNode> parseScope(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse scope
 };
 
 /*

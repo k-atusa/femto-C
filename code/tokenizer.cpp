@@ -414,6 +414,9 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                 break;
         }
     }
+    if (status != TokenizeStatus::DEFAULT) {
+        throw std::runtime_error(std::format("E0110 source not completed at {}:{}", filename, line));
+    }
     return result;
 }
 
