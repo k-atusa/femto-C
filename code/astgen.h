@@ -343,8 +343,8 @@ class ScopeNode: public ASTNode {
 class IfNode: public ASTNode {
     public:
     std::unique_ptr<ASTNode> cond;
-    std::unique_ptr<ScopeNode> flowBody;
-    std::unique_ptr<ScopeNode> elseBody;
+    std::unique_ptr<ASTNode> flowBody;
+    std::unique_ptr<ASTNode> elseBody;
 
     IfNode(): ASTNode(ASTNodeType::IF), cond(nullptr), flowBody(nullptr), elseBody(nullptr) {}
 
@@ -360,7 +360,7 @@ class IfNode: public ASTNode {
 class WhileNode: public ASTNode {
     public:
     std::unique_ptr<ASTNode> cond;
-    std::unique_ptr<ScopeNode> body;
+    std::unique_ptr<ASTNode> body;
 
     WhileNode(): ASTNode(ASTNodeType::WHILE), cond(nullptr), body(nullptr) {}
 
@@ -377,7 +377,7 @@ class ForNode: public ASTNode {
     std::unique_ptr<ASTNode> init;
     std::unique_ptr<ASTNode> cond;
     std::unique_ptr<ASTNode> step;
-    std::unique_ptr<ScopeNode> body;
+    std::unique_ptr<ASTNode> body;
 
     ForNode(): ASTNode(ASTNodeType::FOR), init(nullptr), cond(nullptr), step(nullptr), body(nullptr) {}
 
@@ -396,7 +396,7 @@ class SwitchNode: public ASTNode {
     std::unique_ptr<ASTNode> cond;
     std::vector<std::unique_ptr<ASTNode>> case_exprs;
     std::vector<std::unique_ptr<ASTNode>> case_bodies;
-    std::unique_ptr<ScopeNode> defaultBody;
+    std::unique_ptr<ASTNode> defaultBody;
 
     SwitchNode(): ASTNode(ASTNodeType::SWITCH), cond(nullptr), case_exprs(), case_bodies(), defaultBody(nullptr) {}
 
@@ -517,6 +517,7 @@ class ASTGen {
     std::string getLocString(const Location& loc) { return std::format("{}:{}", srcFiles[loc.source_id]->path, loc.line); }
     int findSource(const std::string& path); // find source file index, -1 if not found
     bool isTypeStart(TokenProvider& tp, ScopeNode& current, SrcFile& src);
+    bool isAssignStart(TokenProvider& tp);
 
     std::unique_ptr<DeclStructNode> parseStruct(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse struct declaration
     std::unique_ptr<DeclEnumNode> parseEnum(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse enum declaration
@@ -524,9 +525,10 @@ class ASTGen {
 
     std::unique_ptr<ASTNode> parseAtomicExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse atomic expression
     std::unique_ptr<ASTNode> parsePrattExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src, int level); // parse pratt expression
+    std::unique_ptr<LongStatNode> parseVarStat(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse variable declaration, assignment
 
-    std::unique_ptr<ASTNode> parseStatement(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse general statement
-    std::unique_ptr<ASTNode> parseTopLevel(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse toplevel declaration
+    std::unique_ptr<ASTNode> parseStatement(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse general statement
+    std::unique_ptr<ASTNode> parseTopLevel(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse toplevel declaration
     std::unique_ptr<ScopeNode> parseScope(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse scope
 };
 

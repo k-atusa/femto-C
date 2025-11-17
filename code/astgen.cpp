@@ -362,6 +362,22 @@ bool ASTGen::isTypeStart(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
     return false;
 }
 
+bool ASTGen::isAssignStart(TokenProvider& tp) {
+    int temp = tp.pos;
+    while (tp.canPop(1)) {
+        Token& tkn = tp.pop();
+        if (tkn.type == TokenType::OP_ASSIGN) {
+            tp.pos = temp;
+            return true;
+        } else if (tkn.type == TokenType::OP_SEMICOLON) {
+            tp.pos = temp;
+            return false;
+        }
+    }
+    tp.pos = temp;
+    return false;
+}
+
 // parse Struct declaration, after struct keyword
 std::unique_ptr<DeclStructNode> ASTGen::parseStruct(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag) {
     std::unique_ptr<DeclStructNode> structNode = std::make_unique<DeclStructNode>();
@@ -763,14 +779,222 @@ std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& cu
     return lhs;
 }
 
-// parse general statement
-std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag) {
+// parse variable declaration, assignment
+std::unique_ptr<LongStatNode> ASTGen::parseVarStat(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag) {
+    std::unique_ptr<LongStatNode> result = std::make_unique<LongStatNode>();
+    if (isTypeStart(tp, current, src)) { // var declaration
+        result->type = ASTNodeType::DECL_VAR;
+        result->varType = src.parseType(tp, current, arch);
+        Token& nameTkn = tp.pop();
+        if (nameTkn.type != TokenType::IDENTIFIER) {
+            throw std::runtime_error(std::format("E03xx expected identifier at {}", getLocString(nameTkn.location))); // E03xx
+        }
+        result->varName = std::make_unique<NameNode>();
+        result->varName->text = nameTkn.text;
+        result->varName->location = nameTkn.location;
+        if (tp.seek().type == TokenType::OP_ASSIGN) { // init with value
+            result->varExpr = parsePrattExpr(tp, current, src, 0);
+        }
+        if (tp.pop().type != TokenType::OP_SEMICOLON) {
+            throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(nameTkn.location))); // E03xx
+        }
+    } else { // var assignment
+        result->type = ASTNodeType::ASSIGN;
+        result->varExpr = parsePrattExpr(tp, current, src, 0);
+        if (tp.pop().type != TokenType::OP_ASSIGN) {
+            throw std::runtime_error(std::format("E03xx expected '=' at {}", getLocString(result->varExpr->location))); // E03xx
+        }
+        result->varExpr = parsePrattExpr(tp, current, src, 0);
+        if (tp.pop().type != TokenType::OP_SEMICOLON) {
+            throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(result->varExpr->location))); // E03xx
+        }
+    }
+    result->location = result->varExpr->location;
+    result->isDefine = ((0x000001 & tag) != 0);
+    result->isConst = ((0x000010 & tag) != 0);
+    result->isVolatile = ((0x000100 & tag) != 0);
+    result->isExtern = ((0x001000 & tag) != 0);
+    result->isExported = ((0x010000 & tag) != 0);
+    if (result->isDefine) {
+        result->isConst = true;
+        if (result->varExpr->type != ASTNodeType::LITERAL) {
+            throw std::runtime_error(std::format("E03xx define statement should be initialized with literal at {}", getLocString(result->varExpr->location))); // E03xx
+        }
+    }
+    if (result->isConst && result->varExpr == nullptr) {
+        throw std::runtime_error(std::format("E03xx const statement should be initialized at {}", getLocString(result->varExpr->location))); // E03xx
+    }
+    if (result->isExtern && result->varExpr != nullptr) {
+        throw std::runtime_error(std::format("E03xx extern statement should not be initialized at {}", getLocString(result->varExpr->location))); // E03xx
+    }
+    return result;
+}
 
+// parse general statement
+std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
+    for (;;) {
+        Token& tkn = tp.seek();
+        int64_t tag = 0x000000;
+        switch (tkn.type) {
+            case TokenType::KEY_IF: // if statement
+            {
+                std::unique_ptr<IfNode> ifNode = std::make_unique<IfNode>();
+                ifNode->location = tkn.location;
+                if (tp.pop().type != TokenType::OP_LPAREN) {
+                    throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(ifNode->location))); // E03xx
+                }
+                ifNode->cond = parsePrattExpr(tp, current, src, 0);
+                if (tp.pop().type != TokenType::OP_RPAREN) {
+                    throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(ifNode->location))); // E03xx
+                }
+                ifNode->flowBody = parseStatement(tp, current, src);
+                if (tp.seek().type == TokenType::KEY_ELSE) { // else statement
+                    tp.pop();
+                    if (tp.seek().type == TokenType::KEY_IF) { // nested else if statement
+                        ifNode->elseBody = parseStatement(tp, current, src);
+                    } else { // single else
+                        ifNode->elseBody = parseStatement(tp, current, src);
+                    }
+                }
+                return ifNode;
+            }
+
+            case TokenType::KEY_WHILE: // while statement
+            {
+                std::unique_ptr<WhileNode> whileNode = std::make_unique<WhileNode>();
+                whileNode->location = tkn.location;
+                if (tp.pop().type != TokenType::OP_LPAREN) {
+                    throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(whileNode->location))); // E03xx
+                }
+                whileNode->cond = parsePrattExpr(tp, current, src, 0);
+                if (tp.pop().type != TokenType::OP_RPAREN) {
+                    throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(whileNode->location))); // E03xx
+                }
+                whileNode->body = parseStatement(tp, current, src);
+                return whileNode;
+            }
+
+            case TokenType::KEY_FOR: // for statement
+            {
+                std::unique_ptr<ForNode> forNode = std::make_unique<ForNode>();
+                forNode->location = tkn.location;
+                if (tp.pop().type != TokenType::OP_LPAREN) {
+                    throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(forNode->location))); // E03xx
+                }
+                forNode->init = parseStatement(tp, current, src);
+                forNode->cond = parsePrattExpr(tp, current, src, 0);
+                if (tp.pop().type != TokenType::OP_SEMICOLON) {
+                    throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(forNode->location))); // E03xx
+                }
+                forNode->step = parsePrattExpr(tp, current, src, 0);
+                if (tp.pop().type != TokenType::OP_RPAREN) {
+                    throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(forNode->location))); // E03xx
+                }
+                forNode->body = parseStatement(tp, current, src);
+                return forNode;
+            }
+
+            case TokenType::KEY_SWITCH: // switch statement
+            case TokenType::KEY_BREAK:
+            {
+                tp.pop();
+                std::unique_ptr<ASTNode> result = std::make_unique<ShortStatNode>();
+                result->type = ASTNodeType::BREAK;
+                result->location = tkn.location;
+                return result;
+            }
+
+            case TokenType::KEY_CONTINUE:
+            {
+                tp.pop();
+                std::unique_ptr<ASTNode> result = std::make_unique<ShortStatNode>();
+                result->type = ASTNodeType::CONTINUE;
+                result->location = tkn.location;
+                return result;
+            }
+
+            case TokenType::KEY_RETURN: // return statement
+            {
+                tp.pop();
+                std::unique_ptr<ShortStatNode> result = std::make_unique<ShortStatNode>();
+                result->type = ASTNodeType::RETURN;
+                result->location = tkn.location;
+                result->statExpr = parsePrattExpr(tp, current, src, 0);
+                if (tp.pop().type != TokenType::OP_SEMICOLON) {
+                    throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(result->location))); // E03xx
+                }
+                return result;
+            }
+
+            case TokenType::ORDER_DEFER: // defer statement
+            {
+                tp.pop();
+                std::unique_ptr<ShortStatNode> result = std::make_unique<ShortStatNode>();
+                result->type = ASTNodeType::DEFER;
+                result->location = tkn.location;
+                result->statExpr = parsePrattExpr(tp, current, src, 0);
+                if (tp.pop().type != TokenType::OP_SEMICOLON) {
+                    throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(result->location))); // E03xx
+                }
+                return result;
+            }
+
+            case TokenType::OP_LBRACE: // scope
+                return parseScope(tp, current, src);
+
+            case TokenType::OP_SEMICOLON: // empty statement
+                tp.pop();
+                break;
+
+            case TokenType::ORDER_DEFINE:
+                tag = tag & 0x000001;
+                tp.pop();
+                break;
+
+            case TokenType::ORDER_CONST:
+                tag = tag & 0x000010;
+                tp.pop();
+                break;
+
+            case TokenType::ORDER_VOLATILE:
+                tag = tag & 0x000100;
+                tp.pop();
+                break;
+
+            case TokenType::ORDER_EXTERN:
+                tag = tag & 0x001000;
+                tp.pop();
+                break;
+
+            case TokenType::ORDER_EXPORT:
+                tag = tag & 0x010000;
+                tp.pop();
+                break;
+
+            default:
+            {
+                std::unique_ptr<ASTNode> result = nullptr;
+                if (isTypeStart(tp, current, src)) { // var declaration
+                    result = parseVarStat(tp, current, src, tag);
+                } else if (isAssignStart(tp)) { // var assign
+                    result = parseVarStat(tp, current, src, tag);
+                } else { // expression
+                    result = parsePrattExpr(tp, current, src, 0);
+                    if (tp.pop().type != TokenType::OP_SEMICOLON) {
+                        throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(result->location))); // E03xx
+                    }
+                }
+                return result;
+            }
+        }
+    }
 }
 
 // parse toplevel declaration
-std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag) {
-
+std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
+    Token& tkn = tp.seek();
+    switch (tkn.type) {
+    }
 }
 
 // parse scope

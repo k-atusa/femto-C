@@ -135,7 +135,7 @@ class TokenProvider {
     Token nulltkn;
     int pos;
 
-    TokenProvider(std::vector<Token> data) : tokens(std::move(data)), nulltkn(), pos(0) {}
+    TokenProvider(std::vector<Token> data) : tokens(std::move(data)), nulltkn(), pos(0) { if (tokens.size() > 0) nulltkn.location.source_id = tokens[0].location.source_id; }
 
     bool canPop(int num);
     Token& pop();
