@@ -289,16 +289,14 @@ class LongStatNode: public ASTNode {
     std::unique_ptr<ASTNode> varName; // declare name, assign lvalue
     std::unique_ptr<ASTNode> varExpr; // initialize, assign rvalue
     bool isDefine;
-    bool isConst;
-    bool isVolatile;
     bool isExtern;
     bool isExported;
 
-    LongStatNode(): ASTNode(ASTNodeType::NONE), varType(nullptr), varName(nullptr), varExpr(nullptr), isDefine(false), isConst(false), isVolatile(false), isExtern(false), isExported(false) {}
-    LongStatNode(ASTNodeType tp): ASTNode(tp), varType(nullptr), varName(nullptr), varExpr(nullptr), isDefine(false), isConst(false), isVolatile(false), isExtern(false), isExported(false) {}
+    LongStatNode(): ASTNode(ASTNodeType::NONE), varType(nullptr), varName(nullptr), varExpr(nullptr), isDefine(false), isExtern(false), isExported(false) {}
+    LongStatNode(ASTNodeType tp): ASTNode(tp), varType(nullptr), varName(nullptr), varExpr(nullptr), isDefine(false), isExtern(false), isExported(false) {}
 
     std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + std::format("LONGSTAT {} {} {} {} {} {}", type, isDefine, isConst, isVolatile, isExtern, isExported);
+        std::string result = std::string(indent, '  ') + std::format("LONGSTAT {} {} {} {}", type, isDefine, isExtern, isExported);
         if (varType) result += "\n" + varType->toString(indent + 1);
         if (varName) result += "\n" + varName->toString(indent + 1);
         if (varExpr) result += "\n" + varExpr->toString(indent + 1);
@@ -419,7 +417,7 @@ class DeclFuncNode: public ASTNode {
     std::vector<std::unique_ptr<TypeNode>> param_types;
     std::vector<std::string> param_names;
     std::unique_ptr<TypeNode> return_type;
-    std::unique_ptr<ScopeNode> body;
+    std::unique_ptr<ASTNode> body;
     bool isVaArg;
     bool isExported;
 
@@ -516,30 +514,21 @@ class ASTGen {
     private:
     std::string getLocString(const Location& loc) { return std::format("{}:{}", srcFiles[loc.source_id]->path, loc.line); }
     int findSource(const std::string& path); // find source file index, -1 if not found
-    bool isTypeStart(TokenProvider& tp, ScopeNode& current, SrcFile& src);
-    bool isAssignStart(TokenProvider& tp);
+    bool isTypeStart(TokenProvider& tp, SrcFile& src);
 
-    std::unique_ptr<DeclStructNode> parseStruct(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse struct declaration
-    std::unique_ptr<DeclEnumNode> parseEnum(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse enum declaration
-    std::unique_ptr<DeclFuncNode> parseFunc(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse function declaration
+    std::unique_ptr<RawCodeNode> parseRawCode(TokenProvider& tp); // parse raw code
+    std::unique_ptr<DeclStructNode> parseStruct(TokenProvider& tp, ScopeNode& current, SrcFile& src, bool isExported); // parse struct declaration
+    std::unique_ptr<DeclEnumNode> parseEnum(TokenProvider& tp, ScopeNode& current, SrcFile& src, bool isExported); // parse enum declaration
+    std::unique_ptr<DeclFuncNode> parseFunc(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<TypeNode> retType, bool isVaArg, bool isExported); // parse function declaration
 
     std::unique_ptr<ASTNode> parseAtomicExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse atomic expression
     std::unique_ptr<ASTNode> parsePrattExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src, int level); // parse pratt expression
-    std::unique_ptr<LongStatNode> parseVarStat(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag); // parse variable declaration, assignment
+    std::unique_ptr<LongStatNode> parseVarDecl(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<TypeNode> varType, bool isDefine, bool isExtern, bool isExported); // parse variable declaration
+    std::unique_ptr<LongStatNode> parseVarAssign(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<ASTNode> lvalue); // parse variable assignment
 
     std::unique_ptr<ASTNode> parseStatement(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse general statement
-    std::unique_ptr<ASTNode> parseTopLevel(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse toplevel declaration
     std::unique_ptr<ScopeNode> parseScope(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse scope
+    std::unique_ptr<ASTNode> parseTopLevel(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse toplevel declaration
 };
-
-/*
-tag
-0x000001 define
-0x000010 const
-0x000100 volatile
-0x001000 extern
-0x010000 exported
-0x100000 va_arg
-*/
 
 #endif // ASTGEN_H

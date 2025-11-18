@@ -86,8 +86,6 @@ TokenType isCplrOrd(const std::string& word) {
     if (word == "#template") return TokenType::ORDER_TEMPLATE;
     if (word == "#defer") return TokenType::ORDER_DEFER;
     if (word == "#define") return TokenType::ORDER_DEFINE;
-    if (word == "#const") return TokenType::ORDER_CONST;
-    if (word == "#volatile") return TokenType::ORDER_VOLATILE;
     if (word == "#va_arg") return TokenType::ORDER_VA_ARG;
     if (word == "#raw_c") return TokenType::ORDER_RAW_C;
     if (word == "#raw_ir") return TokenType::ORDER_RAW_IR;

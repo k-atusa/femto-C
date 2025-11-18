@@ -325,10 +325,8 @@ int ASTGen::findSource(const std::string& path) {
     return -1;
 }
 
-bool ASTGen::isTypeStart(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
-    if (tp.match({TokenType::KEY_I8}) || tp.match({TokenType::KEY_I16}) || tp.match({TokenType::KEY_I32}) || tp.match({TokenType::KEY_I64}) ||
-        tp.match({TokenType::KEY_U8}) || tp.match({TokenType::KEY_U16}) || tp.match({TokenType::KEY_U32}) || tp.match({TokenType::KEY_U64}) ||
-        tp.match({TokenType::KEY_F32}) || tp.match({TokenType::KEY_F64}) || tp.match({TokenType::KEY_VOID})) { // primitive type
+bool ASTGen::isTypeStart(TokenProvider& tp, SrcFile& src) {
+    if (isPrimitive(tp.seek().type)) { // primitive type
         return true;
     }
     if (tp.match({TokenType::IDENTIFIER, TokenType::OP_DOT, TokenType::IDENTIFIER})) { // foreign type
@@ -362,24 +360,28 @@ bool ASTGen::isTypeStart(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
     return false;
 }
 
-bool ASTGen::isAssignStart(TokenProvider& tp) {
-    int temp = tp.pos;
-    while (tp.canPop(1)) {
-        Token& tkn = tp.pop();
-        if (tkn.type == TokenType::OP_ASSIGN) {
-            tp.pos = temp;
-            return true;
-        } else if (tkn.type == TokenType::OP_SEMICOLON) {
-            tp.pos = temp;
-            return false;
-        }
+// parse raw code
+std::unique_ptr<RawCodeNode> ASTGen::parseRawCode(TokenProvider& tp) {
+    std::unique_ptr<RawCodeNode> rawCodeNode = std::make_unique<RawCodeNode>();
+    rawCodeNode->location = tp.seek().location;
+    Token& orderTkn = tp.pop();
+    if (orderTkn.type == TokenType::ORDER_RAW_C) {
+        rawCodeNode->type = ASTNodeType::RAW_C;
+    } else if (orderTkn.type == TokenType::ORDER_RAW_IR) {
+        rawCodeNode->type = ASTNodeType::RAW_IR;
+    } else {
+        throw std::runtime_error(std::format("E03xx expected 'raw_c' at {}", getLocString(orderTkn.location))); // E03xx
     }
-    tp.pos = temp;
-    return false;
+    Token& textTkn = tp.pop();
+    if (textTkn.type != TokenType::LIT_STRING) {
+        throw std::runtime_error(std::format("E03xx expected literal string at {}", getLocString(textTkn.location))); // E03xx
+    }
+    rawCodeNode->code = textTkn.text;
+    return rawCodeNode;
 }
 
 // parse Struct declaration, after struct keyword
-std::unique_ptr<DeclStructNode> ASTGen::parseStruct(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag) {
+std::unique_ptr<DeclStructNode> ASTGen::parseStruct(TokenProvider& tp, ScopeNode& current, SrcFile& src, bool isExported) {
     std::unique_ptr<DeclStructNode> structNode = std::make_unique<DeclStructNode>();
     Token& idTkn = tp.pop();
     if (idTkn.type != TokenType::IDENTIFIER) {
@@ -419,12 +421,12 @@ std::unique_ptr<DeclStructNode> ASTGen::parseStruct(TokenProvider& tp, ScopeNode
     if (tp.pop().type != TokenType::OP_RBRACE) {
         throw std::runtime_error(std::format("E03xx expected '}}' at {}", getLocString(tp.seek().location))); // E03xx
     }
-    structNode->isExported = ((tag & 0x010000) != 0);
+    structNode->isExported = isExported;
     return structNode;
 }
 
 // parse Enum declaration, after enum keyword
-std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag) {
+std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& current, SrcFile& src, bool isExported) {
     std::unique_ptr<DeclEnumNode> enumNode = std::make_unique<DeclEnumNode>();
     Token& idTkn = tp.pop();
     if (idTkn.type != TokenType::IDENTIFIER) {
@@ -487,15 +489,15 @@ std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& cu
     if (tp.pop().type != TokenType::OP_RBRACE) {
         throw std::runtime_error(std::format("E03xx expected '}}' at {}", getLocString(tp.seek().location))); // E03xx
     }
-    enumNode->isExported = ((tag & 0x010000) != 0);
+    enumNode->isExported = isExported;
     return enumNode;
 }
 
 // parse function declaration
-std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag) {
+std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<TypeNode> retType, bool isVaArg, bool isExported) {
     std::unique_ptr<DeclFuncNode> funcNode = std::make_unique<DeclFuncNode>();
-    funcNode->location = tp.seek().location;
-    funcNode->return_type = src.parseType(tp, current, arch);
+    funcNode->location = retType->location;
+    funcNode->return_type = std::move(retType);
     if (tp.match({TokenType::IDENTIFIER, TokenType::OP_DOT, TokenType::IDENTIFIER})) { // method
         Token& structTkn = tp.pop();
         tp.pop();
@@ -539,8 +541,8 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
     if (tp.pop().type != TokenType::OP_RPAREN) {
         throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(tp.seek().location))); // E03xx
     }
-    funcNode->isExported = ((tag & 0x010000) != 0);
-    funcNode->isVaArg = ((tag & 0x100000) != 0);
+    funcNode->isVaArg = isVaArg;
+    funcNode->isExported = isExported;
     if (!funcNode->struct_name.empty()) { // check method
         if (funcNode->param_types.empty() || funcNode->param_types[0]->toString() != funcNode->struct_name + "*") {
             throw std::runtime_error(std::format("E03xx expected first parameter type to be {}* at {}", funcNode->struct_name, getLocString(funcNode->location))); // E03xx
@@ -558,6 +560,7 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
             throw std::runtime_error(std::format("E03xx last two parameters must be void** and int at {}", getLocString(funcNode->location))); // E03xx
         }
     }
+    funcNode->body = parseStatement(tp, current, src);
     return funcNode;
 }
 
@@ -725,7 +728,7 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
                 }
                 std::unique_ptr<UnaryOpNode> sizeofNode = std::make_unique<UnaryOpNode>(OperatorType::U_SIZEOF);
                 sizeofNode->location = tkn.location;
-                if (isTypeStart(tp, current, src)) {
+                if (isTypeStart(tp, src)) {
                     sizeofNode->operand = src.parseType(tp, current, arch);
                 } else {
                     sizeofNode->operand = parsePrattExpr(tp, current, src, 0);
@@ -844,65 +847,71 @@ std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& cu
     return lhs;
 }
 
-// parse variable declaration, assignment
-std::unique_ptr<LongStatNode> ASTGen::parseVarStat(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag) {
-    std::unique_ptr<LongStatNode> result = std::make_unique<LongStatNode>();
-    if (isTypeStart(tp, current, src)) { // var declaration
-        result->type = ASTNodeType::DECL_VAR;
-        result->varType = src.parseType(tp, current, arch);
-        Token& nameTkn = tp.pop();
-        if (nameTkn.type != TokenType::IDENTIFIER) {
-            throw std::runtime_error(std::format("E03xx expected identifier at {}", getLocString(nameTkn.location))); // E03xx
-        }
-        result->varName = std::make_unique<NameNode>();
-        result->varName->text = nameTkn.text;
-        result->varName->location = nameTkn.location;
-        if (tp.seek().type == TokenType::OP_ASSIGN) { // init with value
-            result->varExpr = parsePrattExpr(tp, current, src, 0);
-        }
-        if (tp.pop().type != TokenType::OP_SEMICOLON) {
-            throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(nameTkn.location))); // E03xx
-        }
-    } else { // var assignment
-        result->type = ASTNodeType::ASSIGN;
-        result->varName = parsePrattExpr(tp, current, src, 0);
-        if (tp.pop().type != TokenType::OP_ASSIGN) {
-            throw std::runtime_error(std::format("E03xx expected '=' at {}", getLocString(result->varExpr->location))); // E03xx
-        }
-        result->varExpr = parsePrattExpr(tp, current, src, 0);
-        if (tp.pop().type != TokenType::OP_SEMICOLON) {
-            throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(result->varExpr->location))); // E03xx
+// parse variable declaration, after type declaration
+std::unique_ptr<LongStatNode> ASTGen::parseVarDecl(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<TypeNode> varType, bool isDefine, bool isExtern, bool isExported) {
+    if (varType->type_size == 0) {
+        throw std::runtime_error(std::format("E03xx variable cannot be void type at {}", getLocString(varType->location))); // E03xx
+    }
+    Token& nameTkn = tp.pop();
+    if (nameTkn.type != TokenType::IDENTIFIER) {
+        throw std::runtime_error(std::format("E03xx expected identifier at {}", getLocString(nameTkn.location))); // E03xx
+    }
+    std::unique_ptr<LongStatNode> varDecl = std::make_unique<LongStatNode>();
+    varDecl->location = nameTkn.location;
+    varDecl->varType = std::move(varType);
+    varDecl->varName = std::make_unique<NameNode>();
+    varDecl->varName->location = nameTkn.location;
+    varDecl->varName->text = nameTkn.text;
+    Token& opTkn = tp.pop();
+    if (opTkn.type == TokenType::OP_ASSIGN) { // init with value
+        varDecl->varExpr = parsePrattExpr(tp, current, src, 0);
+    } else if (opTkn.type == TokenType::OP_SEMICOLON) { // declaration only
+        varDecl->varExpr = nullptr;
+    } else {
+        throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(opTkn.location))); // E03xx
+    }
+    varDecl->isDefine = isDefine;
+    varDecl->isExtern = isExtern;
+    varDecl->isExported = isExported;
+    if (isDefine) { // define variable should be initialized with literal
+        if (varDecl->varExpr == nullptr || varDecl->varExpr->type != ASTNodeType::LITERAL) {
+            throw std::runtime_error(std::format("E03xx define should be initialized with literal at {}", getLocString(nameTkn.location))); // E03xx
         }
     }
-    result->location = result->varExpr->location;
-    result->isDefine = ((0x000001 & tag) != 0);
-    result->isConst = ((0x000010 & tag) != 0);
-    result->isVolatile = ((0x000100 & tag) != 0);
-    result->isExtern = ((0x001000 & tag) != 0);
-    result->isExported = ((0x010000 & tag) != 0);
-    if (result->isDefine) {
-        result->isConst = true;
-        if (result->varExpr->type != ASTNodeType::LITERAL) {
-            throw std::runtime_error(std::format("E03xx define statement should be initialized with literal at {}", getLocString(result->varExpr->location))); // E03xx
-        }
+    if (isExtern && varDecl->varExpr != nullptr) { // extern variable should not be initialized
+        throw std::runtime_error(std::format("E03xx extern should not be initialized at {}", getLocString(nameTkn.location))); // E03xx
     }
-    if (result->isConst && result->varExpr == nullptr) {
-        throw std::runtime_error(std::format("E03xx const statement should be initialized at {}", getLocString(result->varExpr->location))); // E03xx
+    if (isExtern && isExported) { // cannot be both extern and exported
+        throw std::runtime_error(std::format("E03xx cannot be both extern and exported at {}", getLocString(nameTkn.location))); // E03xx
     }
-    if (result->isExtern && result->varExpr != nullptr) {
-        throw std::runtime_error(std::format("E03xx extern statement should not be initialized at {}", getLocString(result->varExpr->location))); // E03xx
+    return varDecl;
+}
+
+// parse variable assignment, after lvalue =
+std::unique_ptr<LongStatNode> ASTGen::parseVarAssign(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<ASTNode> lvalue) {
+    std::unique_ptr<LongStatNode> varAssign = std::make_unique<LongStatNode>();
+    varAssign->location = lvalue->location;
+    varAssign->varType = nullptr;
+    varAssign->varName = std::move(lvalue);
+    varAssign->varExpr = parsePrattExpr(tp, current, src, 0);
+    if (tp.pop().type != TokenType::OP_SEMICOLON) {
+        throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(varAssign->location))); // E03xx
     }
-    return result;
+    return varAssign;
 }
 
 // parse general statement
 std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
+    bool isDefine = false;
+    bool isExtern = false;
+    bool isExported = false;
+    bool isVaArg = false;
     for (;;) {
         Token& tkn = tp.seek();
-        int64_t tag = 0x000000;
         switch (tkn.type) {
             case TokenType::KEY_IF: // if statement
             {
+                tp.pop();
                 std::unique_ptr<IfNode> ifNode = std::make_unique<IfNode>();
                 ifNode->location = tkn.location;
                 if (tp.pop().type != TokenType::OP_LPAREN) {
@@ -926,6 +935,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
 
             case TokenType::KEY_WHILE: // while statement
             {
+                tp.pop();
                 std::unique_ptr<WhileNode> whileNode = std::make_unique<WhileNode>();
                 whileNode->location = tkn.location;
                 if (tp.pop().type != TokenType::OP_LPAREN) {
@@ -941,6 +951,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
 
             case TokenType::KEY_FOR: // for statement
             {
+                tp.pop();
                 std::unique_ptr<ForNode> forNode = std::make_unique<ForNode>();
                 forNode->location = tkn.location;
                 if (tp.pop().type != TokenType::OP_LPAREN) {
@@ -961,6 +972,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
 
             case TokenType::KEY_SWITCH: // switch statement
             {
+                tp.pop();
                 std::unique_ptr<SwitchNode> switchNode = std::make_unique<SwitchNode>();
                 switchNode->location = tkn.location;
                 if (tp.pop().type != TokenType::OP_LPAREN) {
@@ -1067,53 +1079,38 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             }
 
             case TokenType::ORDER_DEFINE:
-                tag = tag | 0x000001;
-                tp.pop();
-                break;
-
-            case TokenType::ORDER_CONST:
-                tag = tag | 0x000010;
-                tp.pop();
-                break;
-
-            case TokenType::ORDER_VOLATILE:
-                tag = tag | 0x000100;
+                isDefine = true;
                 tp.pop();
                 break;
 
             case TokenType::ORDER_EXTERN:
-                tag = tag | 0x001000;
+                isExtern = true;
                 tp.pop();
                 break;
 
             case TokenType::ORDER_EXPORT:
-                tag = tag | 0x010000;
+                isExported = true;
                 tp.pop();
                 break;
 
+            case TokenType::ORDER_RAW_C: case TokenType::ORDER_RAW_IR:
+                return parseRawCode(tp);
+
             default:
-            {
-                std::unique_ptr<ASTNode> result = nullptr;
-                if (isTypeStart(tp, current, src)) { // var declaration
-                    result = parseVarStat(tp, current, src, tag);
-                } else if (isAssignStart(tp)) { // var assign
-                    result = parseVarStat(tp, current, src, tag);
-                } else { // expression
-                    result = parsePrattExpr(tp, current, src, 0);
-                    if (tp.pop().type != TokenType::OP_SEMICOLON) {
-                        throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(result->location))); // E03xx
+                if (isTypeStart(tp, src)) { // var declaration
+                    return parseVarDecl(tp, current, src, src.parseType(tp, current, arch), isDefine, isExtern, isExported);
+                } else {
+                    std::unique_ptr<ASTNode> left = parsePrattExpr(tp, current, src, 0);
+                    Token& opTkn = tp.pop();
+                    if (opTkn.type == TokenType::OP_ASSIGN) { // assign statement
+                        return parseVarAssign(tp, current, src, std::move(left));
+                    } else if (opTkn.type == TokenType::OP_SEMICOLON) { // expression statement
+                        return left;
+                    } else {
+                        throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(opTkn.location))); // E03xx
                     }
                 }
-                return result;
-            }
         }
-    }
-}
-
-// parse toplevel declaration
-std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
-    Token& tkn = tp.seek();
-    switch (tkn.type) {
     }
 }
 
@@ -1124,13 +1121,114 @@ std::unique_ptr<ScopeNode> ASTGen::parseScope(TokenProvider& tp, ScopeNode& curr
     }
     std::unique_ptr<ScopeNode> scope = std::make_unique<ScopeNode>();
     scope->location = current.location;
+    scope->parent = &current;
     while (tp.canPop(1)) {
         Token& tkn = tp.seek();
         if (tkn.type == TokenType::OP_RBRACE) {
             tp.pop();
             break;
         }
-        scope->body.push_back(parseStatement(tp, current, src));
+        scope->body.push_back(parseStatement(tp, *scope, src));
     }
     return scope;
+}
+
+// parse toplevel declaration
+std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
+    bool isDefine = false;
+    bool isExtern = false;
+    bool isExported = false;
+    bool isVaArg = false;
+    for (;;) {
+        Token& tkn = tp.seek();
+        switch (tkn.type) {
+            case TokenType::ORDER_INCLUDE:
+            {
+            tp.pop();
+            std::unique_ptr<IncludeNode> result = std::make_unique<IncludeNode>();
+            result->location = tkn.location;
+            if (tp.seek().type == TokenType::OP_LITTER) { // template arguments
+                while (tp.canPop(1)) {
+                    result->args.push_back(src.parseType(tp, current, arch));
+                    Token& opTkn = tp.seek();
+                    if (opTkn.type == TokenType::OP_COMMA) {
+                        tp.pop();
+                    } else if (opTkn.type == TokenType::OP_GREATER) {
+                        tp.pop();
+                        break;
+                    } else {
+                        throw std::runtime_error(std::format("E03xx expected '>' at {}", getLocString(opTkn.location))); // E03xx
+                    }
+                }
+            }
+            if (tp.match({TokenType::LIT_STRING, TokenType::IDENTIFIER})) {
+                result->path = tp.pop().text;
+                result->name = tp.pop().text;
+            } else {
+                throw std::runtime_error(std::format("E03xx expected filepath at {}", getLocString(tkn.location))); // E03xx
+            }
+            return result;
+            }
+
+            case TokenType::ORDER_TEMPLATE:
+            {
+            tp.pop();
+            std::unique_ptr<DeclTemplateNode> result = std::make_unique<DeclTemplateNode>();
+            result->location = tkn.location;
+            Token& tmpTkn = tp.pop();
+            if (tmpTkn.type != TokenType::IDENTIFIER) {
+                throw std::runtime_error(std::format("E03xx expected typename at {}", getLocString(tmpTkn.location))); // E03xx
+            }
+            result->name = tmpTkn.text;
+            return result;
+            }
+
+            case TokenType::ORDER_RAW_C: case TokenType::ORDER_RAW_IR:
+                return parseRawCode(tp);
+
+            case TokenType::ORDER_DEFINE:
+                tp.pop();
+                isDefine = true;
+                break;
+
+            case TokenType::ORDER_EXTERN:
+                tp.pop();
+                isExtern = true;
+                break;
+
+            case TokenType::ORDER_EXPORT:
+                tp.pop();
+                isExported = true;
+                break;
+
+            case TokenType::ORDER_VA_ARG:
+                tp.pop();
+                isVaArg = true;
+                break;
+
+            case TokenType::KEY_STRUCT:
+                tp.pop();
+                return parseStruct(tp, current, src, isExported);
+
+            case TokenType::KEY_ENUM:
+                tp.pop();
+                return parseEnum(tp, current, src, isExported);
+
+            default:
+            {
+            std::unique_ptr<TypeNode> vtype = src.parseType(tp, current, arch);
+            if (tp.match({TokenType::IDENTIFIER, TokenType::OP_SEMICOLON})) { // var declaration
+                return parseVarDecl(tp, current, src, std::move(vtype), isDefine, isExtern, isExported);
+            } else if (tp.match({TokenType::IDENTIFIER, TokenType::OP_ASSIGN})) { // var declaration with init
+                std::unique_ptr<LongStatNode> varDecl = parseVarDecl(tp, current, src, std::move(vtype), isDefine, isExtern, isExported);
+                if (varDecl->varExpr == nullptr || varDecl->varExpr->type != ASTNodeType::LITERAL) {
+                    throw std::runtime_error(std::format("E03xx global var should be initialized with literal at {}", getLocString(varDecl->varExpr->location))); // E03xx
+                }
+                return varDecl;
+            } else { // function declaration
+                return parseFunc(tp, current, src, std::move(vtype), isVaArg, isExported);
+            }
+            }
+        }
+    }
 }

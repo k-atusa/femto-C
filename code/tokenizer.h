@@ -99,8 +99,6 @@ enum class TokenType {
     ORDER_TEMPLATE,
     ORDER_DEFER,
     ORDER_DEFINE,
-    ORDER_CONST,
-    ORDER_VOLATILE,
     ORDER_VA_ARG,
     ORDER_RAW_C,
     ORDER_RAW_IR,
@@ -143,5 +141,12 @@ class TokenProvider {
     void rewind();
     bool match(const std::vector<TokenType>& types);
 };
+
+// token type checker
+bool isSInt(TokenType type) { return type == TokenType::KEY_I8 || type == TokenType::KEY_I16 || type == TokenType::KEY_I32 || type == TokenType::KEY_I64; }
+bool isUInt(TokenType type) { return type == TokenType::KEY_U8 || type == TokenType::KEY_U16 || type == TokenType::KEY_U32 || type == TokenType::KEY_U64; }
+bool isInt(TokenType type) { return isSInt(type) || isUInt(type); }
+bool isFloat(TokenType type) { return type == TokenType::KEY_F32 || type == TokenType::KEY_F64; }
+bool isPrimitive(TokenType type) { return isInt(type) || isFloat(type) || type == TokenType::KEY_VOID; }
 
 #endif // TOKENIZER_H
