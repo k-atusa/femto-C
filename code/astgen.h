@@ -395,8 +395,8 @@ class SwitchNode: public ASTNode {
     public:
     std::unique_ptr<ASTNode> cond;
     std::vector<std::unique_ptr<ASTNode>> case_exprs;
-    std::vector<std::unique_ptr<ASTNode>> case_bodies;
-    std::unique_ptr<ASTNode> defaultBody;
+    std::vector<std::unique_ptr<ScopeNode>> case_bodies;
+    std::unique_ptr<ScopeNode> defaultBody;
 
     SwitchNode(): ASTNode(ASTNodeType::SWITCH), cond(nullptr), case_exprs(), case_bodies(), defaultBody(nullptr) {}
 
@@ -539,6 +539,7 @@ tag
 0x000100 volatile
 0x001000 extern
 0x010000 exported
+0x100000 va_arg
 */
 
 #endif // ASTGEN_H

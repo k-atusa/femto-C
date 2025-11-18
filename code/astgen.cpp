@@ -493,7 +493,72 @@ std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& cu
 
 // parse function declaration
 std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& current, SrcFile& src, int64_t tag) {
-/////
+    std::unique_ptr<DeclFuncNode> funcNode = std::make_unique<DeclFuncNode>();
+    funcNode->location = tp.seek().location;
+    funcNode->return_type = src.parseType(tp, current, arch);
+    if (tp.match({TokenType::IDENTIFIER, TokenType::OP_DOT, TokenType::IDENTIFIER})) { // method
+        Token& structTkn = tp.pop();
+        tp.pop();
+        Token& methodTkn = tp.pop();
+        funcNode->full_name = structTkn.text + "." + methodTkn.text;
+        funcNode->struct_name = structTkn.text;
+        funcNode->func_name = methodTkn.text;
+    } else if (tp.match({TokenType::IDENTIFIER})) { // function
+        Token& idTkn = tp.pop();
+        funcNode->full_name = idTkn.text;
+    } else {
+        throw std::runtime_error(std::format("E03xx expected function name at {}", getLocString(tp.seek().location))); // E03xx
+    }
+    if (tp.pop().type != TokenType::OP_LPAREN) {
+        throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(tp.seek().location))); // E03xx
+    }
+    if (tp.seek().type != TokenType::OP_RPAREN) {
+        while (tp.canPop(1)) {
+            std::unique_ptr<TypeNode> paramType = src.parseType(tp, current, arch);
+            if (paramType == nullptr) {
+                throw std::runtime_error(std::format("E03xx expected parameter type at {}", getLocString(tp.seek().location))); // E03xx
+            } else if (paramType->type_size == 0) {
+                throw std::runtime_error(std::format("E03xx parameter type cannot be void at {}", getLocString(paramType->location))); // E03xx
+            }
+            funcNode->param_types.push_back(std::move(paramType));
+            Token& paramNameTkn = tp.pop();
+            if (paramNameTkn.type != TokenType::IDENTIFIER) {
+                throw std::runtime_error(std::format("E03xx expected parameter name at {}", getLocString(paramNameTkn.location))); // E03xx
+            }
+            funcNode->param_names.push_back(paramNameTkn.text);
+            Token& sepTkn = tp.seek();
+            if (sepTkn.type == TokenType::OP_RPAREN) {
+                break;
+            } else if (sepTkn.type == TokenType::OP_COMMA) {
+                tp.pop();
+            } else {
+                throw std::runtime_error(std::format("E03xx expected ',' at {}", getLocString(sepTkn.location))); // E03xx
+            }
+        }
+    }
+    if (tp.pop().type != TokenType::OP_RPAREN) {
+        throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(tp.seek().location))); // E03xx
+    }
+    funcNode->isExported = ((tag & 0x010000) != 0);
+    funcNode->isVaArg = ((tag & 0x100000) != 0);
+    if (!funcNode->struct_name.empty()) { // check method
+        if (funcNode->param_types.empty() || funcNode->param_types[0]->toString() != funcNode->struct_name + "*") {
+            throw std::runtime_error(std::format("E03xx expected first parameter type to be {}* at {}", funcNode->struct_name, getLocString(funcNode->location))); // E03xx
+        }
+    }
+    if (funcNode->isVaArg) { // check va_arg
+        if (funcNode->param_types.size() < 2) {
+            throw std::runtime_error(std::format("E03xx expected at least two parameters at {}", getLocString(funcNode->location))); // E03xx
+        }
+        std::string arg0 = funcNode->param_types[funcNode->param_types.size() - 2]->toString();
+        std::string arg1 = funcNode->param_types[funcNode->param_types.size() - 1]->toString();
+        if (arg0 != "void**"
+            || (arg1 != "i8" && arg1 != "i16" && arg1 != "i32" && arg1 != "i64"
+                && arg1 != "u8" && arg1 != "u16" && arg1 != "u32" && arg1 != "u64")) {
+            throw std::runtime_error(std::format("E03xx last two parameters must be void** and int at {}", getLocString(funcNode->location))); // E03xx
+        }
+    }
+    return funcNode;
 }
 
 // parse atomic expression
@@ -800,7 +865,7 @@ std::unique_ptr<LongStatNode> ASTGen::parseVarStat(TokenProvider& tp, ScopeNode&
         }
     } else { // var assignment
         result->type = ASTNodeType::ASSIGN;
-        result->varExpr = parsePrattExpr(tp, current, src, 0);
+        result->varName = parsePrattExpr(tp, current, src, 0);
         if (tp.pop().type != TokenType::OP_ASSIGN) {
             throw std::runtime_error(std::format("E03xx expected '=' at {}", getLocString(result->varExpr->location))); // E03xx
         }
@@ -895,6 +960,57 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             }
 
             case TokenType::KEY_SWITCH: // switch statement
+            {
+                std::unique_ptr<SwitchNode> switchNode = std::make_unique<SwitchNode>();
+                switchNode->location = tkn.location;
+                if (tp.pop().type != TokenType::OP_LPAREN) {
+                    throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(switchNode->location))); // E03xx
+                }
+                switchNode->cond = parsePrattExpr(tp, current, src, 0);
+                if (tp.pop().type != TokenType::OP_RPAREN) {
+                    throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(switchNode->location))); // E03xx
+                }
+                if (tp.pop().type != TokenType::OP_LBRACE) {
+                    throw std::runtime_error(std::format("E03xx expected '{' at {}", getLocString(switchNode->location))); // E03xx
+                }
+                bool defaultFound = false;
+                while (tp.canPop(1)) {
+                    Token& caseTkn = tp.seek();
+                    if (caseTkn.type == TokenType::KEY_CASE) { // case statement
+                        tp.pop();
+                        switchNode->case_exprs.push_back(parsePrattExpr(tp, current, src, 0));
+                        if (tp.pop().type != TokenType::OP_COLON) {
+                            throw std::runtime_error(std::format("E03xx expected ':' at {}", getLocString(switchNode->location))); // E03xx
+                        }
+                        std::unique_ptr<ScopeNode> tempScope = std::make_unique<ScopeNode>();
+                        tempScope->location = caseTkn.location;
+                        switchNode->case_bodies.push_back(std::move(tempScope));
+                    } else if (caseTkn.type == TokenType::KEY_DEFAULT) { // default statement
+                        tp.pop();
+                        if (defaultFound) {
+                            throw std::runtime_error(std::format("E03xx double default at {}", getLocString(switchNode->location))); // E03xx
+                        }
+                        defaultFound = true;
+                        if (tp.pop().type != TokenType::OP_COLON) {
+                            throw std::runtime_error(std::format("E03xx expected ':' at {}", getLocString(switchNode->location))); // E03xx
+                        }
+                        std::unique_ptr<ScopeNode> tempScope = std::make_unique<ScopeNode>();
+                        tempScope->location = caseTkn.location;
+                        switchNode->defaultBody= std::move(tempScope);
+                    } else if (caseTkn.type == TokenType::OP_RBRACE) { // end
+                        tp.pop();
+                        break;
+                    } else if (defaultFound) { // push to default body
+                        switchNode->defaultBody->body.push_back(parseStatement(tp, current, src));
+                    } else if (!switchNode->case_bodies.empty()) { // push to case body
+                        switchNode->case_bodies.back()->body.push_back(parseStatement(tp, current, src));
+                    } else { // statement before case
+                        throw std::runtime_error(std::format("E03xx statement before case expression at {}", getLocString(switchNode->location))); // E03xx
+                    }
+                }
+                return switchNode;
+            }
+
             case TokenType::KEY_BREAK:
             {
                 tp.pop();
@@ -943,31 +1059,35 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 return parseScope(tp, current, src);
 
             case TokenType::OP_SEMICOLON: // empty statement
+            {
                 tp.pop();
-                break;
+                std::unique_ptr<ASTNode> result = std::make_unique<ScopeNode>();
+                result->location = tkn.location;
+                return result;
+            }
 
             case TokenType::ORDER_DEFINE:
-                tag = tag & 0x000001;
+                tag = tag | 0x000001;
                 tp.pop();
                 break;
 
             case TokenType::ORDER_CONST:
-                tag = tag & 0x000010;
+                tag = tag | 0x000010;
                 tp.pop();
                 break;
 
             case TokenType::ORDER_VOLATILE:
-                tag = tag & 0x000100;
+                tag = tag | 0x000100;
                 tp.pop();
                 break;
 
             case TokenType::ORDER_EXTERN:
-                tag = tag & 0x001000;
+                tag = tag | 0x001000;
                 tp.pop();
                 break;
 
             case TokenType::ORDER_EXPORT:
-                tag = tag & 0x010000;
+                tag = tag | 0x010000;
                 tp.pop();
                 break;
 
@@ -999,5 +1119,18 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
 
 // parse scope
 std::unique_ptr<ScopeNode> ASTGen::parseScope(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
-    
+    if (tp.pop().type != TokenType::OP_LBRACE) {
+        throw std::runtime_error(std::format("E03xx expected '{{' at {}", getLocString(current.location))); // E03xx
+    }
+    std::unique_ptr<ScopeNode> scope = std::make_unique<ScopeNode>();
+    scope->location = current.location;
+    while (tp.canPop(1)) {
+        Token& tkn = tp.seek();
+        if (tkn.type == TokenType::OP_RBRACE) {
+            tp.pop();
+            break;
+        }
+        scope->body.push_back(parseStatement(tp, current, src));
+    }
+    return scope;
 }
