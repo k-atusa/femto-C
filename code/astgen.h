@@ -119,9 +119,9 @@ class TypeNode: public ASTNode {
     int typeSize; // total size in bytes
     int typeAlign; // align requirement in bytes
 
-    TypeNode(): ASTNode(ASTNodeType::TYPE), subType(TypeNodeType::NONE), name(text), includeName(""), direct(nullptr), indirect(), length(-1) {}
-    TypeNode(TypeNodeType tp, const std::string& nm): ASTNode(ASTNodeType::TYPE, nm), subType(tp), name(text), includeName(""), direct(nullptr), indirect(), length(-1) {}
-    TypeNode(const std::string& incNm, const std::string& tpNm): ASTNode(ASTNodeType::TYPE, tpNm), subType(TypeNodeType::FOREIGN), name(text), includeName(incNm), direct(nullptr), indirect(), length(-1) {}
+    TypeNode(): ASTNode(ASTNodeType::TYPE), subType(TypeNodeType::NONE), name(text), includeName(""), direct(nullptr), indirect(), length(-1), typeSize(-1), typeAlign(-1) {}
+    TypeNode(TypeNodeType tp, const std::string& nm): ASTNode(ASTNodeType::TYPE, nm), subType(tp), name(text), includeName(""), direct(nullptr), indirect(), length(-1), typeSize(-1), typeAlign(-1) {}
+    TypeNode(const std::string& incNm, const std::string& tpNm): ASTNode(ASTNodeType::TYPE, tpNm), subType(TypeNodeType::FOREIGN), name(text), includeName(incNm), direct(nullptr), indirect(), length(-1), typeSize(-1), typeAlign(-1) {}
 
     std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + std::format("TYPE {} {} {} {} {} {}", name, includeName, subType, length, typeSize, typeAlign);
@@ -295,7 +295,6 @@ class ScopeNode: public ASTNode {
     ASTNode* parent;
 
     ScopeNode(): ASTNode(ASTNodeType::SCOPE), body(), parent(nullptr) {}
-    ScopeNode(ASTNode* p): ASTNode(ASTNodeType::SCOPE), body(), parent(p) {}
 
     std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + "SCOPE";

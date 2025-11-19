@@ -112,7 +112,7 @@ Literal ScopeNode::findDefinedLiteral(const std::string& name) {
     if (varNode == nullptr || varNode->isDefine == false) {
         return Literal();
     }
-    if (varNode->varExpr->objType != ASTNodeType::LITERAL) {
+    if (varNode->varExpr->objType != ASTNodeType::LITERAL && varNode->varExpr->objType != ASTNodeType::LITERAL_KEY) {
         return Literal();
     }
     AtomicExprNode* litNode = static_cast<AtomicExprNode*>(varNode->varExpr.get());
@@ -236,8 +236,17 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
                     sliceType->location = result->location;
                     sliceType->typeSize = arch * 2; // ptr + length
                     sliceType->typeAlign = arch;
-                    sliceType->direct = std::move(result);
-                    result = std::move(sliceType);
+                    if (result->subType == TypeNodeType::ARRAY || result->subType == TypeNodeType::SLICE) { // nested array
+                        TypeNode* curr = result.get();
+                        while (curr->direct && (curr->direct->subType == TypeNodeType::ARRAY || curr->direct->subType == TypeNodeType::SLICE)) {
+                            curr = curr->direct.get();
+                        }
+                        sliceType->direct = std::move(curr->direct);
+                        curr->direct = std::move(sliceType);
+                    } else {
+                        sliceType->direct = std::move(result);
+                        result = std::move(sliceType);
+                    }
                 } else if (tp.match({TokenType::LIT_INT, TokenType::OP_RBRACKET})) { // array
                     Token& lenTkn = tp.pop();
                     int64_t len = lenTkn.value.intValue;
@@ -248,12 +257,17 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
                     std::unique_ptr<TypeNode> arrType = std::make_unique<TypeNode>(TypeNodeType::ARRAY, std::format("[{}]", len));
                     arrType->location = result->location;
                     arrType->length = len;
-                    if (result->typeSize > 0) {
-                        arrType->typeSize = result->typeSize * len;
-                        arrType->typeAlign = result->typeAlign;
+                    if (result->subType == TypeNodeType::ARRAY || result->subType == TypeNodeType::SLICE) { // nested array
+                        TypeNode* curr = result.get();
+                        while (curr->direct && (curr->direct->subType == TypeNodeType::ARRAY || curr->direct->subType == TypeNodeType::SLICE)) {
+                            curr = curr->direct.get();
+                        }
+                        arrType->direct = std::move(curr->direct);
+                        curr->direct = std::move(arrType);
+                    } else {
+                        arrType->direct = std::move(result);
+                        result = std::move(arrType);
                     }
-                    arrType->direct = std::move(result);
-                    result = std::move(arrType);
                 } else if (tp.match({TokenType::IDENTIFIER, TokenType::OP_RBRACKET})) { // array with defined size
                     Token& lenTkn = tp.pop();
                     Literal lenLit = current.findDefinedLiteral(lenTkn.text);
@@ -268,12 +282,17 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
                     std::unique_ptr<TypeNode> arrType = std::make_unique<TypeNode>(TypeNodeType::ARRAY, std::format("[{}]", len));
                     arrType->location = result->location;
                     arrType->length = len;
-                    if (result->typeSize > 0) {
-                        arrType->typeSize = result->typeSize * len;
-                        arrType->typeAlign = result->typeAlign;
+                    if (result->subType == TypeNodeType::ARRAY || result->subType == TypeNodeType::SLICE) { // nested array
+                        TypeNode* curr = result.get();
+                        while (curr->direct && (curr->direct->subType == TypeNodeType::ARRAY || curr->direct->subType == TypeNodeType::SLICE)) {
+                            curr = curr->direct.get();
+                        }
+                        arrType->direct = std::move(curr->direct);
+                        curr->direct = std::move(arrType);
+                    } else {
+                        arrType->direct = std::move(result);
+                        result = std::move(arrType);
                     }
-                    arrType->direct = std::move(result);
-                    result = std::move(arrType);
                 } else {
                     throw std::runtime_error(std::format("E02xx invalid type modifier at {}:{}", path, tkn.location.line)); // E02xx
                 }
@@ -404,6 +423,11 @@ std::unique_ptr<DeclStructNode> ASTGen::parseStruct(TokenProvider& tp, ScopeNode
         if (fieldIdTkn.objType != TokenType::IDENTIFIER) {
             throw std::runtime_error(std::format("E03xx expected member name at {}", getLocString(fieldIdTkn.location))); // E03xx
         }
+        for (auto& name : structNode->memNames) {
+            if (name == fieldIdTkn.text) {
+                throw std::runtime_error(std::format("E03xx duplicate member name {} at {}", fieldIdTkn.text, getLocString(fieldIdTkn.location))); // E03xx
+            }
+        }
         structNode->memTypes.push_back(std::move(fieldType));
         structNode->memNames.push_back(fieldIdTkn.text);
         structNode->memOffsets.push_back(-1);
@@ -445,6 +469,11 @@ std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& cu
         Token& nameTkn = tp.pop();
         if (nameTkn.objType != TokenType::IDENTIFIER) {
             throw std::runtime_error(std::format("E03xx expected member name at {}", getLocString(nameTkn.location))); // E03xx
+        }
+        for (auto& name : enumNode->memNames) {
+            if (name == nameTkn.text) {
+                throw std::runtime_error(std::format("E03xx duplicate member name {} at {}", nameTkn.text, getLocString(nameTkn.location))); // E03xx
+            }
         }
         enumNode->memNames.push_back(nameTkn.text);
         if (tp.seek().objType == TokenType::OP_EQ) { // init with value
@@ -538,6 +567,11 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
             Token& paramNameTkn = tp.pop();
             if (paramNameTkn.objType != TokenType::IDENTIFIER) {
                 throw std::runtime_error(std::format("E03xx expected parameter name at {}", getLocString(paramNameTkn.location))); // E03xx
+            }
+            for (auto& name : funcNode->paramNames) {
+                if (name == paramNameTkn.text) {
+                    throw std::runtime_error(std::format("E03xx duplicate parameter name {} at {}", paramNameTkn.text, getLocString(paramNameTkn.location))); // E03xx
+                }
             }
             funcNode->paramNames.push_back(paramNameTkn.text);
             Token& sepTkn = tp.seek();
@@ -887,7 +921,9 @@ std::unique_ptr<LongStatNode> ASTGen::parseVarDecl(TokenProvider& tp, ScopeNode&
     varDecl->isExtern = isExtern;
     varDecl->isExported = isExported;
     if (isDefine) { // define variable should be initialized with literal
-        if (varDecl->varExpr == nullptr || varDecl->varExpr->objType != ASTNodeType::LITERAL) {
+        if (varDecl->varExpr == nullptr
+                || (varDecl->varExpr->objType != ASTNodeType::LITERAL
+                    && varDecl->varExpr->objType != ASTNodeType::LITERAL_KEY)) {
             throw std::runtime_error(std::format("E03xx define should be initialized with literal at {}", getLocString(nameTkn.location))); // E03xx
         }
     }
@@ -967,7 +1003,11 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                     throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(forNode->location))); // E03xx
                 }
                 forNode->init = parseStatement(tp, current, src);
-                forNode->cond = parsePrattExpr(tp, current, src, 0);
+                if (tp.seek().objType == TokenType::OP_SEMICOLON) {
+                    forNode->cond = std::make_unique<AtomicExprNode>(Literal((int64_t)1));
+                } else {
+                    forNode->cond = parsePrattExpr(tp, current, src, 0);
+                }
                 if (tp.pop().objType != TokenType::OP_SEMICOLON) {
                     throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(forNode->location))); // E03xx
                 }
@@ -1012,6 +1052,9 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                     Token& caseTkn = tp.seek();
                     if (caseTkn.objType == TokenType::KEY_CASE) { // case statement
                         tp.pop();
+                        if (defaultFound) {
+                            throw std::runtime_error(std::format("E03xx case should be before default at {}", getLocString(caseTkn.location))); // E03xx
+                        }
                         pushCase = true;
                         switchNode->caseExprs.push_back(parsePrattExpr(tp, current, src, 0));
                         if (tp.pop().objType != TokenType::OP_COLON) {
@@ -1019,6 +1062,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                         }
                         std::unique_ptr<ScopeNode> tempScope = std::make_unique<ScopeNode>();
                         tempScope->location = caseTkn.location;
+                        tempScope->parent = &current;
                         switchNode->caseBodies.push_back(std::move(tempScope));
                     } else if (caseTkn.objType == TokenType::KEY_DEFAULT) { // default statement
                         tp.pop();
@@ -1032,6 +1076,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                         }
                         std::unique_ptr<ScopeNode> tempScope = std::make_unique<ScopeNode>();
                         tempScope->location = caseTkn.location;
+                        tempScope->parent = &current;
                         switchNode->defaultBody= std::move(tempScope);
                     } else if (caseTkn.objType == TokenType::OP_RBRACE) { // end
                         tp.pop();
@@ -1093,8 +1138,9 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             case TokenType::OP_SEMICOLON: // empty statement
             {
                 tp.pop();
-                std::unique_ptr<ASTNode> result = std::make_unique<ScopeNode>();
+                std::unique_ptr<ScopeNode> result = std::make_unique<ScopeNode>();
                 result->location = tkn.location;
+                result->parent = &current;
                 return result;
             }
 
