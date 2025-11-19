@@ -26,6 +26,7 @@ enum class ASTNodeType {
     DECL_VAR,
     ASSIGN,
     // short statement
+    EMPTY, // empty statement
     RETURN,
     DEFER,
     BREAK,
@@ -141,8 +142,27 @@ class TypeNode: public ASTNode {
             case TypeNodeType::FOREIGN:
                 result = includeName + "." + name;
                 break;
-            case TypeNodeType::POINTER: case TypeNodeType::ARRAY: case TypeNodeType::SLICE:
+            case TypeNodeType::POINTER:
                 result = direct->toString() + name;
+                break;
+            case TypeNodeType::ARRAY: case TypeNodeType::SLICE:
+                if (direct && (direct->subType == TypeNodeType::ARRAY || direct->subType == TypeNodeType::SLICE)) { // nested array
+                    int count = 1;
+                    TypeNode* curr = direct.get();
+                    while (curr->direct && (curr->direct->subType == TypeNodeType::ARRAY || curr->direct->subType == TypeNodeType::SLICE)) {
+                        curr = curr->direct.get();
+                        count += 1;
+                    }
+                    std::string temp = direct->toString();
+                    int pos = temp.length();
+                    while (count != 0) {
+                        pos--;
+                        if (temp[pos] == '[') count -= 1;
+                    }
+                    result = temp.substr(0, pos) + name + temp.substr(pos);
+                } else {
+                    result = direct->toString() + name;
+                }
                 break;
             case TypeNodeType::FUNCTION:
                 result = direct->toString() + "(";
@@ -292,9 +312,10 @@ class ShortStatNode: public ASTNode {
 class ScopeNode: public ASTNode {
     public:
     std::vector<std::unique_ptr<ASTNode>> body;
-    ASTNode* parent;
+    ScopeNode* parent;
 
     ScopeNode(): ASTNode(ASTNodeType::SCOPE), body(), parent(nullptr) {}
+    ScopeNode(ScopeNode* p): ASTNode(ASTNodeType::SCOPE), body(), parent(p) {}
 
     std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + "SCOPE";
@@ -302,7 +323,7 @@ class ScopeNode: public ASTNode {
         return result;
     }
 
-    LongStatNode* findVarByName(const std::string& name); // find variable declaration, nullptr if not found
+    ASTNode* findVarByName(const std::string& name); // find variable declaration (decl_var, for, decl_func), nullptr if not found
     Literal findDefinedLiteral(const std::string& name); // find defined literal variable, type NONE if not found
 };
 
@@ -364,7 +385,7 @@ class SwitchNode: public ASTNode {
     std::vector<std::unique_ptr<ScopeNode>> caseBodies;
     std::unique_ptr<ScopeNode> defaultBody;
 
-    SwitchNode(): ASTNode(ASTNodeType::SWITCH), cond(nullptr), caseExprs(), caseBodies(), defaultBody() {}
+    SwitchNode(): ASTNode(ASTNodeType::SWITCH), cond(nullptr), caseExprs(), caseBodies() {defaultBody = nullptr;}
 
     std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + "SWITCH";
@@ -448,9 +469,9 @@ class SrcFile {
     std::unique_ptr<ScopeNode> code;
     bool isFinished;
 
-    SrcFile(): path(""), uniqueName(""), code(), isFinished(false) {}
-    SrcFile(const std::string& fpath): path(fpath), uniqueName(""), code(), isFinished(false) {}
-    SrcFile(const std::string& fpath, const std::string& uname): path(fpath), uniqueName(uname), code(), isFinished(false) {}
+    SrcFile(): path(""), uniqueName(""), isFinished(false), code() { code = std::make_unique<ScopeNode>(nullptr); }
+    SrcFile(const std::string& fpath): path(fpath), uniqueName(""), isFinished(false), code() { code = std::make_unique<ScopeNode>(nullptr); }
+    SrcFile(const std::string& fpath, const std::string& uname): path(fpath), uniqueName(uname), isFinished(false), code() { code = std::make_unique<ScopeNode>(nullptr); }
 
     std::string toString() {
         std::string result = std::format("SrcFile {} {}", path, uniqueName);
@@ -458,7 +479,7 @@ class SrcFile {
         return result;
     }
 
-    ASTNode* findNodeByName(ASTNodeType tp, const std::string& name, bool checkExported); // find include, tmp, var, func, struct, enum
+    ASTNode* findNodeByName(ASTNodeType tp, const std::string& name, bool checkExported); // find toplevel node by name (include, tmp, var, func, struct, enum)
     std::unique_ptr<TypeNode> parseType(TokenProvider& tp, ScopeNode& current, int arch); // parse type from tokens
 };
 
