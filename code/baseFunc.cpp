@@ -75,15 +75,15 @@ std::string absPath(const std::string& path, const std::string& baseDir) {
 
 // Literal to string
 std::string Literal::toString() {
-    switch (node_type) {
+    switch (objType) {
         case LiteralType::INT:
-            return std::to_string(int_value);
+            return std::to_string(intValue);
         case LiteralType::FLOAT:
-            return std::to_string(float_value);
+            return std::to_string(floatValue);
         case LiteralType::CHAR:
-            return "'" + std::string(1, char_value) + "'";
+            return "'" + std::string(1, charValue) + "'";
         case LiteralType::STRING:
-            return "\"" + string_value + "\"";
+            return "\"" + stringValue + "\"";
         default:
             return "";
     }

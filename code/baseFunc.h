@@ -40,11 +40,11 @@ std::string absPath(const std::string& path, const std::string& baseDir);
 
 // indicates code position
 struct Location {
-    int source_id;
+    int srcLoc;
     int line;
 
-    Location(): source_id(-1), line(-1) {}
-    Location(int src_id, int ln): source_id(src_id), line(ln) {}
+    Location(): srcLoc(-1), line(-1) {}
+    Location(int src, int ln): srcLoc(src), line(ln) {}
 };
 
 // indicates literal value
@@ -57,17 +57,17 @@ enum class LiteralType {
 };
 
 struct Literal {
-    LiteralType node_type;
-    int64_t int_value;
-    double float_value;
-    char char_value;
-    std::string string_value;
+    LiteralType objType;
+    int64_t intValue;
+    double floatValue;
+    char charValue;
+    std::string stringValue;
 
-    Literal(): node_type(LiteralType::NONE) {}
-    Literal(int64_t v): node_type(LiteralType::INT), int_value(v), float_value(0.0), char_value(0), string_value("") {}
-    Literal(double v): node_type(LiteralType::FLOAT), int_value(0), float_value(v), char_value(0), string_value("") {}
-    Literal(char v): node_type(LiteralType::CHAR), int_value(v), float_value(0.0), char_value(v), string_value("") {}
-    Literal(const std::string& v): node_type(LiteralType::STRING), int_value(0), float_value(0.0), char_value(0), string_value(v) {}
+    Literal(): objType(LiteralType::NONE) {}
+    Literal(int64_t v): objType(LiteralType::INT), intValue(v), floatValue(0.0), charValue(0), stringValue("") {}
+    Literal(double v): objType(LiteralType::FLOAT), intValue(0), floatValue(v), charValue(0), stringValue("") {}
+    Literal(char v): objType(LiteralType::CHAR), intValue(v), floatValue(0.0), charValue(v), stringValue("") {}
+    Literal(const std::string& v): objType(LiteralType::STRING), intValue(0), floatValue(0.0), charValue(0), stringValue(v) {}
 
     std::string toString();
 };

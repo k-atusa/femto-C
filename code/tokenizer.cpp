@@ -7,8 +7,8 @@ bool isDoubleOpStart(char c) {
 }
 
 TokenType isDoubleOp(char c1, char c2) {
-    if (c1 == '<' && c2 == '=') return TokenType::OP_LITTER_EQ;
-    if (c1 == '>' && c2 == '=') return TokenType::OP_GREATER_EQ;
+    if (c1 == '<' && c2 == '=') return TokenType::OP_LT_EQ;
+    if (c1 == '>' && c2 == '=') return TokenType::OP_GT_EQ;
     if (c1 == '=' && c2 == '=') return TokenType::OP_EQ;
     if (c1 == '!' && c2 == '=') return TokenType::OP_NOT_EQ;
     if (c1 == '&' && c2 == '&') return TokenType::OP_LOGIC_AND;
@@ -25,8 +25,8 @@ TokenType isSingleOp(char c) {
         case '*': return TokenType::OP_MUL;
         case '/': return TokenType::OP_DIV;
         case '%': return TokenType::OP_REMAIN;
-        case '<': return TokenType::OP_LITTER;
-        case '>': return TokenType::OP_GREATER;
+        case '<': return TokenType::OP_LT;
+        case '>': return TokenType::OP_GT;
         case '!': return TokenType::OP_LOGIC_NOT;
         case '&': return TokenType::OP_BIT_AND;
         case '|': return TokenType::OP_BIT_OR;
@@ -164,14 +164,14 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                                     status = TokenizeStatus::LONG_COMMENT;
                                 } else { // divide
                                     Token tkn;
-                                    tkn.type = TokenType::OP_DIV;
+                                    tkn.objType = TokenType::OP_DIV;
                                     tkn.location = Location(source_id, line);
                                     tkn.text = "/";
                                     result.push_back(tkn);
                                 }
                             } else { // divide
                                 Token tkn;
-                                tkn.type = TokenType::OP_DIV;
+                                tkn.objType = TokenType::OP_DIV;
                                 tkn.location = Location(source_id, line);
                                 tkn.text = "/";
                                 result.push_back(tkn);
@@ -199,7 +199,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                                 TokenType tkn_type = isSingleOp(c);
                                 if (tkn_type != TokenType::NONE) { // known single char operator
                                     Token tkn;
-                                    tkn.type = tkn_type;
+                                    tkn.objType = tkn_type;
                                     tkn.location = Location(source_id, line);
                                     tkn.text = std::string(1, c);
                                     result.push_back(tkn);
@@ -247,9 +247,9 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     tkn.text = id_str;
                     TokenType kw_type = isKeyword(id_str);
                     if (kw_type != TokenType::NONE) { // keyword
-                        tkn.type = kw_type;
+                        tkn.objType = kw_type;
                     } else { // identifier
-                        tkn.type = TokenType::IDENTIFIER;
+                        tkn.objType = TokenType::IDENTIFIER;
                         tkn.value = Literal(id_str);
                     }
                     result.push_back(tkn);
@@ -263,14 +263,14 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                 TokenType tkn_type = isDoubleOp(buffer[0], c);
                 if (tkn_type != TokenType::NONE) { // known double char operator
                     Token tkn;
-                    tkn.type = tkn_type;
+                    tkn.objType = tkn_type;
                     tkn.location = Location(source_id, line);
                     tkn.text = std::string(1, buffer[0]) + std::string(1, c);
                     result.push_back(tkn);
                     status = TokenizeStatus::DEFAULT;
                 } else { // single char operator + char c
                     Token tkn;
-                    tkn.type = isSingleOp(buffer[0]);
+                    tkn.objType = isSingleOp(buffer[0]);
                     tkn.location = Location(source_id, line);
                     tkn.text = std::string(1, buffer[0]);
                     result.push_back(tkn);
@@ -290,14 +290,14 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                         throw std::runtime_error(std::format("E0102 invalid number {} at {}:{}", num_str, filename, line)); // E0102
                     }
                     Token tkn;
-                    tkn.type = num_type;
+                    tkn.objType = num_type;
                     tkn.location = Location(source_id, line);
                     tkn.text = num_str;
                     try {
                         if (num_type == TokenType::LIT_INT) {
                             tkn.value = Literal(std::stoll(num_str));
                         } else if (num_type == TokenType::LIT_INT_HEX) {
-                            tkn.type = TokenType::LIT_INT;
+                            tkn.objType = TokenType::LIT_INT;
                             tkn.value = Literal(std::stoll(num_str, nullptr, 16));
                         } else if (num_type == TokenType::LIT_FLOAT) {
                             tkn.value = Literal(std::stod(num_str));
@@ -324,7 +324,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                         throw std::runtime_error(std::format("E0105 char literal too long at {}:{}", filename, line)); // E0105
                     }
                     Token tkn;
-                    tkn.type = TokenType::LIT_CHAR;
+                    tkn.objType = TokenType::LIT_CHAR;
                     tkn.location = Location(source_id, line);
                     tkn.text = std::string(buffer.begin(), buffer.end());
                     tkn.value = Literal(buffer[0]);
@@ -357,7 +357,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     throw std::runtime_error(std::format("E0107 newline in string literal at {}:{}", filename, line)); // E0107
                 } else if (c == '\"') { // string end
                     Token tkn;
-                    tkn.type = TokenType::LIT_STRING;
+                    tkn.objType = TokenType::LIT_STRING;
                     tkn.location = Location(source_id, line);
                     tkn.text = std::string(buffer.begin(), buffer.end());
                     tkn.value = Literal(tkn.text);
@@ -386,7 +386,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
             case TokenizeStatus::RAW_STRING:
                 if (c == '`') { // raw string end
                     Token tkn;
-                    tkn.type = TokenType::LIT_STRING;
+                    tkn.objType = TokenType::LIT_STRING;
                     tkn.location = Location(source_id, line);
                     tkn.text = std::string(buffer.begin(), buffer.end());
                     tkn.value = Literal(tkn.text);
@@ -405,8 +405,8 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     Token tkn;
                     tkn.location = Location(source_id, line);
                     tkn.text = order_str;
-                    tkn.type = isCplrOrd(order_str);
-                    if (tkn.type == TokenType::NONE) { // invalid compiler order
+                    tkn.objType = isCplrOrd(order_str);
+                    if (tkn.objType == TokenType::NONE) { // invalid compiler order
                         throw std::runtime_error(std::format("E0109 unsupported compiler order {} at {}:{}", order_str, filename, line)); // E0109
                     }
                     result.push_back(tkn);
@@ -455,7 +455,7 @@ bool TokenProvider::match(const std::vector<TokenType>& types) {
         if (types[i] == TokenType::PRECOMPILE) {
             continue;
         }
-        if (tokens[pos + i].type != types[i]) {
+        if (tokens[pos + i].objType != types[i]) {
             return false;
         }
     }

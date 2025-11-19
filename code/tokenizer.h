@@ -34,10 +34,10 @@ enum class TokenType {
     OP_DIV,
     OP_REMAIN,
     // < <= > >= == !=
-    OP_LITTER,
-    OP_LITTER_EQ,
-    OP_GREATER,
-    OP_GREATER_EQ,
+    OP_LT,
+    OP_LT_EQ,
+    OP_GT,
+    OP_GT_EQ,
     OP_EQ,
     OP_NOT_EQ,
     // && || ! & | ~ ^ << >>
@@ -110,15 +110,15 @@ enum class TokenType {
 
 class Token {
     public:
-    TokenType type;
+    TokenType objType;
     Location location;
     Literal value;
     std::string text;
 
-    Token() : type(TokenType::NONE), location(), value(), text("") {}
+    Token() : objType(TokenType::NONE), location(), value(), text("") {}
 
     std::string toString() {
-        std::string result = "Tkn type: " + std::to_string(static_cast<int>(type)) + ", location: " + std::to_string(location.source_id) + "." + std::to_string(location.line);
+        std::string result = "Tkn type: " + std::to_string(static_cast<int>(objType)) + ", location: " + std::to_string(location.srcLoc) + "." + std::to_string(location.line);
         result += ", value: " + value.toString() + ", text: " + text;
         return result;
     }
@@ -133,7 +133,12 @@ class TokenProvider {
     Token nulltkn;
     int pos;
 
-    TokenProvider(std::vector<Token> data) : tokens(std::move(data)), nulltkn(), pos(0) { if (tokens.size() > 0) nulltkn.location.source_id = tokens[0].location.source_id; }
+    TokenProvider(std::vector<Token> data) : tokens(std::move(data)), nulltkn(), pos(0) {
+        if (tokens.size() > 0) {
+            nulltkn.location.srcLoc = tokens[0].location.srcLoc;
+            nulltkn.location.line = -1;
+        }
+    }
 
     bool canPop(int num);
     Token& pop();

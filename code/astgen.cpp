@@ -21,7 +21,7 @@ int getPrattPrecedence(TokenType tknType, bool isUnary) {
                 return 9;
             case TokenType::OP_BIT_LSHIFT: case TokenType::OP_BIT_RSHIFT:
                 return 8;
-            case TokenType::OP_LITTER: case TokenType::OP_LITTER_EQ: case TokenType::OP_GREATER: case TokenType::OP_GREATER_EQ:
+            case TokenType::OP_LT: case TokenType::OP_LT_EQ: case TokenType::OP_GT: case TokenType::OP_GT_EQ:
                 return 7;
             case TokenType::OP_EQ: case TokenType::OP_NOT_EQ:
                 return 6;
@@ -42,60 +42,65 @@ int getPrattPrecedence(TokenType tknType, bool isUnary) {
 }
 
 // get pratt operator type
-OperatorType getBinaryOpType(TokenType tknType) {
+OperationType getBinaryOpType(TokenType tknType) {
     switch (tknType) {
         case TokenType::OP_MUL:
-            return OperatorType::B_MUL;
+            return OperationType::B_MUL;
         case TokenType::OP_DIV:
-            return OperatorType::B_DIV;
+            return OperationType::B_DIV;
         case TokenType::OP_REMAIN:
-            return OperatorType::B_MOD;
+            return OperationType::B_MOD;
         case TokenType::OP_PLUS:
-            return OperatorType::B_ADD;
+            return OperationType::B_ADD;
         case TokenType::OP_MINUS:
-            return OperatorType::B_SUB;
+            return OperationType::B_SUB;
         case TokenType::OP_BIT_LSHIFT:
-            return OperatorType::B_SHL;
+            return OperationType::B_SHL;
         case TokenType::OP_BIT_RSHIFT:
-            return OperatorType::B_SHR;
-        case TokenType::OP_LITTER:
-            return OperatorType::B_LT;
-        case TokenType::OP_GREATER:
-            return OperatorType::B_GT;
-        case TokenType::OP_LITTER_EQ:
-            return OperatorType::B_LE;
-        case TokenType::OP_GREATER_EQ:
-            return OperatorType::B_GE;
+            return OperationType::B_SHR;
+        case TokenType::OP_LT:
+            return OperationType::B_LT;
+        case TokenType::OP_GT:
+            return OperationType::B_GT;
+        case TokenType::OP_LT_EQ:
+            return OperationType::B_LE;
+        case TokenType::OP_GT_EQ:
+            return OperationType::B_GE;
         case TokenType::OP_EQ:
-            return OperatorType::B_EQ;
+            return OperationType::B_EQ;
         case TokenType::OP_NOT_EQ:
-            return OperatorType::B_NE;
+            return OperationType::B_NE;
         case TokenType::OP_BIT_AND:
-            return OperatorType::B_BIT_AND;
+            return OperationType::B_BIT_AND;
         case TokenType::OP_BIT_XOR:
-            return OperatorType::B_BIT_XOR;
+            return OperationType::B_BIT_XOR;
         case TokenType::OP_BIT_OR:
-            return OperatorType::B_BIT_OR;
+            return OperationType::B_BIT_OR;
         case TokenType::OP_LOGIC_AND:
-            return OperatorType::B_LOGIC_AND;
+            return OperationType::B_LOGIC_AND;
         case TokenType::OP_LOGIC_OR:
-            return OperatorType::B_LOGIC_OR;
+            return OperationType::B_LOGIC_OR;
         default:
-            return OperatorType::NONE;
+            return OperationType::NONE;
     }
 }
 
 // ASTNode functions
 LongStatNode* ScopeNode::findVarByName(const std::string& name) {
     for (auto& node : body) {
-        if (node->type == ASTNodeType::DECL_VAR) {
-            LongStatNode* varNode = static_cast<LongStatNode*>(node.get());
-            if (varNode->varName && varNode->varName->text == name) {
-                return varNode;
+        if (node->objType == ASTNodeType::DECL_VAR && node->text == name) {
+            return static_cast<LongStatNode*>(node.get());
+        } else if (node->objType == ASTNodeType::FOR) {
+            ForNode* forNode = static_cast<ForNode*>(node.get());
+            if (forNode->init && forNode->init->objType == ASTNodeType::DECL_VAR) {
+                LongStatNode* varNode = static_cast<LongStatNode*>(forNode->init.get());
+                if (varNode->text == name) {
+                    return varNode;
+                }
             }
         }
     }
-    if (parent != nullptr && parent->type == ASTNodeType::SCOPE) {
+    if (parent != nullptr && parent->objType == ASTNodeType::SCOPE) {
         ScopeNode* parentScope = static_cast<ScopeNode*>(parent);
         return parentScope->findVarByName(name);
     }
@@ -107,18 +112,18 @@ Literal ScopeNode::findDefinedLiteral(const std::string& name) {
     if (varNode == nullptr || varNode->isDefine == false) {
         return Literal();
     }
-    if (varNode->varExpr->type != ASTNodeType::LITERAL) {
+    if (varNode->varExpr->objType != ASTNodeType::LITERAL) {
         return Literal();
     }
-    LiteralNode* litNode = static_cast<LiteralNode*>(varNode->varExpr.get());
+    AtomicExprNode* litNode = static_cast<AtomicExprNode*>(varNode->varExpr.get());
     return litNode->literal;
 }
 
 // SrcFile functions
 ASTNode* SrcFile::findNodeByName(ASTNodeType tp, const std::string& name, bool checkExported) {
     ASTNode* result = nullptr;
-    for (auto& node : nodes->body) {
-        if (node->type == tp && node->text == name) {
+    for (auto& node : code->body) {
+        if (node->objType == tp && node->text == name) {
             result = node.get();
         }
     }
@@ -137,14 +142,14 @@ ASTNode* SrcFile::findNodeByName(ASTNodeType tp, const std::string& name, bool c
         case ASTNodeType::DECL_FUNC:
             {
                 DeclFuncNode* funcNode = static_cast<DeclFuncNode*>(result);
-                if (funcNode->struct_name.empty()) { // global function
+                if (funcNode->structNm.empty()) { // global function
                     if ('A' <= result->text[0] && result->text[0] <= 'Z') {
                         return result;
                     } else {
                         return nullptr;
                     }
                 } else { // method
-                    if ('A' <= funcNode->struct_name[0] && funcNode->struct_name[0] <= 'Z' && 'A' <= funcNode->func_name[0] && funcNode->func_name[0] <= 'Z') {
+                    if ('A' <= funcNode->structNm[0] && funcNode->structNm[0] <= 'Z' && 'A' <= funcNode->funcNm[0] && funcNode->funcNm[0] <= 'Z') {
                         return result;
                     } else {
                         return nullptr;
@@ -157,7 +162,7 @@ ASTNode* SrcFile::findNodeByName(ASTNodeType tp, const std::string& name, bool c
 
 std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& current, int arch) {
     // parse base type
-    std::unique_ptr<TypeNode> result = std::make_unique<TypeNode>();
+    std::unique_ptr<TypeNode> result;
     if (tp.match({TokenType::IDENTIFIER, TokenType::OP_DOT, TokenType::IDENTIFIER})) { // foreign type
         Token& includeTkn = tp.pop();
         tp.pop();
@@ -165,39 +170,38 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
         if (findNodeByName(ASTNodeType::INCLUDE, includeTkn.text, false) == nullptr) {
             throw std::runtime_error(std::format("E02xx name {} not found while parsing type at {}:{}", includeTkn.text, path, includeTkn.location.line)); // E02xx
         }
-        result->subtype = TypeNodeType::FOREIGN;
-        result->include_tgt = includeTkn.text;
-        result->name = nameTkn.text;
+        result = std::make_unique<TypeNode>(includeTkn.text, nameTkn.text);
+        result->location = includeTkn.location;
 
     } else if (tp.match({TokenType::IDENTIFIER})) { // tmp, struct, enum
         Token& nameTkn = tp.pop();
-        result->subtype = TypeNodeType::NAME;
-        result->name = nameTkn.text;
+        result = std::make_unique<TypeNode>(nameTkn.text);
+        result->location = nameTkn.location;
 
     } else if (tp.canPop(1)) { // primitive
         Token& baseTkn = tp.pop();
-        result->subtype = TypeNodeType::PRIMITIVE;
-        result->name = baseTkn.text;
-        switch (baseTkn.type) {
+        result = std::make_unique<TypeNode>(TypeNodeType::PRIMITIVE, baseTkn.text);
+        result->location = baseTkn.location;
+        switch (baseTkn.objType) {
             case TokenType::KEY_I8: case TokenType::KEY_U8:
-                result->type_size = 1;
-                result->type_align = 1;
+                result->typeSize = 1;
+                result->typeAlign = 1;
                 break;
             case TokenType::KEY_I16: case TokenType::KEY_U16:
-                result->type_size = 2;
-                result->type_align = 2;
+                result->typeSize = 2;
+                result->typeAlign = 2;
                 break;
             case TokenType::KEY_I32: case TokenType::KEY_U32: case TokenType::KEY_F32:
-                result->type_size = 4;
-                result->type_align = 4;
+                result->typeSize = 4;
+                result->typeAlign = 4;
                 break;
             case TokenType::KEY_I64: case TokenType::KEY_U64: case TokenType::KEY_F64:
-                result->type_size = 8;
-                result->type_align = 8;
+                result->typeSize = 8;
+                result->typeAlign = 8;
                 break;
             case TokenType::KEY_VOID:
-                result->type_size = 0;
-                result->type_align = 1;
+                result->typeSize = 0;
+                result->typeAlign = 1;
                 break;
             default:
                 throw std::runtime_error(std::format("E02xx invalid primitive type {} at {}:{}", baseTkn.text, path, baseTkn.location.line)); // E02xx
@@ -210,67 +214,63 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
     // parse type modifiers
     while (tp.canPop(1)) {
         Token& tkn = tp.pop();
-        switch (tkn.type) {
+        switch (tkn.objType) {
             case TokenType::OP_MUL: // pointer
                 {
-                    std::unique_ptr<TypeNode> ptrType = std::make_unique<TypeNode>();
-                    ptrType->subtype = TypeNodeType::POINTER;
-                    ptrType->name = "*";
-                    ptrType->type_size = arch;
-                    ptrType->type_align = arch;
+                    std::unique_ptr<TypeNode> ptrType = std::make_unique<TypeNode>(TypeNodeType::POINTER, "*");
+                    ptrType->location = result->location;
+                    ptrType->typeSize = arch;
+                    ptrType->typeAlign = arch;
                     ptrType->direct = std::move(result);
                     result = std::move(ptrType);
                 }
                 break;
 
             case TokenType::OP_LBRACKET:
-                if (result->type_size == 0) {
+                if (result->typeSize == 0) {
                     throw std::runtime_error(std::format("E02xx cannot create array/slice of void type at {}:{}", path, tkn.location.line)); // E02xx
                 }
                 if (tp.match({TokenType::OP_RBRACKET})) { // slice
                     tp.pop();
-                    std::unique_ptr<TypeNode> sliceType = std::make_unique<TypeNode>();
-                    sliceType->subtype = TypeNodeType::SLICE;
-                    sliceType->name = "[]";
-                    sliceType->type_size = arch * 2; // ptr + length
-                    sliceType->type_align = arch;
+                    std::unique_ptr<TypeNode> sliceType = std::make_unique<TypeNode>(TypeNodeType::SLICE, "[]");
+                    sliceType->location = result->location;
+                    sliceType->typeSize = arch * 2; // ptr + length
+                    sliceType->typeAlign = arch;
                     sliceType->direct = std::move(result);
                     result = std::move(sliceType);
                 } else if (tp.match({TokenType::LIT_INT, TokenType::OP_RBRACKET})) { // array
                     Token& lenTkn = tp.pop();
-                    int64_t len = lenTkn.value.int_value;
+                    int64_t len = lenTkn.value.intValue;
                     if (len <= 0) {
                         throw std::runtime_error(std::format("E02xx invalid array length {} at {}:{}", len, path, lenTkn.location.line)); // E02xx
                     }
                     tp.pop();
-                    std::unique_ptr<TypeNode> arrType = std::make_unique<TypeNode>();
-                    arrType->subtype = TypeNodeType::ARRAY;
-                    arrType->name = std::format("[{}]", len);
+                    std::unique_ptr<TypeNode> arrType = std::make_unique<TypeNode>(TypeNodeType::ARRAY, std::format("[{}]", len));
+                    arrType->location = result->location;
                     arrType->length = len;
-                    if (result->type_size > 0) {
-                        arrType->type_size = result->type_size * len;
-                        arrType->type_align = result->type_align;
+                    if (result->typeSize > 0) {
+                        arrType->typeSize = result->typeSize * len;
+                        arrType->typeAlign = result->typeAlign;
                     }
                     arrType->direct = std::move(result);
                     result = std::move(arrType);
                 } else if (tp.match({TokenType::IDENTIFIER, TokenType::OP_RBRACKET})) { // array with defined size
                     Token& lenTkn = tp.pop();
                     Literal lenLit = current.findDefinedLiteral(lenTkn.text);
-                    if (lenLit.node_type == LiteralType::NONE) {
+                    if (lenLit.objType == LiteralType::NONE) {
                         throw std::runtime_error(std::format("E02xx undefined compile time literal {} at {}:{}", lenTkn.text, path, lenTkn.location.line)); // E02xx
                     }
-                    if (lenLit.node_type != LiteralType::INT || lenLit.int_value <= 0) {
+                    if (lenLit.objType != LiteralType::INT || lenLit.intValue <= 0) {
                         throw std::runtime_error(std::format("E02xx invalid array length literal {} at {}:{}", lenTkn.text, path, lenTkn.location.line)); // E02xx
                     }
-                    int64_t len = lenLit.int_value;
+                    int64_t len = lenLit.intValue;
                     tp.pop();
-                    std::unique_ptr<TypeNode> arrType = std::make_unique<TypeNode>();
-                    arrType->subtype = TypeNodeType::ARRAY;
-                    arrType->name = std::format("[{}]", len);
+                    std::unique_ptr<TypeNode> arrType = std::make_unique<TypeNode>(TypeNodeType::ARRAY, std::format("[{}]", len));
+                    arrType->location = result->location;
                     arrType->length = len;
-                    if (result->type_size > 0) {
-                        arrType->type_size = result->type_size * len;
-                        arrType->type_align = result->type_align;
+                    if (result->typeSize > 0) {
+                        arrType->typeSize = result->typeSize * len;
+                        arrType->typeAlign = result->typeAlign;
                     }
                     arrType->direct = std::move(result);
                     result = std::move(arrType);
@@ -281,27 +281,26 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
 
             case TokenType::OP_LPAREN: // function
                 {
-                    std::unique_ptr<TypeNode> funcType = std::make_unique<TypeNode>();
-                    funcType->subtype = TypeNodeType::FUNCTION;
-                    funcType->name = "(...)";
-                    funcType->type_size = arch;
-                    funcType->type_align = arch;
+                    std::unique_ptr<TypeNode> funcType = std::make_unique<TypeNode>(TypeNodeType::FUNCTION, "()");
+                    funcType->location = result->location;
+                    funcType->typeSize = arch;
+                    funcType->typeAlign = arch;
                     funcType->direct = std::move(result);
                     result = std::move(funcType);
-                    if (tp.seek().type != TokenType::OP_RPAREN) {
+                    if (tp.seek().objType != TokenType::OP_RPAREN) {
                         while (tp.canPop(1)) {
                             std::unique_ptr<TypeNode> argType = parseType(tp, current, arch);
                             result->indirect.push_back(std::move(argType));
-                            if (tp.seek().type == TokenType::OP_COMMA) {
+                            if (tp.seek().objType == TokenType::OP_COMMA) {
                                 tp.pop();
-                            } else if (tp.seek().type == TokenType::OP_RPAREN) {
+                            } else if (tp.seek().objType == TokenType::OP_RPAREN) {
                                 break;
                             } else {
-                                throw std::runtime_error(std::format("E02xx expected ',' at {}:{}", path, tkn.location.line)); // E02xx
+                                throw std::runtime_error(std::format("E02xx expected ')' at {}:{}", path, tkn.location.line)); // E02xx
                             }
                         }
                     }
-                    if (tp.pop().type != TokenType::OP_RPAREN) {
+                    if (tp.pop().objType != TokenType::OP_RPAREN) {
                         throw std::runtime_error(std::format("E02xx expected ')' at {}:{}", path, tkn.location.line)); // E02xx
                     }
                 }
@@ -326,7 +325,7 @@ int ASTGen::findSource(const std::string& path) {
 }
 
 bool ASTGen::isTypeStart(TokenProvider& tp, SrcFile& src) {
-    if (isPrimitive(tp.seek().type)) { // primitive type
+    if (isPrimitive(tp.seek().objType)) { // primitive type
         return true;
     }
     if (tp.match({TokenType::IDENTIFIER, TokenType::OP_DOT, TokenType::IDENTIFIER})) { // foreign type
@@ -350,10 +349,14 @@ bool ASTGen::isTypeStart(TokenProvider& tp, SrcFile& src) {
         }
     } else if (tp.match({TokenType::IDENTIFIER})) { // tmp, struct, enum
         Token& nameTkn = tp.pop();
+        Token& nextTkn = tp.pop();
+        tp.rewind();
         tp.rewind();
         if (src.findNodeByName(ASTNodeType::DECL_TEMPLATE, nameTkn.text, false) != nullptr
-                || src.findNodeByName(ASTNodeType::DECL_STRUCT, nameTkn.text, false) != nullptr
-                || src.findNodeByName(ASTNodeType::DECL_ENUM, nameTkn.text, false) != nullptr) {
+                || src.findNodeByName(ASTNodeType::DECL_STRUCT, nameTkn.text, false) != nullptr) {
+            return true;
+        } else if (src.findNodeByName(ASTNodeType::DECL_ENUM, nameTkn.text, false) != nullptr
+                && nextTkn.objType != TokenType::OP_DOT) {
             return true;
         }
     }
@@ -362,18 +365,18 @@ bool ASTGen::isTypeStart(TokenProvider& tp, SrcFile& src) {
 
 // parse raw code
 std::unique_ptr<RawCodeNode> ASTGen::parseRawCode(TokenProvider& tp) {
-    std::unique_ptr<RawCodeNode> rawCodeNode = std::make_unique<RawCodeNode>();
-    rawCodeNode->location = tp.seek().location;
     Token& orderTkn = tp.pop();
-    if (orderTkn.type == TokenType::ORDER_RAW_C) {
-        rawCodeNode->type = ASTNodeType::RAW_C;
-    } else if (orderTkn.type == TokenType::ORDER_RAW_IR) {
-        rawCodeNode->type = ASTNodeType::RAW_IR;
+    std::unique_ptr<RawCodeNode> rawCodeNode = std::make_unique<RawCodeNode>();
+    rawCodeNode->location = orderTkn.location;
+    if (orderTkn.objType == TokenType::ORDER_RAW_C) {
+        rawCodeNode->objType = ASTNodeType::RAW_C;
+    } else if (orderTkn.objType == TokenType::ORDER_RAW_IR) {
+        rawCodeNode->objType = ASTNodeType::RAW_IR;
     } else {
         throw std::runtime_error(std::format("E03xx expected 'raw_c' at {}", getLocString(orderTkn.location))); // E03xx
     }
     Token& textTkn = tp.pop();
-    if (textTkn.type != TokenType::LIT_STRING) {
+    if (textTkn.objType != TokenType::LIT_STRING) {
         throw std::runtime_error(std::format("E03xx expected literal string at {}", getLocString(textTkn.location))); // E03xx
     }
     rawCodeNode->code = textTkn.text;
@@ -382,43 +385,41 @@ std::unique_ptr<RawCodeNode> ASTGen::parseRawCode(TokenProvider& tp) {
 
 // parse Struct declaration, after struct keyword
 std::unique_ptr<DeclStructNode> ASTGen::parseStruct(TokenProvider& tp, ScopeNode& current, SrcFile& src, bool isExported) {
-    std::unique_ptr<DeclStructNode> structNode = std::make_unique<DeclStructNode>();
     Token& idTkn = tp.pop();
-    if (idTkn.type != TokenType::IDENTIFIER) {
+    if (idTkn.objType != TokenType::IDENTIFIER) {
         throw std::runtime_error(std::format("E03xx expected struct name at {}", getLocString(idTkn.location))); // E03xx
     }
-    structNode->struct_name = idTkn.text;
+    std::unique_ptr<DeclStructNode> structNode = std::make_unique<DeclStructNode>();
+    structNode->name = idTkn.text;
     structNode->location = idTkn.location;
-    if (tp.pop().type != TokenType::OP_LBRACE) {
+    if (tp.pop().objType != TokenType::OP_LBRACE) {
         throw std::runtime_error(std::format("E03xx expected '{{' at {}", getLocString(idTkn.location))); // E03xx
     }
     while (tp.canPop(1)) {
         std::unique_ptr<TypeNode> fieldType = src.parseType(tp, current, arch);
-        if (fieldType == nullptr) {
-            throw std::runtime_error(std::format("E03xx expected field type at {}", getLocString(tp.seek().location))); // E03xx
-        } else if (fieldType->type_size == 0) {
-            throw std::runtime_error(std::format("E03xx field type cannot be void at {}", getLocString(fieldType->location))); // E03xx
+        if (fieldType->typeSize == 0) {
+            throw std::runtime_error(std::format("E03xx member type cannot be void at {}", getLocString(fieldType->location))); // E03xx
         }
         Token& fieldIdTkn = tp.pop();
-        if (fieldIdTkn.type != TokenType::IDENTIFIER) {
-            throw std::runtime_error(std::format("E03xx expected field name at {}", getLocString(fieldIdTkn.location))); // E03xx
+        if (fieldIdTkn.objType != TokenType::IDENTIFIER) {
+            throw std::runtime_error(std::format("E03xx expected member name at {}", getLocString(fieldIdTkn.location))); // E03xx
         }
-        structNode->member_types.push_back(std::move(fieldType));
-        structNode->member_names.push_back(fieldIdTkn.text);
-        structNode->member_offsets.push_back(-1);
+        structNode->memTypes.push_back(std::move(fieldType));
+        structNode->memNames.push_back(fieldIdTkn.text);
+        structNode->memOffsets.push_back(-1);
         Token& sepTkn = tp.seek();
-        if (sepTkn.type == TokenType::OP_RBRACE) {
+        if (sepTkn.objType == TokenType::OP_RBRACE) {
             break;
-        } else if (sepTkn.type == TokenType::OP_COMMA || sepTkn.type == TokenType::OP_SEMICOLON) {
+        } else if (sepTkn.objType == TokenType::OP_COMMA || sepTkn.objType == TokenType::OP_SEMICOLON) {
             tp.pop();
-            if (tp.seek().type == TokenType::OP_RBRACE) {
+            if (tp.seek().objType == TokenType::OP_RBRACE) {
                 break;
             }
         } else {
-            throw std::runtime_error(std::format("E03xx expected ',' at {}", getLocString(sepTkn.location))); // E03xx
+            throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(sepTkn.location))); // E03xx
         }
     }
-    if (tp.pop().type != TokenType::OP_RBRACE) {
+    if (tp.pop().objType != TokenType::OP_RBRACE) {
         throw std::runtime_error(std::format("E03xx expected '}}' at {}", getLocString(tp.seek().location))); // E03xx
     }
     structNode->isExported = isExported;
@@ -427,14 +428,14 @@ std::unique_ptr<DeclStructNode> ASTGen::parseStruct(TokenProvider& tp, ScopeNode
 
 // parse Enum declaration, after enum keyword
 std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& current, SrcFile& src, bool isExported) {
-    std::unique_ptr<DeclEnumNode> enumNode = std::make_unique<DeclEnumNode>();
     Token& idTkn = tp.pop();
-    if (idTkn.type != TokenType::IDENTIFIER) {
+    if (idTkn.objType != TokenType::IDENTIFIER) {
         throw std::runtime_error(std::format("E03xx expected enum name at {}", getLocString(idTkn.location))); // E03xx
     }
-    enumNode->enum_name = idTkn.text;
+    std::unique_ptr<DeclEnumNode> enumNode = std::make_unique<DeclEnumNode>();
+    enumNode->name = idTkn.text;
     enumNode->location = idTkn.location;
-    if (tp.pop().type != TokenType::OP_LBRACE) {
+    if (tp.pop().objType != TokenType::OP_LBRACE) {
         throw std::runtime_error(std::format("E03xx expected '{{' at {}", getLocString(idTkn.location))); // E03xx
     }
     int64_t prevValue = -1;
@@ -442,52 +443,65 @@ std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& cu
     int64_t minValue = 0;
     while (tp.canPop(1)) {
         Token& nameTkn = tp.pop();
-        if (nameTkn.type != TokenType::IDENTIFIER) {
-            throw std::runtime_error(std::format("E03xx expected enumerator name at {}", getLocString(nameTkn.location))); // E03xx
+        if (nameTkn.objType != TokenType::IDENTIFIER) {
+            throw std::runtime_error(std::format("E03xx expected member name at {}", getLocString(nameTkn.location))); // E03xx
         }
-        enumNode->member_names.push_back(nameTkn.text);
-        if (tp.seek().type == TokenType::OP_EQ) { // init with value
+        enumNode->memNames.push_back(nameTkn.text);
+        if (tp.seek().objType == TokenType::OP_EQ) { // init with value
             tp.pop();
             int64_t negMult = 1;
-            if (tp.seek().type == TokenType::OP_MINUS) { // negative value
+            if (tp.seek().objType == TokenType::OP_MINUS) { // negative value
                 negMult = -1;
                 tp.pop();
-            } else if (tp.seek().type == TokenType::OP_PLUS) {
+            } else if (tp.seek().objType == TokenType::OP_PLUS) {
                 tp.pop();
             }
-            if (tp.seek().type == TokenType::LIT_INT || tp.seek().type == TokenType::LIT_CHAR) { // literal value
+            if (tp.seek().objType == TokenType::LIT_INT || tp.seek().objType == TokenType::LIT_CHAR) { // literal value
                 Token& valueTkn = tp.pop();
-                prevValue = negMult * valueTkn.value.int_value - 1;
-            } else if (tp.seek().type == TokenType::IDENTIFIER) { // defined literal
+                prevValue = negMult * valueTkn.value.intValue - 1;
+            } else if (tp.seek().objType == TokenType::IDENTIFIER) { // defined literal
                 Token& valueTkn = tp.pop();
-                prevValue = negMult * current.findDefinedLiteral(valueTkn.text).int_value - 1;
+                Literal lit = current.findDefinedLiteral(valueTkn.text);
+                if (lit.objType != LiteralType::INT && lit.objType != LiteralType::CHAR) {
+                    throw std::runtime_error(std::format("E03xx expected int defined literal at {}", getLocString(valueTkn.location))); // E03xx
+                }
+                prevValue = negMult * lit.intValue - 1;
             } else {
-                throw std::runtime_error(std::format("E03xx expected enumerator value at {}", getLocString(nameTkn.location))); // E03xx
+                throw std::runtime_error(std::format("E03xx expected member value at {}", getLocString(nameTkn.location))); // E03xx
             }
         }
         prevValue++;
-        for (size_t i = 0; i < enumNode->member_values.size(); i++) {
-            if (enumNode->member_values[i] == prevValue) {
-                throw std::runtime_error(std::format("E03xx duplicate enumerator value {} at {}", prevValue, getLocString(nameTkn.location))); // E03xx
+        for (size_t i = 0; i < enumNode->memValues.size(); i++) {
+            if (enumNode->memValues[i] == prevValue) {
+                throw std::runtime_error(std::format("E03xx duplicate member value {} at {}", prevValue, getLocString(nameTkn.location))); // E03xx
             }
         }
-        enumNode->member_values.push_back(prevValue);
+        enumNode->memValues.push_back(prevValue);
         maxValue = std::max(maxValue, prevValue);
         minValue = std::min(minValue, prevValue);
         Token& sepTkn = tp.seek();
-        if (sepTkn.type == TokenType::OP_RBRACE) {
+        if (sepTkn.objType == TokenType::OP_RBRACE) {
             break;
-        } else if (sepTkn.type == TokenType::OP_COMMA || sepTkn.type == TokenType::OP_SEMICOLON) {
+        } else if (sepTkn.objType == TokenType::OP_COMMA || sepTkn.objType == TokenType::OP_SEMICOLON) {
             tp.pop();
-            if (tp.seek().type == TokenType::OP_RBRACE) {
+            if (tp.seek().objType == TokenType::OP_RBRACE) {
                 break;
             }
         } else {
             throw std::runtime_error(std::format("E03xx expected ',' at {}", getLocString(sepTkn.location))); // E03xx
         }
     }
-    if (tp.pop().type != TokenType::OP_RBRACE) {
+    if (tp.pop().objType != TokenType::OP_RBRACE) {
         throw std::runtime_error(std::format("E03xx expected '}}' at {}", getLocString(tp.seek().location))); // E03xx
+    }
+    if (maxValue <= 127 && minValue >= -128) {
+        enumNode->enumSize = 1;
+    } else if (maxValue <= 32767 && minValue >= -32768) {
+        enumNode->enumSize = 2;
+    } else if (maxValue <= 2147483647 && minValue >= -2147483648) {
+        enumNode->enumSize = 4;
+    } else {
+        enumNode->enumSize = 8;
     }
     enumNode->isExported = isExported;
     return enumNode;
@@ -497,63 +511,61 @@ std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& cu
 std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<TypeNode> retType, bool isVaArg, bool isExported) {
     std::unique_ptr<DeclFuncNode> funcNode = std::make_unique<DeclFuncNode>();
     funcNode->location = retType->location;
-    funcNode->return_type = std::move(retType);
+    funcNode->retType = std::move(retType);
     if (tp.match({TokenType::IDENTIFIER, TokenType::OP_DOT, TokenType::IDENTIFIER})) { // method
         Token& structTkn = tp.pop();
         tp.pop();
         Token& methodTkn = tp.pop();
-        funcNode->full_name = structTkn.text + "." + methodTkn.text;
-        funcNode->struct_name = structTkn.text;
-        funcNode->func_name = methodTkn.text;
+        funcNode->name = structTkn.text + "." + methodTkn.text;
+        funcNode->structNm = structTkn.text;
+        funcNode->funcNm = methodTkn.text;
     } else if (tp.match({TokenType::IDENTIFIER})) { // function
         Token& idTkn = tp.pop();
-        funcNode->full_name = idTkn.text;
+        funcNode->name = idTkn.text;
     } else {
         throw std::runtime_error(std::format("E03xx expected function name at {}", getLocString(tp.seek().location))); // E03xx
     }
-    if (tp.pop().type != TokenType::OP_LPAREN) {
+    if (tp.pop().objType != TokenType::OP_LPAREN) {
         throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(tp.seek().location))); // E03xx
     }
-    if (tp.seek().type != TokenType::OP_RPAREN) {
+    if (tp.seek().objType != TokenType::OP_RPAREN) {
         while (tp.canPop(1)) {
             std::unique_ptr<TypeNode> paramType = src.parseType(tp, current, arch);
-            if (paramType == nullptr) {
-                throw std::runtime_error(std::format("E03xx expected parameter type at {}", getLocString(tp.seek().location))); // E03xx
-            } else if (paramType->type_size == 0) {
+            if (paramType->typeSize == 0) {
                 throw std::runtime_error(std::format("E03xx parameter type cannot be void at {}", getLocString(paramType->location))); // E03xx
             }
-            funcNode->param_types.push_back(std::move(paramType));
+            funcNode->paramTypes.push_back(std::move(paramType));
             Token& paramNameTkn = tp.pop();
-            if (paramNameTkn.type != TokenType::IDENTIFIER) {
+            if (paramNameTkn.objType != TokenType::IDENTIFIER) {
                 throw std::runtime_error(std::format("E03xx expected parameter name at {}", getLocString(paramNameTkn.location))); // E03xx
             }
-            funcNode->param_names.push_back(paramNameTkn.text);
+            funcNode->paramNames.push_back(paramNameTkn.text);
             Token& sepTkn = tp.seek();
-            if (sepTkn.type == TokenType::OP_RPAREN) {
+            if (sepTkn.objType == TokenType::OP_RPAREN) {
                 break;
-            } else if (sepTkn.type == TokenType::OP_COMMA) {
+            } else if (sepTkn.objType == TokenType::OP_COMMA) {
                 tp.pop();
             } else {
-                throw std::runtime_error(std::format("E03xx expected ',' at {}", getLocString(sepTkn.location))); // E03xx
+                throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(sepTkn.location))); // E03xx
             }
         }
     }
-    if (tp.pop().type != TokenType::OP_RPAREN) {
+    if (tp.pop().objType != TokenType::OP_RPAREN) {
         throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(tp.seek().location))); // E03xx
     }
     funcNode->isVaArg = isVaArg;
     funcNode->isExported = isExported;
-    if (!funcNode->struct_name.empty()) { // check method
-        if (funcNode->param_types.empty() || funcNode->param_types[0]->toString() != funcNode->struct_name + "*") {
-            throw std::runtime_error(std::format("E03xx expected first parameter type to be {}* at {}", funcNode->struct_name, getLocString(funcNode->location))); // E03xx
+    if (!funcNode->structNm.empty()) { // check method
+        if (funcNode->paramTypes.empty() || funcNode->paramTypes[0]->toString() != funcNode->structNm + "*") {
+            throw std::runtime_error(std::format("E03xx expected first parameter type to be {}* at {}", funcNode->structNm, getLocString(funcNode->location))); // E03xx
         }
     }
     if (funcNode->isVaArg) { // check va_arg
-        if (funcNode->param_types.size() < 2) {
+        if (funcNode->paramTypes.size() < 2) {
             throw std::runtime_error(std::format("E03xx expected at least two parameters at {}", getLocString(funcNode->location))); // E03xx
         }
-        std::string arg0 = funcNode->param_types[funcNode->param_types.size() - 2]->toString();
-        std::string arg1 = funcNode->param_types[funcNode->param_types.size() - 1]->toString();
+        std::string arg0 = funcNode->paramTypes[funcNode->paramTypes.size() - 2]->toString();
+        std::string arg1 = funcNode->paramTypes[funcNode->paramTypes.size() - 1]->toString();
         if (arg0 != "void**"
             || (arg1 != "i8" && arg1 != "i16" && arg1 != "i32" && arg1 != "i64"
                 && arg1 != "u8" && arg1 != "u16" && arg1 != "u32" && arg1 != "u64")) {
@@ -567,12 +579,11 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
 // parse atomic expression
 std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
     Token& tkn = tp.pop();
-    std::unique_ptr<ASTNode> result = std::make_unique<ASTNode>();
-    switch (tkn.type) {
+    std::unique_ptr<ASTNode> result;
+    switch (tkn.objType) {
         case TokenType::LIT_INT: case TokenType::LIT_FLOAT: case TokenType::LIT_CHAR: case TokenType::LIT_STRING: // literal
             {
-                std::unique_ptr<LiteralNode> litNode = std::make_unique<LiteralNode>();
-                litNode->literal = tkn.value;
+                std::unique_ptr<AtomicExprNode> litNode = std::make_unique<AtomicExprNode>(tkn.value);
                 litNode->location = tkn.location;
                 result = std::move(litNode);
             }
@@ -580,34 +591,40 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
 
         case TokenType::KEY_NULL: // null literal
             {
-                std::unique_ptr<LiteralNode> litNode = std::make_unique<LiteralNode>();
-                litNode->literal = Literal((int64_t)0);
+                std::unique_ptr<AtomicExprNode> litNode = std::make_unique<AtomicExprNode>();
+                litNode->objType = ASTNodeType::LITERAL_KEY;
                 litNode->location = tkn.location;
+                litNode->literal = Literal((int64_t)0);
+                litNode->word = "null";
                 result = std::move(litNode);
             }
             break;
 
         case TokenType::KEY_TRUE: // true literal
             {
-                std::unique_ptr<LiteralNode> litNode = std::make_unique<LiteralNode>();
-                litNode->literal = Literal((int64_t)1);
+                std::unique_ptr<AtomicExprNode> litNode = std::make_unique<AtomicExprNode>();
+                litNode->objType = ASTNodeType::LITERAL_KEY;
                 litNode->location = tkn.location;
+                litNode->literal = Literal((int64_t)1);
+                litNode->word = "true";
                 result = std::move(litNode);
             }
             break;
 
         case TokenType::KEY_FALSE: // false literal
             {
-                std::unique_ptr<LiteralNode> litNode = std::make_unique<LiteralNode>();
-                litNode->literal = Literal((int64_t)0);
+                std::unique_ptr<AtomicExprNode> litNode = std::make_unique<AtomicExprNode>();
+                litNode->objType = ASTNodeType::LITERAL_KEY;
                 litNode->location = tkn.location;
+                litNode->literal = Literal((int64_t)0);
+                litNode->word = "false";
                 result = std::move(litNode);
             }
             break;
 
         case TokenType::IDENTIFIER: // variable name
             {
-                std::unique_ptr<ASTNode> nameNode = std::make_unique<ASTNode>(ASTNodeType::NAME, tkn.text);
+                std::unique_ptr<AtomicExprNode> nameNode = std::make_unique<AtomicExprNode>(tkn.text);
                 nameNode->location = tkn.location;
                 result = std::move(nameNode);
             }
@@ -616,7 +633,7 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
         case TokenType::OP_LPAREN: // parenthesis expression
             {
                 result = parsePrattExpr(tp, current, src, 0);
-                if (tp.pop().type != TokenType::OP_RPAREN) {
+                if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(tkn.location))); // E03xx
                 }
             }
@@ -624,19 +641,20 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
 
         case TokenType::OP_LBRACE: // literal array
             {
-                std::unique_ptr<LiteralArrayNode> arrNode = std::make_unique<LiteralArrayNode>();
+                std::unique_ptr<AtomicExprNode> arrNode = std::make_unique<AtomicExprNode>();
+                arrNode->objType = ASTNodeType::LITERAL_ARRAY;
+                arrNode->location = tkn.location;
                 while (tp.canPop(1)) {
-                    std::unique_ptr<ASTNode> element = parsePrattExpr(tp, current, src, 0);
-                    arrNode->elements.push_back(std::move(element));
-                    if (tp.seek().type == TokenType::OP_COMMA) {
+                    arrNode->elements.push_back(parsePrattExpr(tp, current, src, 0));
+                    if (tp.seek().objType == TokenType::OP_COMMA) {
                         tp.pop();
-                    } else if (tp.seek().type == TokenType::OP_RBRACE) {
+                    } else if (tp.seek().objType == TokenType::OP_RBRACE) {
                         break;
                     } else {
-                        throw std::runtime_error(std::format("E03xx expected ',' at {}", getLocString(tkn.location))); // E03xx
+                        throw std::runtime_error(std::format("E03xx expected '}}' at {}", getLocString(tkn.location))); // E03xx
                     }
                 }
-                if (tp.pop().type != TokenType::OP_RBRACE) {
+                if (tp.pop().objType != TokenType::OP_RBRACE) {
                     throw std::runtime_error(std::format("E03xx expected '}}' at {}", getLocString(tkn.location))); // E03xx
                 }
                 result = std::move(arrNode);
@@ -645,39 +663,39 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
 
         case TokenType::OP_PLUS: case TokenType::OP_MINUS: case TokenType::OP_LOGIC_NOT: case TokenType::OP_BIT_NOT: case TokenType::OP_MUL: case TokenType::OP_BIT_AND: // unary operators
             {
-                std::unique_ptr<UnaryOpNode> unaryNode = std::make_unique<UnaryOpNode>();
-                if (tkn.type == TokenType::OP_PLUS) {
-                    unaryNode->subtype = OperatorType::U_PLUS;
-                } else if (tkn.type == TokenType::OP_MINUS) {
-                    unaryNode->subtype = OperatorType::U_MINUS;
-                } else if (tkn.type == TokenType::OP_LOGIC_NOT) {
-                    unaryNode->subtype = OperatorType::U_LOGIC_NOT;
-                } else if (tkn.type == TokenType::OP_BIT_NOT) {
-                    unaryNode->subtype = OperatorType::U_BIT_NOT;
-                } else if (tkn.type == TokenType::OP_MUL) {
-                    unaryNode->subtype = OperatorType::U_DEREF;
-                } else if (tkn.type == TokenType::OP_BIT_AND) {
-                    unaryNode->subtype = OperatorType::U_REF;
-                }
+                std::unique_ptr<OperationNode> unaryNode = std::make_unique<OperationNode>();
                 unaryNode->location = tkn.location;
-                unaryNode->operand = parsePrattExpr(tp, current, src, getPrattPrecedence(TokenType::OP_PLUS, true));
+                if (tkn.objType == TokenType::OP_PLUS) {
+                    unaryNode->subType = OperationType::U_PLUS;
+                } else if (tkn.objType == TokenType::OP_MINUS) {
+                    unaryNode->subType = OperationType::U_MINUS;
+                } else if (tkn.objType == TokenType::OP_LOGIC_NOT) {
+                    unaryNode->subType = OperationType::U_LOGIC_NOT;
+                } else if (tkn.objType == TokenType::OP_BIT_NOT) {
+                    unaryNode->subType = OperationType::U_BIT_NOT;
+                } else if (tkn.objType == TokenType::OP_MUL) {
+                    unaryNode->subType = OperationType::U_DEREF;
+                } else if (tkn.objType == TokenType::OP_BIT_AND) {
+                    unaryNode->subType = OperationType::U_REF;
+                }
+                unaryNode->operand0 = parsePrattExpr(tp, current, src, getPrattPrecedence(TokenType::OP_PLUS, true));
                 result = std::move(unaryNode);
             }
             break;
 
         case TokenType::IFUNC_MAKE:
             {
-                if (tp.pop().type != TokenType::OP_LPAREN) {
+                if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(tkn.location))); // E03xx
                 }
-                std::unique_ptr<BinaryOpNode> makeNode = std::make_unique<BinaryOpNode>(OperatorType::B_MAKE);
+                std::unique_ptr<OperationNode> makeNode = std::make_unique<OperationNode>(OperationType::B_MAKE);
                 makeNode->location = tkn.location;
-                makeNode->left = parsePrattExpr(tp, current, src, 0);
-                if (tp.pop().type != TokenType::OP_COMMA) {
+                makeNode->operand0 = parsePrattExpr(tp, current, src, 0);
+                if (tp.pop().objType != TokenType::OP_COMMA) {
                     throw std::runtime_error(std::format("E03xx expected ',' at {}", getLocString(tkn.location))); // E03xx
                 }
-                makeNode->right = parsePrattExpr(tp, current, src, 0);
-                if (tp.pop().type != TokenType::OP_RPAREN) {
+                makeNode->operand1 = parsePrattExpr(tp, current, src, 0);
+                if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(tkn.location))); // E03xx
                 }
                 result = std::move(makeNode);
@@ -686,13 +704,13 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
 
         case TokenType::IFUNC_LEN:
             {
-                if (tp.pop().type != TokenType::OP_LPAREN) {
+                if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(tkn.location))); // E03xx
                 }
-                std::unique_ptr<UnaryOpNode> lenNode = std::make_unique<UnaryOpNode>(OperatorType::U_LEN);
+                std::unique_ptr<OperationNode> lenNode = std::make_unique<OperationNode>(OperationType::U_LEN);
                 lenNode->location = tkn.location;
-                lenNode->operand = parsePrattExpr(tp, current, src, 0);
-                if (tp.pop().type != TokenType::OP_RPAREN) {
+                lenNode->operand0 = parsePrattExpr(tp, current, src, 0);
+                if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(tkn.location))); // E03xx
                 }
                 result = std::move(lenNode);
@@ -701,20 +719,20 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
 
         case TokenType::IFUNC_CAST:
             {
-                if (tp.pop().type != TokenType::OP_LITTER) {
+                if (tp.pop().objType != TokenType::OP_LT) {
                     throw std::runtime_error(std::format("E03xx expected '<' at {}", getLocString(tkn.location))); // E03xx
                 }
-                std::unique_ptr<BinaryOpNode> castNode = std::make_unique<BinaryOpNode>(OperatorType::B_CAST);
+                std::unique_ptr<OperationNode> castNode = std::make_unique<OperationNode>(OperationType::B_CAST);
                 castNode->location = tkn.location;
-                castNode->left = src.parseType(tp, current, arch);
-                if (tp.pop().type != TokenType::OP_GREATER) {
+                castNode->operand0 = src.parseType(tp, current, arch);
+                if (tp.pop().objType != TokenType::OP_GT) {
                     throw std::runtime_error(std::format("E03xx expected '>' at {}", getLocString(tkn.location))); // E03xx
                 }
-                if (tp.pop().type != TokenType::OP_LPAREN) {
+                if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(tkn.location))); // E03xx
                 }
-                castNode->right = parsePrattExpr(tp, current, src, 0);
-                if (tp.pop().type != TokenType::OP_RPAREN) {
+                castNode->operand1 = parsePrattExpr(tp, current, src, 0);
+                if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(tkn.location))); // E03xx
                 }
                 result = std::move(castNode);
@@ -723,17 +741,17 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
 
         case TokenType::IFUNC_SIZEOF:
             {
-                if (tp.pop().type != TokenType::OP_LPAREN) {
+                if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(tkn.location))); // E03xx
                 }
-                std::unique_ptr<UnaryOpNode> sizeofNode = std::make_unique<UnaryOpNode>(OperatorType::U_SIZEOF);
+                std::unique_ptr<OperationNode> sizeofNode = std::make_unique<OperationNode>(OperationType::U_SIZEOF);
                 sizeofNode->location = tkn.location;
                 if (isTypeStart(tp, src)) {
-                    sizeofNode->operand = src.parseType(tp, current, arch);
+                    sizeofNode->operand0 = src.parseType(tp, current, arch);
                 } else {
-                    sizeofNode->operand = parsePrattExpr(tp, current, src, 0);
+                    sizeofNode->operand0 = parsePrattExpr(tp, current, src, 0);
                 }
-                if (tp.pop().type != TokenType::OP_RPAREN) {
+                if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(tkn.location))); // E03xx
                 }
                 result = std::move(sizeofNode);
@@ -750,26 +768,24 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
 std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src, int level) {
     std::unique_ptr<ASTNode> lhs = parseAtomicExpr(tp, current, src); // LHS is start of expression
     while (tp.canPop(1)) {
-        int mylvl = getPrattPrecedence(tp.seek().type, false);
+        int mylvl = getPrattPrecedence(tp.seek().objType, false);
         if (mylvl < level) {
             break; // end of expression
         }
 
         Token& opTkn = tp.pop(); // operator can be binary or postfix unary
-        switch (opTkn.type) {
+        switch (opTkn.objType) {
             case TokenType::OP_DOT: // member access
                 {
                     Token& memberTkn = tp.pop();
-                    if (memberTkn.type != TokenType::IDENTIFIER) {
+                    if (memberTkn.objType != TokenType::IDENTIFIER) {
                         throw std::runtime_error(std::format("E03xx expected identifier after '.' at {}", getLocString(opTkn.location))); // E03xx
                     }
-                    std::unique_ptr<BinaryOpNode> memberNode = std::make_unique<BinaryOpNode>();
-                    memberNode->subtype = OperatorType::B_DOT;
+                    std::unique_ptr<OperationNode> memberNode = std::make_unique<OperationNode>(OperationType::B_DOT);
                     memberNode->location = opTkn.location;
-                    memberNode->left = std::move(lhs);
-                    std::unique_ptr<ASTNode> memberNameNode = std::make_unique<ASTNode>(ASTNodeType::NAME, memberTkn.text);
-                    memberNameNode->location = memberTkn.location;
-                    memberNode->right = std::move(memberNameNode);
+                    memberNode->operand0 = std::move(lhs);
+                    memberNode->operand1 = std::make_unique<AtomicExprNode>(memberTkn.text);
+                    memberNode->operand1->location = memberTkn.location;
                     lhs = std::move(memberNode);
                 }
                 break;
@@ -778,21 +794,21 @@ std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& cu
                 {
                     std::unique_ptr<FuncCallNode> callNode = std::make_unique<FuncCallNode>();
                     callNode->location = opTkn.location;
-                    callNode->func_expr = std::move(lhs);
-                    if (tp.seek().type != TokenType::OP_RPAREN) {
+                    callNode->funcExpr = std::move(lhs);
+                    if (tp.seek().objType != TokenType::OP_RPAREN) {
                         while (tp.canPop(1)) {
                             std::unique_ptr<ASTNode> argExpr = parsePrattExpr(tp, current, src, 0);
                             callNode->args.push_back(std::move(argExpr));
-                            if (tp.seek().type == TokenType::OP_COMMA) {
+                            if (tp.seek().objType == TokenType::OP_COMMA) {
                                 tp.pop();
-                            } else if (tp.seek().type == TokenType::OP_RPAREN) {
+                            } else if (tp.seek().objType == TokenType::OP_RPAREN) {
                                 break;
                             } else {
-                                throw std::runtime_error(std::format("E03xx expected ',' at {}", getLocString(opTkn.location))); // E03xx
+                                throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(opTkn.location))); // E03xx
                             }
                         }
                     }
-                    if (tp.pop().type != TokenType::OP_RPAREN) {
+                    if (tp.pop().objType != TokenType::OP_RPAREN) {
                         throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(opTkn.location))); // E03xx
                     }
                     lhs = std::move(callNode);
@@ -804,27 +820,25 @@ std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& cu
                     std::unique_ptr<ASTNode> left = nullptr;
                     std::unique_ptr<ASTNode> right = nullptr;
                     left = parsePrattExpr(tp, current, src, 0);
-                    if (tp.seek().type == TokenType::OP_COLON) { // slice
+                    if (tp.seek().objType == TokenType::OP_COLON) { // slice
                         tp.pop();
                         right = parsePrattExpr(tp, current, src, 0);
                     }
-                    if (tp.pop().type != TokenType::OP_RBRACKET) {
+                    if (tp.pop().objType != TokenType::OP_RBRACKET) {
                         throw std::runtime_error(std::format("E03xx expected ']' at {}", getLocString(opTkn.location))); // E03xx
                     }
                     if (right == nullptr) { // index
-                        std::unique_ptr<BinaryOpNode> indexNode = std::make_unique<BinaryOpNode>();
-                        indexNode->subtype = OperatorType::B_INDEX;
+                        std::unique_ptr<OperationNode> indexNode = std::make_unique<OperationNode>(OperationType::B_INDEX);
                         indexNode->location = opTkn.location;
-                        indexNode->left = std::move(lhs);
-                        indexNode->right = std::move(left);
+                        indexNode->operand0 = std::move(lhs);
+                        indexNode->operand1 = std::move(left);
                         lhs = std::move(indexNode);
                     } else { // slice
-                        std::unique_ptr<TripleOpNode> sliceNode = std::make_unique<TripleOpNode>();
-                        sliceNode->subtype = OperatorType::T_SLICE;
+                        std::unique_ptr<OperationNode> sliceNode = std::make_unique<OperationNode>(OperationType::T_SLICE);
                         sliceNode->location = opTkn.location;
-                        sliceNode->base = std::move(lhs);
-                        sliceNode->left = std::move(left);
-                        sliceNode->right = std::move(right);
+                        sliceNode->operand0 = std::move(lhs);
+                        sliceNode->operand1 = std::move(left);
+                        sliceNode->operand2 = std::move(right);
                         lhs = std::move(sliceNode);
                     }
                 }
@@ -832,14 +846,13 @@ std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& cu
 
             default: // binary operator
                 {
-                    std::unique_ptr<BinaryOpNode> binOpNode = std::make_unique<BinaryOpNode>();
-                    binOpNode->subtype = getBinaryOpType(opTkn.type);
-                    if (binOpNode->subtype == OperatorType::NONE) {
+                    std::unique_ptr<OperationNode> binOpNode = std::make_unique<OperationNode>(getBinaryOpType(opTkn.objType));
+                    binOpNode->location = opTkn.location;
+                    if (binOpNode->subType == OperationType::NONE) {
                         throw std::runtime_error(std::format("E03xx invalid binary operator {} at {}", opTkn.text, getLocString(opTkn.location))); // E03xx
                     }
-                    binOpNode->location = opTkn.location;
-                    binOpNode->left = std::move(lhs);
-                    binOpNode->right = parsePrattExpr(tp, current, src, mylvl + 1);
+                    binOpNode->operand0 = std::move(lhs);
+                    binOpNode->operand1 = parsePrattExpr(tp, current, src, mylvl + 1);
                     lhs = std::move(binOpNode);
                 }
         }
@@ -849,23 +862,23 @@ std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& cu
 
 // parse variable declaration, after type declaration
 std::unique_ptr<LongStatNode> ASTGen::parseVarDecl(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<TypeNode> varType, bool isDefine, bool isExtern, bool isExported) {
-    if (varType->type_size == 0) {
+    if (varType->typeSize == 0) {
         throw std::runtime_error(std::format("E03xx variable cannot be void type at {}", getLocString(varType->location))); // E03xx
     }
     Token& nameTkn = tp.pop();
-    if (nameTkn.type != TokenType::IDENTIFIER) {
+    if (nameTkn.objType != TokenType::IDENTIFIER) {
         throw std::runtime_error(std::format("E03xx expected identifier at {}", getLocString(nameTkn.location))); // E03xx
     }
-    std::unique_ptr<LongStatNode> varDecl = std::make_unique<LongStatNode>();
+    std::unique_ptr<LongStatNode> varDecl = std::make_unique<LongStatNode>(ASTNodeType::DECL_VAR);
     varDecl->location = nameTkn.location;
     varDecl->varType = std::move(varType);
-    varDecl->varName = std::make_unique<NameNode>();
+    varDecl->text = nameTkn.text;
+    varDecl->varName = std::make_unique<AtomicExprNode>(nameTkn.text);
     varDecl->varName->location = nameTkn.location;
-    varDecl->varName->text = nameTkn.text;
     Token& opTkn = tp.pop();
-    if (opTkn.type == TokenType::OP_ASSIGN) { // init with value
+    if (opTkn.objType == TokenType::OP_ASSIGN) { // init with value
         varDecl->varExpr = parsePrattExpr(tp, current, src, 0);
-    } else if (opTkn.type == TokenType::OP_SEMICOLON) { // declaration only
+    } else if (opTkn.objType== TokenType::OP_SEMICOLON) { // declaration only
         varDecl->varExpr = nullptr;
     } else {
         throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(opTkn.location))); // E03xx
@@ -874,7 +887,7 @@ std::unique_ptr<LongStatNode> ASTGen::parseVarDecl(TokenProvider& tp, ScopeNode&
     varDecl->isExtern = isExtern;
     varDecl->isExported = isExported;
     if (isDefine) { // define variable should be initialized with literal
-        if (varDecl->varExpr == nullptr || varDecl->varExpr->type != ASTNodeType::LITERAL) {
+        if (varDecl->varExpr == nullptr || varDecl->varExpr->objType != ASTNodeType::LITERAL) {
             throw std::runtime_error(std::format("E03xx define should be initialized with literal at {}", getLocString(nameTkn.location))); // E03xx
         }
     }
@@ -889,12 +902,12 @@ std::unique_ptr<LongStatNode> ASTGen::parseVarDecl(TokenProvider& tp, ScopeNode&
 
 // parse variable assignment, after lvalue =
 std::unique_ptr<LongStatNode> ASTGen::parseVarAssign(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<ASTNode> lvalue) {
-    std::unique_ptr<LongStatNode> varAssign = std::make_unique<LongStatNode>();
+    std::unique_ptr<LongStatNode> varAssign = std::make_unique<LongStatNode>(ASTNodeType::ASSIGN);
     varAssign->location = lvalue->location;
     varAssign->varType = nullptr;
     varAssign->varName = std::move(lvalue);
     varAssign->varExpr = parsePrattExpr(tp, current, src, 0);
-    if (tp.pop().type != TokenType::OP_SEMICOLON) {
+    if (tp.pop().objType != TokenType::OP_SEMICOLON) {
         throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(varAssign->location))); // E03xx
     }
     return varAssign;
@@ -906,29 +919,25 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
     bool isExtern = false;
     bool isExported = false;
     bool isVaArg = false;
-    for (;;) {
+    while (tp.canPop(1)) {
         Token& tkn = tp.seek();
-        switch (tkn.type) {
+        switch (tkn.objType) {
             case TokenType::KEY_IF: // if statement
             {
                 tp.pop();
                 std::unique_ptr<IfNode> ifNode = std::make_unique<IfNode>();
                 ifNode->location = tkn.location;
-                if (tp.pop().type != TokenType::OP_LPAREN) {
+                if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(ifNode->location))); // E03xx
                 }
                 ifNode->cond = parsePrattExpr(tp, current, src, 0);
-                if (tp.pop().type != TokenType::OP_RPAREN) {
+                if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(ifNode->location))); // E03xx
                 }
-                ifNode->flowBody = parseStatement(tp, current, src);
-                if (tp.seek().type == TokenType::KEY_ELSE) { // else statement
+                ifNode->ifBody = parseStatement(tp, current, src);
+                if (tp.seek().objType == TokenType::KEY_ELSE) { // else statement
                     tp.pop();
-                    if (tp.seek().type == TokenType::KEY_IF) { // nested else if statement
-                        ifNode->elseBody = parseStatement(tp, current, src);
-                    } else { // single else
-                        ifNode->elseBody = parseStatement(tp, current, src);
-                    }
+                    ifNode->elseBody = parseStatement(tp, current, src);
                 }
                 return ifNode;
             }
@@ -938,11 +947,11 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 tp.pop();
                 std::unique_ptr<WhileNode> whileNode = std::make_unique<WhileNode>();
                 whileNode->location = tkn.location;
-                if (tp.pop().type != TokenType::OP_LPAREN) {
+                if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(whileNode->location))); // E03xx
                 }
                 whileNode->cond = parsePrattExpr(tp, current, src, 0);
-                if (tp.pop().type != TokenType::OP_RPAREN) {
+                if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(whileNode->location))); // E03xx
                 }
                 whileNode->body = parseStatement(tp, current, src);
@@ -954,16 +963,28 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 tp.pop();
                 std::unique_ptr<ForNode> forNode = std::make_unique<ForNode>();
                 forNode->location = tkn.location;
-                if (tp.pop().type != TokenType::OP_LPAREN) {
+                if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(forNode->location))); // E03xx
                 }
                 forNode->init = parseStatement(tp, current, src);
                 forNode->cond = parsePrattExpr(tp, current, src, 0);
-                if (tp.pop().type != TokenType::OP_SEMICOLON) {
+                if (tp.pop().objType != TokenType::OP_SEMICOLON) {
                     throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(forNode->location))); // E03xx
                 }
-                forNode->step = parsePrattExpr(tp, current, src, 0);
-                if (tp.pop().type != TokenType::OP_RPAREN) {
+                if (tp.pop().objType != TokenType::OP_RPAREN) {
+                    std::unique_ptr<ASTNode> left = parsePrattExpr(tp, current, src, 0);
+                    if (tp.seek().objType == TokenType::OP_ASSIGN) {
+                        tp.pop();
+                        std::unique_ptr<LongStatNode> varAssign = std::make_unique<LongStatNode>(ASTNodeType::ASSIGN);
+                        varAssign->location = left->location;
+                        varAssign->varType = nullptr;
+                        varAssign->varName = std::move(left);
+                        varAssign->varExpr = parsePrattExpr(tp, current, src, 0);
+                        left = std::move(varAssign);
+                    }
+                    forNode->step = std::move(left);
+                }
+                if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(forNode->location))); // E03xx
                 }
                 forNode->body = parseStatement(tp, current, src);
@@ -975,47 +996,50 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 tp.pop();
                 std::unique_ptr<SwitchNode> switchNode = std::make_unique<SwitchNode>();
                 switchNode->location = tkn.location;
-                if (tp.pop().type != TokenType::OP_LPAREN) {
+                if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(switchNode->location))); // E03xx
                 }
                 switchNode->cond = parsePrattExpr(tp, current, src, 0);
-                if (tp.pop().type != TokenType::OP_RPAREN) {
+                if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(switchNode->location))); // E03xx
                 }
-                if (tp.pop().type != TokenType::OP_LBRACE) {
+                if (tp.pop().objType != TokenType::OP_LBRACE) {
                     throw std::runtime_error(std::format("E03xx expected '{' at {}", getLocString(switchNode->location))); // E03xx
                 }
                 bool defaultFound = false;
+                bool pushCase = false;
                 while (tp.canPop(1)) {
                     Token& caseTkn = tp.seek();
-                    if (caseTkn.type == TokenType::KEY_CASE) { // case statement
+                    if (caseTkn.objType == TokenType::KEY_CASE) { // case statement
                         tp.pop();
-                        switchNode->case_exprs.push_back(parsePrattExpr(tp, current, src, 0));
-                        if (tp.pop().type != TokenType::OP_COLON) {
-                            throw std::runtime_error(std::format("E03xx expected ':' at {}", getLocString(switchNode->location))); // E03xx
+                        pushCase = true;
+                        switchNode->caseExprs.push_back(parsePrattExpr(tp, current, src, 0));
+                        if (tp.pop().objType != TokenType::OP_COLON) {
+                            throw std::runtime_error(std::format("E03xx expected ':' at {}", getLocString(caseTkn.location))); // E03xx
                         }
                         std::unique_ptr<ScopeNode> tempScope = std::make_unique<ScopeNode>();
                         tempScope->location = caseTkn.location;
-                        switchNode->case_bodies.push_back(std::move(tempScope));
-                    } else if (caseTkn.type == TokenType::KEY_DEFAULT) { // default statement
+                        switchNode->caseBodies.push_back(std::move(tempScope));
+                    } else if (caseTkn.objType == TokenType::KEY_DEFAULT) { // default statement
                         tp.pop();
+                        pushCase = false;
                         if (defaultFound) {
-                            throw std::runtime_error(std::format("E03xx double default at {}", getLocString(switchNode->location))); // E03xx
+                            throw std::runtime_error(std::format("E03xx double default at {}", getLocString(caseTkn.location))); // E03xx
                         }
                         defaultFound = true;
-                        if (tp.pop().type != TokenType::OP_COLON) {
-                            throw std::runtime_error(std::format("E03xx expected ':' at {}", getLocString(switchNode->location))); // E03xx
+                        if (tp.pop().objType != TokenType::OP_COLON) {
+                            throw std::runtime_error(std::format("E03xx expected ':' at {}", getLocString(caseTkn.location))); // E03xx
                         }
                         std::unique_ptr<ScopeNode> tempScope = std::make_unique<ScopeNode>();
                         tempScope->location = caseTkn.location;
                         switchNode->defaultBody= std::move(tempScope);
-                    } else if (caseTkn.type == TokenType::OP_RBRACE) { // end
+                    } else if (caseTkn.objType == TokenType::OP_RBRACE) { // end
                         tp.pop();
                         break;
-                    } else if (defaultFound) { // push to default body
+                    } else if (pushCase) { // push to case body
+                        switchNode->caseBodies.back()->body.push_back(parseStatement(tp, current, src));
+                    } else if (!pushCase && defaultFound) { // push to default body
                         switchNode->defaultBody->body.push_back(parseStatement(tp, current, src));
-                    } else if (!switchNode->case_bodies.empty()) { // push to case body
-                        switchNode->case_bodies.back()->body.push_back(parseStatement(tp, current, src));
                     } else { // statement before case
                         throw std::runtime_error(std::format("E03xx statement before case expression at {}", getLocString(switchNode->location))); // E03xx
                     }
@@ -1026,8 +1050,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             case TokenType::KEY_BREAK:
             {
                 tp.pop();
-                std::unique_ptr<ASTNode> result = std::make_unique<ShortStatNode>();
-                result->type = ASTNodeType::BREAK;
+                std::unique_ptr<ASTNode> result = std::make_unique<ShortStatNode>(ASTNodeType::BREAK);
                 result->location = tkn.location;
                 return result;
             }
@@ -1035,8 +1058,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             case TokenType::KEY_CONTINUE:
             {
                 tp.pop();
-                std::unique_ptr<ASTNode> result = std::make_unique<ShortStatNode>();
-                result->type = ASTNodeType::CONTINUE;
+                std::unique_ptr<ASTNode> result = std::make_unique<ShortStatNode>(ASTNodeType::CONTINUE);
                 result->location = tkn.location;
                 return result;
             }
@@ -1044,11 +1066,10 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             case TokenType::KEY_RETURN: // return statement
             {
                 tp.pop();
-                std::unique_ptr<ShortStatNode> result = std::make_unique<ShortStatNode>();
-                result->type = ASTNodeType::RETURN;
+                std::unique_ptr<ShortStatNode> result = std::make_unique<ShortStatNode>(ASTNodeType::RETURN);
                 result->location = tkn.location;
                 result->statExpr = parsePrattExpr(tp, current, src, 0);
-                if (tp.pop().type != TokenType::OP_SEMICOLON) {
+                if (tp.pop().objType != TokenType::OP_SEMICOLON) {
                     throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(result->location))); // E03xx
                 }
                 return result;
@@ -1057,11 +1078,10 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             case TokenType::ORDER_DEFER: // defer statement
             {
                 tp.pop();
-                std::unique_ptr<ShortStatNode> result = std::make_unique<ShortStatNode>();
-                result->type = ASTNodeType::DEFER;
+                std::unique_ptr<ShortStatNode> result = std::make_unique<ShortStatNode>(ASTNodeType::DEFER);
                 result->location = tkn.location;
                 result->statExpr = parsePrattExpr(tp, current, src, 0);
-                if (tp.pop().type != TokenType::OP_SEMICOLON) {
+                if (tp.pop().objType != TokenType::OP_SEMICOLON) {
                     throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(result->location))); // E03xx
                 }
                 return result;
@@ -1102,9 +1122,9 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 } else {
                     std::unique_ptr<ASTNode> left = parsePrattExpr(tp, current, src, 0);
                     Token& opTkn = tp.pop();
-                    if (opTkn.type == TokenType::OP_ASSIGN) { // assign statement
+                    if (opTkn.objType == TokenType::OP_ASSIGN) { // assign statement
                         return parseVarAssign(tp, current, src, std::move(left));
-                    } else if (opTkn.type == TokenType::OP_SEMICOLON) { // expression statement
+                    } else if (opTkn.objType == TokenType::OP_SEMICOLON) { // expression statement
                         return left;
                     } else {
                         throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(opTkn.location))); // E03xx
@@ -1112,11 +1132,12 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 }
         }
     }
+    throw std::runtime_error(std::format("E03xx unexpected EOF at {}", getLocString(current.location))); // E03xx
 }
 
 // parse scope
 std::unique_ptr<ScopeNode> ASTGen::parseScope(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
-    if (tp.pop().type != TokenType::OP_LBRACE) {
+    if (tp.pop().objType != TokenType::OP_LBRACE) {
         throw std::runtime_error(std::format("E03xx expected '{{' at {}", getLocString(current.location))); // E03xx
     }
     std::unique_ptr<ScopeNode> scope = std::make_unique<ScopeNode>();
@@ -1124,7 +1145,7 @@ std::unique_ptr<ScopeNode> ASTGen::parseScope(TokenProvider& tp, ScopeNode& curr
     scope->parent = &current;
     while (tp.canPop(1)) {
         Token& tkn = tp.seek();
-        if (tkn.type == TokenType::OP_RBRACE) {
+        if (tkn.objType == TokenType::OP_RBRACE) {
             tp.pop();
             break;
         }
@@ -1139,21 +1160,21 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
     bool isExtern = false;
     bool isExported = false;
     bool isVaArg = false;
-    for (;;) {
+    while (tp.canPop(1)) {
         Token& tkn = tp.seek();
-        switch (tkn.type) {
+        switch (tkn.objType) {
             case TokenType::ORDER_INCLUDE:
             {
             tp.pop();
             std::unique_ptr<IncludeNode> result = std::make_unique<IncludeNode>();
             result->location = tkn.location;
-            if (tp.seek().type == TokenType::OP_LITTER) { // template arguments
+            if (tp.seek().objType == TokenType::OP_LT) { // template arguments
                 while (tp.canPop(1)) {
                     result->args.push_back(src.parseType(tp, current, arch));
                     Token& opTkn = tp.seek();
-                    if (opTkn.type == TokenType::OP_COMMA) {
+                    if (opTkn.objType == TokenType::OP_COMMA) {
                         tp.pop();
-                    } else if (opTkn.type == TokenType::OP_GREATER) {
+                    } else if (opTkn.objType == TokenType::OP_GT) {
                         tp.pop();
                         break;
                     } else {
@@ -1176,7 +1197,7 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
             std::unique_ptr<DeclTemplateNode> result = std::make_unique<DeclTemplateNode>();
             result->location = tkn.location;
             Token& tmpTkn = tp.pop();
-            if (tmpTkn.type != TokenType::IDENTIFIER) {
+            if (tmpTkn.objType != TokenType::IDENTIFIER) {
                 throw std::runtime_error(std::format("E03xx expected typename at {}", getLocString(tmpTkn.location))); // E03xx
             }
             result->name = tmpTkn.text;
@@ -1221,8 +1242,8 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
                 return parseVarDecl(tp, current, src, std::move(vtype), isDefine, isExtern, isExported);
             } else if (tp.match({TokenType::IDENTIFIER, TokenType::OP_ASSIGN})) { // var declaration with init
                 std::unique_ptr<LongStatNode> varDecl = parseVarDecl(tp, current, src, std::move(vtype), isDefine, isExtern, isExported);
-                if (varDecl->varExpr == nullptr || varDecl->varExpr->type != ASTNodeType::LITERAL) {
-                    throw std::runtime_error(std::format("E03xx global var should be initialized with literal at {}", getLocString(varDecl->varExpr->location))); // E03xx
+                if (varDecl->varExpr == nullptr || varDecl->varExpr->objType != ASTNodeType::LITERAL) {
+                    throw std::runtime_error(std::format("E03xx global var should be initialized with literal at {}", getLocString(vtype->location))); // E03xx
                 }
                 return varDecl;
             } else { // function declaration
@@ -1231,4 +1252,5 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
             }
         }
     }
+    throw std::runtime_error(std::format("E03xx unexpected EOF at {}", getLocString(current.location))); // E03xx
 }
