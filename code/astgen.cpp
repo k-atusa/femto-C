@@ -86,27 +86,13 @@ OperationType getBinaryOpType(TokenType tknType) {
 }
 
 // ASTNode functions
-ASTNode* ScopeNode::findVarByName(const std::string& name) {
-    for (auto& node : body) {
-        if (node->objType == ASTNodeType::DECL_VAR && node->text == name) { // decl_var
-            return node.get();
+DeclVarNode* ScopeNode::findVarByName(const std::string& name) {
+    for (auto& node : body) { // all variable declarations should be decl_var
+        if (node->objType == ASTNodeType::DECL_VAR && node->text == name) {
+            return static_cast<DeclVarNode*>(node.get());
 
-        } else if (node->objType == ASTNodeType::FOR) { // declared in for loop
-            ForNode* forNode = static_cast<ForNode*>(node.get());
-            if (forNode->init && forNode->init->objType == ASTNodeType::DECL_VAR && forNode->init->text == name) {
-                return forNode;
-            }
-
-        } else if (node->objType == ASTNodeType::DECL_FUNC) { // function param
-            DeclFuncNode* funcNode = static_cast<DeclFuncNode*>(node.get());
-            for (auto& param : funcNode->paramNames) {
-                if (param == name) {
-                    return funcNode;
-                }
-            }
         }
     }
-
     if (parent) { // find in parent
         ScopeNode* parentScope = static_cast<ScopeNode*>(parent);
         return parentScope->findVarByName(name);
@@ -115,12 +101,8 @@ ASTNode* ScopeNode::findVarByName(const std::string& name) {
 }
 
 Literal ScopeNode::findDefinedLiteral(const std::string& name) {
-    ASTNode* nameNode = findVarByName(name);
-    if (nameNode == nullptr || nameNode->objType != ASTNodeType::DECL_VAR) {
-        return Literal();
-    }
-    LongStatNode* varNode = static_cast<LongStatNode*>(nameNode);
-    if (!varNode->isDefine) {
+    DeclVarNode* varNode = findVarByName(name);
+    if (varNode == nullptr || !varNode->isDefine) {
         return Literal();
     }
     AtomicExprNode* litNode = static_cast<AtomicExprNode*>(varNode->varExpr.get());
@@ -559,6 +541,7 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
     std::unique_ptr<DeclFuncNode> funcNode = std::make_unique<DeclFuncNode>();
     funcNode->location = retType->location;
     funcNode->retType = std::move(retType);
+    funcNode->body = std::make_unique<ScopeNode>(current);
     if (tp.match({TokenType::IDENTIFIER, TokenType::OP_DOT, TokenType::IDENTIFIER})) { // method
         Token& structTkn = tp.pop();
         tp.pop();
@@ -594,6 +577,8 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
                 }
             }
             funcNode->paramNames.push_back(paramNameTkn.text);
+            std::unique_ptr<DeclVarNode> pvar = std::make_unique<DeclVarNode>()
+            funcNode->body->body.
             Token& sepTkn = tp.seek();
             if (sepTkn.objType == TokenType::OP_RPAREN) {
                 break;

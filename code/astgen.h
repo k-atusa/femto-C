@@ -35,7 +35,6 @@ enum class ASTNodeType {
     SCOPE,
     IF,
     WHILE,
-    FOR,
     SWITCH,
     // function, struct, enum
     DECL_FUNC,
@@ -272,24 +271,40 @@ class FuncCallNode: public ASTNode {
     }
 };
 
-// statement node
-class LongStatNode: public ASTNode {
+// variable declaration
+class DeclVarNode: public ASTNode {
     public:
     std::unique_ptr<TypeNode> varType; // declare type
-    std::unique_ptr<ASTNode> varName; // declare name, assign lvalue
-    std::unique_ptr<ASTNode> varExpr; // initialize, assign rvalue
+    std::string& name; // declare name
+    std::unique_ptr<ASTNode> varExpr; // initialize
     bool isDefine;
     bool isExtern;
     bool isExported;
+    bool isParam;
 
-    LongStatNode(): ASTNode(ASTNodeType::NONE), varType(nullptr), varName(nullptr), varExpr(nullptr), isDefine(false), isExtern(false), isExported(false) {}
-    LongStatNode(ASTNodeType tp): ASTNode(tp), varType(nullptr), varName(nullptr), varExpr(nullptr), isDefine(false), isExtern(false), isExported(false) {}
+    DeclVarNode(): ASTNode(ASTNodeType::DECL_VAR), varType(nullptr), name(text), varExpr(nullptr), isDefine(false), isExtern(false), isExported(false), isParam(false) {}
+    DeclVarNode(std::unique_ptr<TypeNode> vt, const std::string& nm): ASTNode(ASTNodeType::DECL_VAR, nm), varType(std::move(vt)), name(text), varExpr(nullptr), isDefine(false), isExtern(false), isExported(false), isParam(false) {}
 
     std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + std::format("LONGSTAT {} {} {} {}", objType, isDefine, isExtern, isExported);
+        std::string result = std::string(indent, '  ') + std::format("VAR_DECL {} {} {} {} {}", name, isDefine, isExtern, isExported, isParam);
         if (varType) result += "\n" + varType->toString(indent + 1);
-        if (varName) result += "\n" + varName->toString(indent + 1);
         if (varExpr) result += "\n" + varExpr->toString(indent + 1);
+        return result;
+    }
+};
+
+// variable assignment
+class AssignNode: public ASTNode {
+    public:
+    std::unique_ptr<ASTNode> lvalue; // assign lvalue
+    std::unique_ptr<ASTNode> rvalue; // assign rvalue
+
+    AssignNode(): ASTNode(ASTNodeType::ASSIGN), lvalue(nullptr), rvalue(nullptr) {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + "ASSIGN";
+        result += "\n" + lvalue->toString(indent + 1);
+        result += "\n" + rvalue->toString(indent + 1);
         return result;
     }
 };
@@ -323,7 +338,7 @@ class ScopeNode: public ASTNode {
         return result;
     }
 
-    ASTNode* findVarByName(const std::string& name); // find variable declaration (decl_var, for, decl_func), nullptr if not found
+    DeclVarNode* findVarByName(const std::string& name); // find variable declaration, nullptr if not found
     Literal findDefinedLiteral(const std::string& name); // find defined literal variable, type NONE if not found
 };
 
@@ -359,25 +374,6 @@ class WhileNode: public ASTNode {
     }
 };
 
-class ForNode: public ASTNode {
-    public:
-    std::unique_ptr<ASTNode> init;
-    std::unique_ptr<ASTNode> cond;
-    std::unique_ptr<ASTNode> step;
-    std::unique_ptr<ASTNode> body;
-
-    ForNode(): ASTNode(ASTNodeType::FOR), init(nullptr), cond(nullptr), step(nullptr), body(nullptr) {}
-
-    std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + "FOR";
-        if (init) result += "\n" + init->toString(indent + 1);
-        if (cond) result += "\n" + cond->toString(indent + 1);
-        if (step) result += "\n" + step->toString(indent + 1);
-        if (body) result += "\n" + body->toString(indent + 1);
-        return result;
-    }
-};
-
 class SwitchNode: public ASTNode {
     public:
     std::unique_ptr<ASTNode> cond;
@@ -385,7 +381,7 @@ class SwitchNode: public ASTNode {
     std::vector<std::unique_ptr<ScopeNode>> caseBodies;
     std::unique_ptr<ScopeNode> defaultBody;
 
-    SwitchNode(): ASTNode(ASTNodeType::SWITCH), cond(nullptr), caseExprs(), caseBodies() {defaultBody = nullptr;}
+    SwitchNode(): ASTNode(ASTNodeType::SWITCH), cond(nullptr), caseExprs(), caseBodies(), defaultBody() {defaultBody = nullptr;}
 
     std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + "SWITCH";
@@ -406,11 +402,11 @@ class DeclFuncNode: public ASTNode {
     std::vector<std::unique_ptr<TypeNode>> paramTypes;
     std::vector<std::string> paramNames;
     std::unique_ptr<TypeNode> retType;
-    std::unique_ptr<ASTNode> body;
+    std::unique_ptr<ScopeNode> body; // have param declarations
     bool isVaArg;
     bool isExported;
 
-    DeclFuncNode(): ASTNode(ASTNodeType::DECL_FUNC), name(text), structNm(""), funcNm(""), paramTypes(), paramNames(), retType(nullptr), body(nullptr), isVaArg(false), isExported(false) {}
+    DeclFuncNode(): ASTNode(ASTNodeType::DECL_FUNC), name(text), structNm(""), funcNm(""), paramTypes(), paramNames(), retType(nullptr), body(), isVaArg(false), isExported(false) { body = nullptr; }
 
     std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + std::format("DECLFUNC {} {} {}", name, isVaArg, isExported);
@@ -513,8 +509,8 @@ class ASTGen {
 
     std::unique_ptr<ASTNode> parseAtomicExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse atomic expression
     std::unique_ptr<ASTNode> parsePrattExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src, int level); // parse pratt expression
-    std::unique_ptr<LongStatNode> parseVarDecl(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<TypeNode> varType, bool isDefine, bool isExtern, bool isExported); // parse variable declaration
-    std::unique_ptr<LongStatNode> parseVarAssign(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<ASTNode> lvalue); // parse variable assignment
+    std::unique_ptr<DeclVarNode> parseVarDecl(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<TypeNode> varType, bool isDefine, bool isExtern, bool isExported); // parse variable declaration
+    std::unique_ptr<AssignNode> parseVarAssign(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<ASTNode> lvalue); // parse variable assignment
 
     std::unique_ptr<ASTNode> parseStatement(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse general statement
     std::unique_ptr<ScopeNode> parseScope(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse scope
