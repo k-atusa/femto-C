@@ -86,6 +86,7 @@ enum class TokenType {
     KEY_DEFAULT,
     KEY_BREAK,
     KEY_CONTINUE,
+    KEY_FALL,
     KEY_RETURN,
     KEY_STRUCT,
     KEY_ENUM,

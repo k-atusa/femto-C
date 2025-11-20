@@ -31,10 +31,12 @@ enum class ASTNodeType {
     DEFER,
     BREAK,
     CONTINUE,
+    FALL,
     // control statement
     SCOPE,
     IF,
     WHILE,
+    FOR,
     SWITCH,
     // function, struct, enum
     DECL_FUNC,
@@ -122,6 +124,26 @@ class TypeNode: public ASTNode {
     TypeNode(): ASTNode(ASTNodeType::TYPE), subType(TypeNodeType::NONE), name(text), includeName(""), direct(nullptr), indirect(), length(-1), typeSize(-1), typeAlign(-1) {}
     TypeNode(TypeNodeType tp, const std::string& nm): ASTNode(ASTNodeType::TYPE, nm), subType(tp), name(text), includeName(""), direct(nullptr), indirect(), length(-1), typeSize(-1), typeAlign(-1) {}
     TypeNode(const std::string& incNm, const std::string& tpNm): ASTNode(ASTNodeType::TYPE, tpNm), subType(TypeNodeType::FOREIGN), name(text), includeName(incNm), direct(nullptr), indirect(), length(-1), typeSize(-1), typeAlign(-1) {}
+
+    std::unique_ptr<TypeNode> clone() {
+        std::unique_ptr<TypeNode> newType = std::make_unique<TypeNode>();
+        newType->objType = this->objType;
+        newType->location = this->location;
+        newType->text = this->text;
+        newType->subType = this->subType;
+        newType->name = this->name;
+        newType->includeName = this->includeName;
+        if (this->direct != nullptr) {
+            newType->direct = this->direct->clone();
+        }
+        for (auto& ind : this->indirect) {
+            newType->indirect.push_back(ind->clone());
+        }
+        newType->length = this->length;
+        newType->typeSize = this->typeSize;
+        newType->typeAlign = this->typeAlign;
+        return newType;
+    }
 
     std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + std::format("TYPE {} {} {} {} {} {}", name, includeName, subType, length, typeSize, typeAlign);
@@ -374,21 +396,46 @@ class WhileNode: public ASTNode {
     }
 };
 
+class ForNode: public ASTNode {
+    public:
+    // init statement will be at another outside scope
+    std::unique_ptr<ASTNode> cond;
+    std::unique_ptr<ASTNode> body;
+    std::unique_ptr<ASTNode> step;
+
+    ForNode(): ASTNode(ASTNodeType::FOR), cond(nullptr), body(nullptr), step(nullptr) {}
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent, '  ') + "FOR_BODY";
+        if (cond) result += "\n" + cond->toString(indent + 1);
+        if (body) result += "\n" + body->toString(indent + 1);
+        if (step) result += "\n" + step->toString(indent + 1);
+        return result;
+    }
+};
+
 class SwitchNode: public ASTNode {
     public:
     std::unique_ptr<ASTNode> cond;
-    std::vector<std::unique_ptr<ASTNode>> caseExprs;
-    std::vector<std::unique_ptr<ScopeNode>> caseBodies;
-    std::unique_ptr<ScopeNode> defaultBody;
+    std::vector<int64_t> caseConds;
+    std::vector<std::vector<std::unique_ptr<ASTNode>>> caseBodies;
+    std::vector<std::unique_ptr<ASTNode>> defaultBody;
 
-    SwitchNode(): ASTNode(ASTNodeType::SWITCH), cond(nullptr), caseExprs(), caseBodies(), defaultBody() {defaultBody = nullptr;}
+    SwitchNode(): ASTNode(ASTNodeType::SWITCH), cond(nullptr), caseConds(), caseBodies(), defaultBody() {}
 
     std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + "SWITCH";
         if (cond) result += "\n" + cond->toString(indent + 1);
-        for (auto& expr : caseExprs) result += "\n" + expr->toString(indent + 1);
-        for (auto& body : caseBodies) result += "\n" + body->toString(indent + 1);
-        if (defaultBody) result += "\n" + defaultBody->toString(indent + 1);
+        for (size_t i = 0; i < caseConds.size(); i++) {
+            result += "\n" + std::string(indent + 1, '  ') + std::to_string(caseConds[i]);
+            for (auto& stmt : caseBodies[i]) {
+                result += "\n" + stmt->toString(indent + 1);
+            }
+        }
+        result += "\n" + std::string(indent + 1, '  ') + "_";
+        for (auto& stmt : defaultBody) {
+            result += "\n" + stmt->toString(indent + 1);
+        }
         return result;
     }
 };
@@ -476,6 +523,7 @@ class SrcFile {
     }
 
     ASTNode* findNodeByName(ASTNodeType tp, const std::string& name, bool checkExported); // find toplevel node by name (include, tmp, var, func, struct, enum)
+    std::string isNameUsable(const std::string& name, Location loc); // check if name is usable at toplevel, return error message or empty if ok
     std::unique_ptr<TypeNode> parseType(TokenProvider& tp, ScopeNode& current, int arch); // parse type from tokens
 };
 

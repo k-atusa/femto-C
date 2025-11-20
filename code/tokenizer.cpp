@@ -71,6 +71,7 @@ TokenType isKeyword(const std::string& word) {
     if (word == "default") return TokenType::KEY_DEFAULT;
     if (word == "break") return TokenType::KEY_BREAK;
     if (word == "continue") return TokenType::KEY_CONTINUE;
+    if (word == "fall") return TokenType::KEY_FALL;
     if (word == "return") return TokenType::KEY_RETURN;
     if (word == "struct") return TokenType::KEY_STRUCT;
     if (word == "enum") return TokenType::KEY_ENUM;

@@ -82,7 +82,9 @@ while (bool) scope
 13. 고급 제어문
 for (var_decl; bool; assign_or_expr) scope
 switch (expr) {case literal: ... default: ...} (정수만 받을 수 있다, continue를 넣지 않으면 자동으로 break가 삽입된다)
-break; continue;
+break; 반복문의 끝으로 점프한다
+continue; 반복문의 시작으로 점프한다
+fall; switch 안에서 다음 case로 이동한다
 
 14. 함수
 정의: T id(T parm, T parm...) scope (id는 함수 포인터 타입이다)
