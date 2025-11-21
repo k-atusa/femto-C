@@ -113,6 +113,16 @@ TokenType isNumber(const std::string& text) {
     return TokenType::LIT_INT;
 }
 
+char getHexEscape(char c0, char c1) {
+    if ('0' <= c0 && c0 <= '9') c0 -= '0';
+    else if ('a' <= c0 && c0 <= 'f') c0 -= 'a' - 10;
+    else if ('A' <= c0 && c0 <= 'F') c0 -= 'A' - 10;
+    if ('0' <= c1 && c1 <= '9') c1 -= '0';
+    else if ('a' <= c1 && c1 <= 'f') c1 -= 'a' - 10;
+    else if ('A' <= c1 && c1 <= 'F') c1 -= 'A' - 10;
+    return (c0 << 4) | c1;
+}
+
 // Main function to tokenize the input source code, [can raise error]
 std::vector<Token> tokenize(const std::string& source, const std::string filename, const int source_id) {
     std::vector<Token> result;
@@ -304,7 +314,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                             tkn.value = Literal(std::stod(num_str));
                         }
                     } catch (std::exception& e) {
-                        throw std::runtime_error(std::format("E0111 number literal conversion fail at {}:{}", filename, line)); // E0111
+                        throw std::runtime_error(std::format("E0103 number literal conversion fail at {}:{}", filename, line)); // E0103
                     }
                     result.push_back(tkn);
                     status = TokenizeStatus::DEFAULT;
@@ -316,13 +326,13 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                 if (c == '\\') { // escape start
                     status = TokenizeStatus::CHAR_ESCAPE;
                 } else if (c == '\r' || c == '\n') { // newline in char error
-                    throw std::runtime_error(std::format("E0103 newline in char literal at {}:{}", filename, line)); // E0103
+                    throw std::runtime_error(std::format("E0104 newline in char literal at {}:{}", filename, line)); // E0104
                 } else if (c == '\'') { // char end
                     if (buffer.empty()) { // empty char error
-                        throw std::runtime_error(std::format("E0104 empty char literal at {}:{}", filename, line)); // E0104
+                        throw std::runtime_error(std::format("E0105 empty char literal at {}:{}", filename, line)); // E0105
                     }
                     if (buffer.size() > 1) { // multi char error
-                        throw std::runtime_error(std::format("E0105 char literal too long at {}:{}", filename, line)); // E0105
+                        throw std::runtime_error(std::format("E0106 char literal too long at {}:{}", filename, line)); // E0106
                     }
                     Token tkn;
                     tkn.objType = TokenType::LIT_CHAR;
@@ -345,8 +355,24 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     case '\\': buffer.push_back('\\'); break;
                     case '\'': buffer.push_back('\''); break;
                     case '\"': buffer.push_back('\"'); break;
+                    case 'x':
+                        {
+                            char c0 = 0;
+                            char c1 = 0;
+                            if (readPos + 1 < source.size()) {
+                                c0 = source[readPos++];
+                                c1 = source[readPos++];
+                            }
+                            if (('0' <= c0 && c0 <= '9') || ('a' <= c0 && c0 <= 'f') || ('A' <= c0 && c0 <= 'F') &&
+                                    ('0' <= c1 && c1 <= '9') || ('a' <= c1 && c1 <= 'f') || ('A' <= c1 && c1 <= 'F')) {
+                                buffer.push_back(getHexEscape(c0, c1));
+                            } else {
+                                throw std::runtime_error(std::format("E0107 invalid hex char escape at {}:{}", filename, line)); // E0107
+                            }
+                        }
+                        break;
                     default: // unknown escape
-                        throw std::runtime_error(std::format("E0106 invalid char escape \\{} at {}:{}", c, filename, line)); // E0106
+                        throw std::runtime_error(std::format("E0108 invalid char escape \\{} at {}:{}", c, filename, line)); // E0108
                 }
                 status = TokenizeStatus::CHAR;
                 break;
@@ -355,7 +381,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                 if (c == '\\') { // escape start
                     status = TokenizeStatus::STRING_ESCAPE;
                 } else if (c == '\r' || c == '\n') { // newline in string error
-                    throw std::runtime_error(std::format("E0107 newline in string literal at {}:{}", filename, line)); // E0107
+                    throw std::runtime_error(std::format("E0109 newline in string literal at {}:{}", filename, line)); // E0109
                 } else if (c == '\"') { // string end
                     Token tkn;
                     tkn.objType = TokenType::LIT_STRING;
@@ -378,8 +404,24 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     case '\\': buffer.push_back('\\'); break;
                     case '\'': buffer.push_back('\''); break;
                     case '\"': buffer.push_back('\"'); break;
+                    case 'x':
+                        {
+                            char c0 = 0;
+                            char c1 = 0;
+                            if (readPos + 1 < source.size()) {
+                                c0 = source[readPos++];
+                                c1 = source[readPos++];
+                            }
+                            if (('0' <= c0 && c0 <= '9') || ('a' <= c0 && c0 <= 'f') || ('A' <= c0 && c0 <= 'F') &&
+                                    ('0' <= c1 && c1 <= '9') || ('a' <= c1 && c1 <= 'f') || ('A' <= c1 && c1 <= 'F')) {
+                                buffer.push_back(getHexEscape(c0, c1));
+                            } else {
+                                throw std::runtime_error(std::format("E0110 invalid hex char escape at {}:{}", filename, line)); // E0110
+                            }
+                        }
+                        break;
                     default: // unknown escape
-                        throw std::runtime_error(std::format("E0108 invalid string escape \\{} at {}:{}", c, filename, line)); // E0108
+                        throw std::runtime_error(std::format("E0111 invalid string escape \\{} at {}:{}", c, filename, line)); // E0111
                 }
                 status = TokenizeStatus::STRING;
                 break;
@@ -393,6 +435,11 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     tkn.value = Literal(tkn.text);
                     result.push_back(tkn);
                     status = TokenizeStatus::DEFAULT;
+                } else if (c == '\r') { // mac newline
+                    line++;
+                    if (readPos < source.size() && source[readPos] == '\n') readPos++; // windows newline
+                } else if (c == '\n') { // unix newline
+                    line++;
                 } else { // normal char
                     buffer.push_back(c);
                 }
@@ -408,7 +455,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     tkn.text = order_str;
                     tkn.objType = isCplrOrd(order_str);
                     if (tkn.objType == TokenType::NONE) { // invalid compiler order
-                        throw std::runtime_error(std::format("E0109 unsupported compiler order {} at {}:{}", order_str, filename, line)); // E0109
+                        throw std::runtime_error(std::format("E0112 unsupported compiler order {} at {}:{}", order_str, filename, line)); // E0112
                     }
                     result.push_back(tkn);
                     status = TokenizeStatus::DEFAULT;
@@ -418,7 +465,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
         }
     }
     if (status != TokenizeStatus::DEFAULT) {
-        throw std::runtime_error(std::format("E0110 source not completed at {}:{}", filename, line)); // E0110
+        throw std::runtime_error(std::format("E0113 source not completed at {}:{}", filename, line)); // E0113
     }
     return result;
 }

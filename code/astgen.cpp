@@ -517,6 +517,23 @@ Literal ASTGen::foldNode(ASTNode& tgt, ScopeNode& current, SrcFile& src) {
                         }
                     }
                     break;
+
+                case OperationType::U_SIZEOF:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT || folded0.objType == LiteralType::FLOAT) {
+                            return Literal((int64_t)8);
+                        } else if (folded0.objType == LiteralType::CHAR) {
+                            return Literal((int64_t)1);
+                        } else if (folded0.objType == LiteralType::STRING) {
+                            return Literal((int64_t)arch * 2);
+                        }
+                    } else if (opNode->operand0->objType == ASTNodeType::TYPE) {
+                        TypeNode* tp = static_cast<TypeNode*>(opNode->operand0.get());
+                        if (tp->typeSize > 0) {
+                            return Literal((int64_t)tp->typeSize);
+                        }
+                    }
+                    break;
             }
 
         } else if (opnum == 2 && opNode->subType != OperationType::B_DOT) { // try to fold binary
@@ -581,6 +598,7 @@ Literal ASTGen::foldNode(ASTNode& tgt, ScopeNode& current, SrcFile& src) {
                     if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
                         if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
                                 (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            if (folded1.intValue < 0 || folded1.intValue > 63) throw std::runtime_error(std::format("E03xx shift amount out of range at {}", getLocString(opNode->location))); // E03xx
                             return Literal(folded0.intValue << folded1.intValue);
                         }
                     }
@@ -590,6 +608,7 @@ Literal ASTGen::foldNode(ASTNode& tgt, ScopeNode& current, SrcFile& src) {
                     if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
                         if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
                                 (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            if (folded1.intValue < 0 || folded1.intValue > 63) throw std::runtime_error(std::format("E03xx shift amount out of range at {}", getLocString(opNode->location))); // E03xx
                             return Literal(folded0.intValue >> folded1.intValue);
                         }
                     }
@@ -692,7 +711,7 @@ Literal ASTGen::foldNode(ASTNode& tgt, ScopeNode& current, SrcFile& src) {
                     if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
                         if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
                                 (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue * folded1.intValue != 0 ? (int64_t)1 : (int64_t)0);
+                            return Literal(folded0.intValue != 0 && folded1.intValue != 0 ? (int64_t)1 : (int64_t)0);
                         }
                     }
                     break;
@@ -701,7 +720,7 @@ Literal ASTGen::foldNode(ASTNode& tgt, ScopeNode& current, SrcFile& src) {
                     if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
                         if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
                                 (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue == 0 && folded1.intValue == 0 ? (int64_t)0 : (int64_t)1);
+                            return Literal(folded0.intValue != 0 || folded1.intValue != 0 ? (int64_t)1 : (int64_t)0);
                         }
                     }
                     break;
@@ -906,6 +925,9 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
         funcNode->name = structTkn.text + "." + methodTkn.text;
         funcNode->structNm = structTkn.text;
         funcNode->funcNm = methodTkn.text;
+        if (src.findNodeByName(ASTNodeType::DECL_STRUCT, structTkn.text, false) == nullptr) {
+            throw std::runtime_error(std::format("E03xx struct {} is not defined at {}", structTkn.text, getLocString(structTkn.location)));
+        }
     } else if (tp.match({TokenType::IDENTIFIER})) { // function
         Token& idTkn = tp.pop();
         funcNode->name = idTkn.text;
@@ -1054,6 +1076,9 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
                     arrNode->elements.push_back(parseExpr(tp, current, src));
                     if (tp.seek().objType == TokenType::OP_COMMA) {
                         tp.pop();
+                        if (tp.seek().objType == TokenType::OP_RBRACE) {
+                            break;
+                        }
                     } else if (tp.seek().objType == TokenType::OP_RBRACE) {
                         break;
                     } else {
@@ -1291,6 +1316,13 @@ std::unique_ptr<DeclVarNode> ASTGen::parseVarDecl(TokenProvider& tp, ScopeNode& 
     std::unique_ptr<DeclVarNode> varDecl = std::make_unique<DeclVarNode>(std::move(varType), nameTkn.text);
     varDecl->location = nameTkn.location;
 
+    // check name duplication
+    for (auto& stat : current.body) {
+        if (stat->objType == ASTNodeType::DECL_VAR && stat->text == nameTkn.text) {
+            throw std::runtime_error(std::format("E03xx name {} is already defined at {}", nameTkn.text, getLocString(nameTkn.location))); // E03xx
+        }
+    }
+
     // parse variable initialization
     Token& opTkn = tp.pop();
     if (opTkn.objType == TokenType::OP_ASSIGN) {
@@ -1390,7 +1422,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                     throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(forNode->location))); // E03xx
                 }
                 std::unique_ptr<ASTNode> initNode = parseStatement(tp, current, src);
-                if (initNode->objType != ASTNodeType::DECL_VAR && initNode->objType != ASTNodeType::ASSIGN) {
+                if (initNode->objType != ASTNodeType::DECL_VAR && initNode->objType != ASTNodeType::ASSIGN && initNode->objType != ASTNodeType::EMPTY) {
                     throw std::runtime_error(std::format("E03xx for_init must be variable declaration or assignment at {}", getLocString(initNode->location))); // E03xx
                 }
                 forScope->body.push_back(std::move(initNode));
@@ -1461,6 +1493,11 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                         }
                         if (tp.pop().objType != TokenType::OP_COLON) {
                             throw std::runtime_error(std::format("E03xx expected ':' at {}", getLocString(caseTkn.location))); // E03xx
+                        }
+                        for (auto& cond : switchNode->caseConds) {
+                            if (cond == lit.intValue) {
+                                throw std::runtime_error(std::format("E03xx case {} is duplicated at {}", lit.intValue, getLocString(caseTkn.location))); // E03xx
+                            }
                         }
                         switchNode->caseConds.push_back(lit.intValue);
                         switchNode->caseBodies.push_back(std::vector<std::unique_ptr<ASTNode>>());
