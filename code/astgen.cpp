@@ -85,17 +85,14 @@ OperationType getBinaryOpType(TokenType tknType) {
     }
 }
 
-// ASTNode functions
 DeclVarNode* ScopeNode::findVarByName(const std::string& name) {
     for (auto& node : body) { // all variable declarations should be decl_var
         if (node->objType == ASTNodeType::DECL_VAR && node->text == name) {
             return static_cast<DeclVarNode*>(node.get());
-
         }
     }
     if (parent) { // find in parent
-        ScopeNode* parentScope = static_cast<ScopeNode*>(parent);
-        return parentScope->findVarByName(name);
+        return parent->findVarByName(name);
     }
     return nullptr;
 }
@@ -106,7 +103,13 @@ Literal ScopeNode::findDefinedLiteral(const std::string& name) {
         return Literal();
     }
     AtomicExprNode* litNode = static_cast<AtomicExprNode*>(varNode->varExpr.get());
-    return litNode->literal;
+    if (litNode->objType == ASTNodeType::LITERAL) {
+        return litNode->literal;
+    } else if (litNode->objType == ASTNodeType::LITERAL_KEY) {
+        return Literal(litNode->word == "true" ? (int64_t)1 : (int64_t)0);
+    } else {
+        return Literal();
+    }
 }
 
 // SrcFile functions
@@ -148,6 +151,26 @@ ASTNode* SrcFile::findNodeByName(ASTNodeType tp, const std::string& name, bool c
             }
     }
     return result;
+}
+
+Literal SrcFile::findConstByName(const std::string& name) {
+    if (name.contains('.')) { // enum member
+        size_t pos = name.find('.');
+        std::string enumName = name.substr(0, pos);
+        std::string memberName = name.substr(pos + 1);
+        DeclEnumNode* enumNode = static_cast<DeclEnumNode*>(findNodeByName(ASTNodeType::DECL_ENUM, enumName, false));
+        if (enumNode == nullptr) {
+            return Literal();
+        }
+        for (size_t i = 0; i < enumNode->memNames.size(); i++) {
+            if (enumNode->memNames[i] == memberName) {
+                return Literal(enumNode->memValues[i]);
+            }
+        }
+        return Literal();
+    } else { // defined literal
+        return code->findDefinedLiteral(name);
+    }
 }
 
 std::string SrcFile::isNameUsable(const std::string& name, Location loc) {
@@ -396,6 +419,321 @@ bool ASTGen::isTypeStart(TokenProvider& tp, SrcFile& src) {
     return false;
 }
 
+// ASTNode functions
+Literal ASTGen::foldNode(ASTNode& tgt, ScopeNode& current, SrcFile& src) {
+    if (tgt.objType == ASTNodeType::LITERAL) { // literal
+        return static_cast<AtomicExprNode*>(&tgt)->literal;
+    } else if (tgt.objType == ASTNodeType::NAME) { // check if defined literal
+        return current.findDefinedLiteral(tgt.text);
+    } else if (tgt.objType == ASTNodeType::OPERATION) { // fold operation
+        OperationNode* opNode = static_cast<OperationNode*>(&tgt);
+
+        // fold operands first
+        Literal folded0 = Literal();
+        Literal folded1 = Literal();
+        Literal folded2 = Literal();
+        if (opNode->operand0) {
+            folded0 = foldNode(*opNode->operand0, current, src);
+            if (folded0.objType != LiteralType::NONE) {
+                Location loc = opNode->operand0->location;
+                opNode->operand0 = std::make_unique<AtomicExprNode>(folded0);
+                opNode->operand0->location = loc;
+            }
+        }
+        if (opNode->operand1) {
+            folded1 = foldNode(*opNode->operand1, current, src);
+            if (folded1.objType != LiteralType::NONE) {
+                Location loc = opNode->operand1->location;
+                opNode->operand1 = std::make_unique<AtomicExprNode>(folded1);
+                opNode->operand1->location = loc;
+            }
+        }
+        if (opNode->operand2) {
+            folded2 = foldNode(*opNode->operand2, current, src);
+            if (folded2.objType != LiteralType::NONE) {
+                Location loc = opNode->operand2->location;
+                opNode->operand2 = std::make_unique<AtomicExprNode>(folded2);
+                opNode->operand2->location = loc;
+            }
+        }
+
+        // convert literal_key to int for logic operations
+        if (opNode->subType == OperationType::U_LOGIC_NOT) {
+            if (opNode->operand0->objType == ASTNodeType::LITERAL_KEY) {
+                folded0 = Literal(opNode->operand0->text == "true" ? (int64_t)1 : (int64_t)0);
+                Location loc = opNode->operand0->location;
+                opNode->operand0 = std::make_unique<AtomicExprNode>(folded0);
+                opNode->operand0->location = loc;
+            }
+        } else if (opNode->subType == OperationType::B_EQ || opNode->subType == OperationType::B_NE
+                || opNode->subType == OperationType::B_LOGIC_AND || opNode->subType == OperationType::B_LOGIC_OR) {
+            if (opNode->operand0->objType == ASTNodeType::LITERAL_KEY) {
+                folded0 = Literal(opNode->operand0->text == "true" ? (int64_t)1 : (int64_t)0);
+                Location loc = opNode->operand0->location;
+                opNode->operand0 = std::make_unique<AtomicExprNode>(folded0);
+                opNode->operand0->location = loc;
+            }
+            if (opNode->operand1->objType == ASTNodeType::LITERAL_KEY) {
+                folded1 = Literal(opNode->operand1->text == "true" ? (int64_t)1 : (int64_t)0);
+                Location loc = opNode->operand1->location;
+                opNode->operand1 = std::make_unique<AtomicExprNode>(folded1);
+                opNode->operand1->location = loc;
+            }
+        }
+
+        int opnum = getOperandNum(opNode->subType);
+        if (opnum == 1) { // try to fold unary
+            switch (opNode->subType) {
+                case OperationType::U_PLUS:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR || folded0.objType == LiteralType::FLOAT) {
+                            return folded0;
+                        }
+                    }
+                    break;
+
+                case OperationType::U_MINUS:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) {
+                            return Literal(-folded0.intValue);
+                        } else if (folded0.objType == LiteralType::FLOAT) {
+                            return Literal(-folded0.floatValue);
+                        }
+                    }
+                    break;
+
+                case OperationType::U_LOGIC_NOT:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) {
+                            return Literal(folded0.intValue == 0 ? (int64_t)1 : (int64_t)0);
+                        }
+                    }
+                    break;
+
+                case OperationType::U_BIT_NOT:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) {
+                            return Literal(~folded0.intValue);
+                        }
+                    }
+                    break;
+            }
+
+        } else if (opnum == 2 && opNode->subType != OperationType::B_DOT) { // try to fold binary
+            switch (opNode->subType) {
+                case OperationType::B_MUL:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue * folded1.intValue);
+                        } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
+                            return Literal(folded0.floatValue * folded1.floatValue);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_DIV:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            if (folded1.intValue == 0) throw std::runtime_error(std::format("E03xx division by zero at {}", getLocString(opNode->location))); // E03xx
+                            return Literal(folded0.intValue * folded1.intValue);
+                        } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
+                            if (folded1.floatValue == 0.0) throw std::runtime_error(std::format("E03xx division by zero at {}", getLocString(opNode->location))); // E03xx
+                            return Literal(folded0.floatValue * folded1.floatValue);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_MOD:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            if (folded1.intValue == 0) throw std::runtime_error(std::format("E03xx division by zero at {}", getLocString(opNode->location))); // E03xx
+                            return Literal(folded0.intValue % folded1.intValue);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_ADD:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue + folded1.intValue);
+                        } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
+                            return Literal(folded0.floatValue + folded1.floatValue);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_SUB:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue - folded1.intValue);
+                        } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
+                            return Literal(folded0.floatValue - folded1.floatValue);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_SHL:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue << folded1.intValue);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_SHR:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue >> folded1.intValue);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_LT:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue < folded1.intValue ? (int64_t)1 : (int64_t)0);
+                        } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
+                            return Literal(folded0.floatValue < folded1.floatValue ? (int64_t)1 : (int64_t)0);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_LE:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue <= folded1.intValue ? (int64_t)1 : (int64_t)0);
+                        } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
+                            return Literal(folded0.floatValue <= folded1.floatValue ? (int64_t)1 : (int64_t)0);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_GT:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue > folded1.intValue ? (int64_t)1 : (int64_t)0);
+                        } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
+                            return Literal(folded0.floatValue > folded1.floatValue ? (int64_t)1 : (int64_t)0);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_GE:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue >= folded1.intValue ? (int64_t)1 : (int64_t)0);
+                        } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
+                            return Literal(folded0.floatValue >= folded1.floatValue ? (int64_t)1 : (int64_t)0);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_EQ:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue == folded1.intValue ? (int64_t)1 : (int64_t)0);
+                        } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
+                            return Literal(folded0.floatValue == folded1.floatValue ? (int64_t)1 : (int64_t)0);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_NE:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue == folded1.intValue ? (int64_t)0 : (int64_t)1);
+                        } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
+                            return Literal(folded0.floatValue == folded1.floatValue ? (int64_t)0 : (int64_t)1);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_BIT_AND:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue & folded1.intValue);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_BIT_XOR:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue ^ folded1.intValue);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_BIT_OR:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue | folded1.intValue);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_LOGIC_AND:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue * folded1.intValue != 0 ? (int64_t)1 : (int64_t)0);
+                        }
+                    }
+                    break;
+
+                case OperationType::B_LOGIC_OR:
+                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
+                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
+                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
+                            return Literal(folded0.intValue == 0 && folded1.intValue == 0 ? (int64_t)0 : (int64_t)1);
+                        }
+                    }
+                    break;
+            }
+
+        } else if (opNode->subType == OperationType::B_DOT) { // enum value or include name
+            if (opNode->operand0->objType == ASTNodeType::NAME) {
+                std::string name0 = opNode->operand0->text;
+                ASTNode* search = src.findNodeByName(ASTNodeType::DECL_ENUM, name0, false);
+                if (search != nullptr && opNode->operand1->objType == ASTNodeType::NAME) { // enum value
+                    std::string name1 = opNode->operand1->text;
+                    return src.findConstByName(name0 + "." + name1);
+                }
+                search = src.findNodeByName(ASTNodeType::INCLUDE, name0, false);
+                int pos = -1;
+                if (search != nullptr) {
+                    pos = findSource(((IncludeNode*)search)->path);
+                }
+                if (pos != -1 && opNode->operand1->objType == ASTNodeType::NAME) { // foreign defined literal
+                    return srcFiles[pos]->findConstByName(opNode->operand1->text);
+                } else if (pos != -1 && opNode->operand1->objType == ASTNodeType::OPERATION) { // foreign enum value
+                    OperationNode* subOpNode = (OperationNode*)opNode->operand1.get();
+                    if (subOpNode->subType == OperationType::B_DOT && subOpNode->operand0->objType == ASTNodeType::NAME && subOpNode->operand1->objType == ASTNodeType::NAME) {
+                        return srcFiles[pos]->findConstByName(subOpNode->operand0->text + "." + subOpNode->operand1->text);
+                    }
+                }
+            }
+        }
+    }
+    return Literal();
+}
+
 // parse raw code
 std::unique_ptr<RawCodeNode> ASTGen::parseRawCode(TokenProvider& tp) {
     Token& orderTkn = tp.pop();
@@ -508,26 +846,15 @@ std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& cu
         enumNode->memNames.push_back(nameTkn.text);
         if (tp.seek().objType == TokenType::OP_EQ) { // init with value
             tp.pop();
-            int64_t negMult = 1;
-            if (tp.seek().objType == TokenType::OP_MINUS) { // negative value
-                negMult = -1;
-                tp.pop();
-            } else if (tp.seek().objType == TokenType::OP_PLUS) {
-                tp.pop();
+            std::unique_ptr<ASTNode> value = parseExpr(tp, current, src);
+            if (value->objType != ASTNodeType::LITERAL) {
+                throw std::runtime_error(std::format("E03xx expected int constexpr at {}", getLocString(value->location)));
             }
-            if (tp.seek().objType == TokenType::LIT_INT || tp.seek().objType == TokenType::LIT_CHAR) { // literal value
-                Token& valueTkn = tp.pop();
-                prevValue = negMult * valueTkn.value.intValue - 1;
-            } else if (tp.seek().objType == TokenType::IDENTIFIER) { // defined literal
-                Token& valueTkn = tp.pop();
-                Literal lit = current.findDefinedLiteral(valueTkn.text);
-                if (lit.objType != LiteralType::INT && lit.objType != LiteralType::CHAR) {
-                    throw std::runtime_error(std::format("E03xx expected int defined literal at {}", getLocString(valueTkn.location))); // E03xx
-                }
-                prevValue = negMult * lit.intValue - 1;
-            } else {
-                throw std::runtime_error(std::format("E03xx expected member value at {}", getLocString(nameTkn.location))); // E03xx
+            Literal lit = static_cast<AtomicExprNode*>(value.get())->literal;
+            if (lit.objType != LiteralType::INT && lit.objType != LiteralType::CHAR) {
+                throw std::runtime_error(std::format("E03xx expected int literal at {}", getLocString(value->location))); // E03xx
             }
+            prevValue = lit.intValue - 1;
         }
 
         // push member
@@ -724,7 +1051,7 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
                 arrNode->objType = ASTNodeType::LITERAL_ARRAY;
                 arrNode->location = tkn.location;
                 while (tp.canPop(1)) {
-                    arrNode->elements.push_back(parsePrattExpr(tp, current, src, 0));
+                    arrNode->elements.push_back(parseExpr(tp, current, src));
                     if (tp.seek().objType == TokenType::OP_COMMA) {
                         tp.pop();
                     } else if (tp.seek().objType == TokenType::OP_RBRACE) {
@@ -939,6 +1266,18 @@ std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& cu
     return lhs;
 }
 
+// parse expression, fold if possible
+std::unique_ptr<ASTNode> ASTGen::parseExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
+    std::unique_ptr<ASTNode> expr = parsePrattExpr(tp, current, src, 0);
+    Literal lit = foldNode(*expr, current, src);
+    if (lit.objType != LiteralType::NONE) {
+        Location loc = expr->location;
+        expr = std::make_unique<AtomicExprNode>(lit);
+        expr->location = loc;
+    }
+    return expr;
+}
+
 // parse variable declaration, after type declaration
 std::unique_ptr<DeclVarNode> ASTGen::parseVarDecl(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<TypeNode> varType, bool isDefine, bool isExtern, bool isExported) {
     // check type validity, create variable declaration node
@@ -955,7 +1294,7 @@ std::unique_ptr<DeclVarNode> ASTGen::parseVarDecl(TokenProvider& tp, ScopeNode& 
     // parse variable initialization
     Token& opTkn = tp.pop();
     if (opTkn.objType == TokenType::OP_ASSIGN) {
-        varDecl->varExpr = parsePrattExpr(tp, current, src, 0);
+        varDecl->varExpr = parseExpr(tp, current, src);
         opTkn = tp.pop();
     }
     if (opTkn.objType != TokenType::OP_SEMICOLON) {
@@ -983,13 +1322,13 @@ std::unique_ptr<DeclVarNode> ASTGen::parseVarDecl(TokenProvider& tp, ScopeNode& 
 }
 
 // parse variable assignment, after lvalue =
-std::unique_ptr<AssignNode> ASTGen::parseVarAssign(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<ASTNode> lvalue) {
+std::unique_ptr<AssignNode> ASTGen::parseVarAssign(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<ASTNode> lvalue, TokenType endExpect) {
     std::unique_ptr<AssignNode> varAssign = std::make_unique<AssignNode>();
     varAssign->location = lvalue->location;
     varAssign->lvalue = std::move(lvalue);
-    varAssign->rvalue = parsePrattExpr(tp, current, src, 0);
-    if (tp.pop().objType != TokenType::OP_SEMICOLON) {
-        throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(varAssign->location))); // E03xx
+    varAssign->rvalue = parseExpr(tp, current, src);
+    if (tp.pop().objType != endExpect) {
+        throw std::runtime_error(std::format("E03xx invalid statement ending at {}", getLocString(varAssign->location))); // E03xx
     }
     return varAssign;
 }
@@ -1011,7 +1350,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(ifNode->location))); // E03xx
                 }
-                ifNode->cond = parsePrattExpr(tp, current, src, 0);
+                ifNode->cond = parseExpr(tp, current, src);
                 if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(ifNode->location))); // E03xx
                 }
@@ -1031,7 +1370,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(whileNode->location))); // E03xx
                 }
-                whileNode->cond = parsePrattExpr(tp, current, src, 0);
+                whileNode->cond = parseExpr(tp, current, src);
                 if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(whileNode->location))); // E03xx
                 }
@@ -1060,28 +1399,25 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 if (tp.seek().objType == TokenType::OP_SEMICOLON) {
                     forNode->cond = std::make_unique<AtomicExprNode>(Literal((int64_t)1));
                 } else {
-                    forNode->cond = parsePrattExpr(tp, current, src, 0);
+                    forNode->cond = parseExpr(tp, current, src);
                 }
                 if (tp.pop().objType != TokenType::OP_SEMICOLON) {
                     throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(forNode->location))); // E03xx
                 }
-                if (tp.seek().objType != TokenType::OP_RPAREN) {
-                    std::unique_ptr<ASTNode> left = parsePrattExpr(tp, current, src, 0);
-                    if (tp.seek().objType == TokenType::OP_ASSIGN) {
-                        tp.pop();
-                        std::unique_ptr<AssignNode> varAssign = std::make_unique<AssignNode>();
-                        varAssign->location = left->location;
-                        varAssign->lvalue = std::move(left);
-                        varAssign->rvalue = parsePrattExpr(tp, current, src, 0);
-                        left = std::move(varAssign);
+                if (tp.seek().objType == TokenType::OP_RPAREN) {
+                    tp.pop();
+                } else {
+                    std::unique_ptr<ASTNode> left = parseExpr(tp, current, src);
+                    Token& opTkn = tp.pop();
+                    if (opTkn.objType == TokenType::OP_ASSIGN) {
+                        left = parseVarAssign(tp, current, src, std::move(left), TokenType::OP_RPAREN);
+                    } else if (opTkn.objType != TokenType::OP_RPAREN) {
+                        throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(forNode->location))); // E03xx
                     }
                     forNode->step = std::move(left);
                 }
 
                 // parse body
-                if (tp.pop().objType != TokenType::OP_RPAREN) {
-                    throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(forNode->location))); // E03xx
-                }
                 forNode->body = parseStatement(tp, *forScope, src);
                 forScope->body.push_back(std::move(forNode));
                 return forScope;
@@ -1096,7 +1432,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E03xx expected '(' at {}", getLocString(switchNode->location))); // E03xx
                 }
-                switchNode->cond = parsePrattExpr(tp, current, src, 0);
+                switchNode->cond = parseExpr(tp, current, src);
                 if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(switchNode->location))); // E03xx
                 }
@@ -1115,24 +1451,18 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                         if (defaultFound) {
                             throw std::runtime_error(std::format("E03xx case should be before default at {}", getLocString(caseTkn.location))); // E03xx
                         }
-                        int64_t cond;
-                        Token& condTkn = tp.pop();
-                        if (condTkn.objType == TokenType::LIT_INT || condTkn.objType == TokenType::LIT_CHAR) {
-                            cond = condTkn.value.intValue;
-                        } else if (condTkn.objType == TokenType::IDENTIFIER) {
-                            Literal lit = current.findDefinedLiteral(condTkn.text);
-                            if (lit.objType == LiteralType::INT || lit.objType == LiteralType::CHAR) {
-                                cond = lit.intValue;
-                            } else {
-                                throw std::runtime_error(std::format("E03xx case condition must be int at {}", getLocString(condTkn.location))); // E03xx
-                            }
-                        } else {
-                            throw std::runtime_error(std::format("E03xx case condition must be int at {}", getLocString(condTkn.location))); // E03xx
+                        std::unique_ptr<ASTNode> value = parseExpr(tp, current, src);
+                        if (value->objType != ASTNodeType::LITERAL) {
+                            throw std::runtime_error(std::format("E03xx expected int constexpr at {}", getLocString(value->location)));
+                        }
+                        Literal lit = static_cast<AtomicExprNode*>(value.get())->literal;
+                        if (lit.objType != LiteralType::INT && lit.objType != LiteralType::CHAR) {
+                            throw std::runtime_error(std::format("E03xx expected int literal at {}", getLocString(value->location))); // E03xx
                         }
                         if (tp.pop().objType != TokenType::OP_COLON) {
                             throw std::runtime_error(std::format("E03xx expected ':' at {}", getLocString(caseTkn.location))); // E03xx
                         }
-                        switchNode->caseConds.push_back(cond);
+                        switchNode->caseConds.push_back(lit.intValue);
                         switchNode->caseBodies.push_back(std::vector<std::unique_ptr<ASTNode>>());
 
                     } else if (caseTkn.objType == TokenType::KEY_DEFAULT) { // default statement
@@ -1196,7 +1526,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                     result->statExpr = std::make_unique<ShortStatNode>(ASTNodeType::EMPTY);
                     result->statExpr->location = tkn.location;
                 } else {
-                    result->statExpr = parsePrattExpr(tp, current, src, 0);
+                    result->statExpr = parseExpr(tp, current, src);
                 }
                 if (tp.pop().objType != TokenType::OP_SEMICOLON) {
                     throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(result->location))); // E03xx
@@ -1209,7 +1539,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 tp.pop();
                 std::unique_ptr<ShortStatNode> result = std::make_unique<ShortStatNode>(ASTNodeType::DEFER);
                 result->location = tkn.location;
-                result->statExpr = parsePrattExpr(tp, current, src, 0);
+                result->statExpr = parseExpr(tp, current, src);
                 if (tp.pop().objType != TokenType::OP_SEMICOLON) {
                     throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(result->location))); // E03xx
                 }
@@ -1249,10 +1579,10 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 if (isTypeStart(tp, src)) { // var declaration
                     return parseVarDecl(tp, current, src, src.parseType(tp, current, arch), isDefine, isExtern, isExported);
                 } else {
-                    std::unique_ptr<ASTNode> left = parsePrattExpr(tp, current, src, 0);
+                    std::unique_ptr<ASTNode> left = parseExpr(tp, current, src);
                     Token& opTkn = tp.pop();
                     if (opTkn.objType == TokenType::OP_ASSIGN) { // assign statement
-                        return parseVarAssign(tp, current, src, std::move(left));
+                        return parseVarAssign(tp, current, src, std::move(left), TokenType::OP_SEMICOLON);
                     } else if (opTkn.objType == TokenType::OP_SEMICOLON) { // expression statement
                         return left;
                     } else {
@@ -1293,7 +1623,7 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
         Token& tkn = tp.seek();
         switch (tkn.objType) {
             case TokenType::ORDER_INCLUDE:
-                {
+            {
                 tp.pop();
                 std::unique_ptr<IncludeNode> result = std::make_unique<IncludeNode>();
                 result->location = tkn.location;
@@ -1322,10 +1652,10 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
                     throw std::runtime_error(nmValidity);
                 }
                 return result;
-                }
+            }
 
             case TokenType::ORDER_TEMPLATE:
-                {
+            {
                 tp.pop();
                 std::unique_ptr<DeclTemplateNode> result = std::make_unique<DeclTemplateNode>();
                 result->location = tkn.location;
@@ -1339,7 +1669,7 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
                 }
                 result->name = tmpTkn.text;
                 return result;
-                }
+            }
 
             case TokenType::ORDER_RAW_C: case TokenType::ORDER_RAW_IR:
                 return parseRawCode(tp);
@@ -1373,7 +1703,7 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
                 return parseEnum(tp, current, src, isExported);
 
             default:
-                {
+            {
                 std::unique_ptr<TypeNode> vtype = src.parseType(tp, current, arch);
                 if (tp.match({TokenType::IDENTIFIER, TokenType::OP_SEMICOLON}) || tp.match({TokenType::IDENTIFIER, TokenType::OP_ASSIGN})) { // var declaration
                     std::unique_ptr<DeclVarNode> varDecl = parseVarDecl(tp, current, src, std::move(vtype), isDefine, isExtern, isExported);
@@ -1388,6 +1718,7 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
                 } else { // function declaration
                     return parseFunc(tp, current, src, std::move(vtype), isVaArg, isExported);
                 }
+            }
         }
     }
     throw std::runtime_error(std::format("E03xx unexpected EOF at {}", getLocString(current.location))); // E03xx

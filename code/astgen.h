@@ -523,6 +523,7 @@ class SrcFile {
     }
 
     ASTNode* findNodeByName(ASTNodeType tp, const std::string& name, bool checkExported); // find toplevel node by name (include, tmp, var, func, struct, enum)
+    Literal findConstByName(const std::string& name); // find defined literal or enum member, type NONE if not found
     std::string isNameUsable(const std::string& name, Location loc); // check if name is usable at toplevel, return error message or empty if ok
     std::unique_ptr<TypeNode> parseType(TokenProvider& tp, ScopeNode& current, int arch); // parse type from tokens
 };
@@ -549,6 +550,7 @@ class ASTGen {
     std::string getLocString(const Location& loc) { return std::format("{}:{}", srcFiles[loc.srcLoc]->path, loc.line); }
     int findSource(const std::string& path); // find source file index, -1 if not found
     bool isTypeStart(TokenProvider& tp, SrcFile& src);
+    Literal foldNode(ASTNode& tgt, ScopeNode& current, SrcFile& src); // constant folding for name & oper, type NONE if not folded
 
     std::unique_ptr<RawCodeNode> parseRawCode(TokenProvider& tp); // parse raw code
     std::unique_ptr<DeclStructNode> parseStruct(TokenProvider& tp, ScopeNode& current, SrcFile& src, bool isExported); // parse struct declaration
@@ -557,9 +559,10 @@ class ASTGen {
 
     std::unique_ptr<ASTNode> parseAtomicExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse atomic expression
     std::unique_ptr<ASTNode> parsePrattExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src, int level); // parse pratt expression
-    std::unique_ptr<DeclVarNode> parseVarDecl(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<TypeNode> varType, bool isDefine, bool isExtern, bool isExported); // parse variable declaration
-    std::unique_ptr<AssignNode> parseVarAssign(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<ASTNode> lvalue); // parse variable assignment
+    std::unique_ptr<ASTNode> parseExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse expression, fold if possible
 
+    std::unique_ptr<DeclVarNode> parseVarDecl(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<TypeNode> varType, bool isDefine, bool isExtern, bool isExported); // parse variable declaration
+    std::unique_ptr<AssignNode> parseVarAssign(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<ASTNode> lvalue, TokenType endExpect); // parse variable assignment
     std::unique_ptr<ASTNode> parseStatement(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse general statement
     std::unique_ptr<ScopeNode> parseScope(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse scope
     std::unique_ptr<ASTNode> parseTopLevel(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse toplevel declaration
