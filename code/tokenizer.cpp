@@ -109,6 +109,7 @@ TokenType isNumber(const std::string& text) {
         }
     }
     if (isFloat) return TokenType::LIT_FLOAT;
+    if (isHex && text.size() < 3) return TokenType::NONE;
     if (isHex) return TokenType::LIT_INT_HEX;
     return TokenType::LIT_INT;
 }
@@ -363,8 +364,8 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                                 c0 = source[readPos++];
                                 c1 = source[readPos++];
                             }
-                            if (('0' <= c0 && c0 <= '9') || ('a' <= c0 && c0 <= 'f') || ('A' <= c0 && c0 <= 'F') &&
-                                    ('0' <= c1 && c1 <= '9') || ('a' <= c1 && c1 <= 'f') || ('A' <= c1 && c1 <= 'F')) {
+                            if ((('0' <= c0 && c0 <= '9') || ('a' <= c0 && c0 <= 'f') || ('A' <= c0 && c0 <= 'F')) &&
+                                    (('0' <= c1 && c1 <= '9') || ('a' <= c1 && c1 <= 'f') || ('A' <= c1 && c1 <= 'F'))) {
                                 buffer.push_back(getHexEscape(c0, c1));
                             } else {
                                 throw std::runtime_error(std::format("E0107 invalid hex char escape at {}:{}", filename, line)); // E0107
@@ -412,8 +413,8 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                                 c0 = source[readPos++];
                                 c1 = source[readPos++];
                             }
-                            if (('0' <= c0 && c0 <= '9') || ('a' <= c0 && c0 <= 'f') || ('A' <= c0 && c0 <= 'F') &&
-                                    ('0' <= c1 && c1 <= '9') || ('a' <= c1 && c1 <= 'f') || ('A' <= c1 && c1 <= 'F')) {
+                            if ((('0' <= c0 && c0 <= '9') || ('a' <= c0 && c0 <= 'f') || ('A' <= c0 && c0 <= 'F')) &&
+                                    (('0' <= c1 && c1 <= '9') || ('a' <= c1 && c1 <= 'f') || ('A' <= c1 && c1 <= 'F'))) {
                                 buffer.push_back(getHexEscape(c0, c1));
                             } else {
                                 throw std::runtime_error(std::format("E0110 invalid hex char escape at {}:{}", filename, line)); // E0110
