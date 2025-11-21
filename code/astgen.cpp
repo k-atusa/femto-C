@@ -554,10 +554,10 @@ Literal ASTGen::foldNode(ASTNode& tgt, ScopeNode& current, SrcFile& src) {
                         if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
                                 (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
                             if (folded1.intValue == 0) throw std::runtime_error(std::format("E03xx division by zero at {}", getLocString(opNode->location))); // E03xx
-                            return Literal(folded0.intValue * folded1.intValue);
+                            return Literal(folded0.intValue / folded1.intValue);
                         } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
                             if (folded1.floatValue == 0.0) throw std::runtime_error(std::format("E03xx division by zero at {}", getLocString(opNode->location))); // E03xx
-                            return Literal(folded0.floatValue * folded1.floatValue);
+                            return Literal(folded0.floatValue / folded1.floatValue);
                         }
                     }
                     break;
@@ -981,7 +981,7 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
     }
 
     // parse function body, check function
-    funcNode->body->body.push_back(parseStatement(tp, current, src));
+    funcNode->body->body.push_back(parseStatement(tp, *funcNode->body, src));
     funcNode->isVaArg = isVaArg;
     funcNode->isExported = isExported;
     if (!funcNode->structNm.empty()) { // check method
@@ -1431,7 +1431,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 if (tp.seek().objType == TokenType::OP_SEMICOLON) {
                     forNode->cond = std::make_unique<AtomicExprNode>(Literal((int64_t)1));
                 } else {
-                    forNode->cond = parseExpr(tp, current, src);
+                    forNode->cond = parseExpr(tp, *forScope, src);
                 }
                 if (tp.pop().objType != TokenType::OP_SEMICOLON) {
                     throw std::runtime_error(std::format("E03xx expected ';' at {}", getLocString(forNode->location))); // E03xx
@@ -1439,10 +1439,10 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 if (tp.seek().objType == TokenType::OP_RPAREN) {
                     tp.pop();
                 } else {
-                    std::unique_ptr<ASTNode> left = parseExpr(tp, current, src);
+                    std::unique_ptr<ASTNode> left = parseExpr(tp, *forScope, src);
                     Token& opTkn = tp.pop();
                     if (opTkn.objType == TokenType::OP_ASSIGN) {
-                        left = parseVarAssign(tp, current, src, std::move(left), TokenType::OP_RPAREN);
+                        left = parseVarAssign(tp, *forScope, src, std::move(left), TokenType::OP_RPAREN);
                     } else if (opTkn.objType != TokenType::OP_RPAREN) {
                         throw std::runtime_error(std::format("E03xx expected ')' at {}", getLocString(forNode->location))); // E03xx
                     }

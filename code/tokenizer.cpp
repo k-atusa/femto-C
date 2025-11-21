@@ -143,7 +143,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
 
         switch (status) {
             case TokenizeStatus::DEFAULT:
-                if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c == '_' || c > 127) { // id start
+                if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c == '_' || c < 0) { // id start
                     buffer.clear();
                     buffer.push_back(c);
                     status = TokenizeStatus::IDENTIFIER;
@@ -249,7 +249,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                 break;
 
             case TokenizeStatus::IDENTIFIER:
-                if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c == '_' || c > 127 || ('0' <= c && c <= '9')) { // id continue
+                if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c == '_' || c < 0 || ('0' <= c && c <= '9')) { // id continue
                     buffer.push_back(c);
                 } else { // id end
                     std::string id_str(buffer.begin(), buffer.end());
@@ -306,10 +306,10 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     tkn.text = num_str;
                     try {
                         if (num_type == TokenType::LIT_INT) {
-                            tkn.value = Literal(std::stoll(num_str));
+                            tkn.value = Literal(static_cast<int64_t>(std::stoull(num_str)));
                         } else if (num_type == TokenType::LIT_INT_HEX) {
                             tkn.objType = TokenType::LIT_INT;
-                            tkn.value = Literal(std::stoll(num_str, nullptr, 16));
+                            tkn.value = Literal(static_cast<int64_t>(std::stoull(num_str, nullptr, 16)));
                         } else if (num_type == TokenType::LIT_FLOAT) {
                             tkn.value = Literal(std::stod(num_str));
                         }
@@ -446,7 +446,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                 break;
 
             case TokenizeStatus::COMPILER_ORD:
-                if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c == '_' || c > 127 || ('0' <= c && c <= '9')) { // order continue
+                if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c == '_' || ('0' <= c && c <= '9')) { // order continue
                     buffer.push_back(c);
                 } else { // order end
                     std::string order_str(buffer.begin(), buffer.end());
