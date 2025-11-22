@@ -523,7 +523,7 @@ class SrcFile {
     }
 
     ASTNode* findNodeByName(ASTNodeType tp, const std::string& name, bool checkExported); // find toplevel node by name (include, tmp, var, func, struct, enum)
-    Literal findConstByName(const std::string& name); // find defined literal or enum member, type NONE if not found
+    Literal findConstByName(const std::string& name, bool checkExported); // find defined literal or enum member, type NONE if not found
     std::string isNameUsable(const std::string& name, Location loc); // check if name is usable at toplevel, return error message or empty if ok
     std::unique_ptr<TypeNode> parseType(TokenProvider& tp, ScopeNode& current, int arch); // parse type from tokens
 };
