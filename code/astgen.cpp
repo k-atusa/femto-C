@@ -1970,7 +1970,7 @@ std::string ASTGen::parse(const std::string& path) {
         std::unique_ptr<std::vector<Token>> tokens = tokenize(text, path, index);
         TokenProvider tp = TokenProvider(*tokens);
 
-        // parse source
+        // source parsing pass1, parse structs and enums
         std::vector<int> reserved;
         while (tp.canPop(1)) {
             Token& tkn = tp.seek();
@@ -2022,6 +2022,30 @@ std::string ASTGen::parse(const std::string& path) {
                     break;
             }
         }
+
+        // source parsing pass2, static calculation of struct size
+        bool isModified = true;
+        while (isModified) {
+            isModified = false;
+            for (auto& node : srcFiles[index]->code->body) {
+                if (node->objType == ASTNodeType::DECL_STRUCT) {
+                    DeclStructNode* decl = static_cast<DeclStructNode*>(node.get());
+                    isModified = isModified | completeStruct(*srcFiles[index], *decl);
+                }
+            }
+        }
+
+        // source parsing pass3, parse functions and variables
+        tp.pos = 0;
+        for (int i : reserved) {
+            if (i >= tp.pos) { // parse only if not already parsed
+                tp.pos = i;
+                srcFiles[index]->code->body.push_back(parseTopLevel(tp, *srcFiles[index]->code, *srcFiles[index]));
+            }
+        }
+
+        // finish parsing
+        srcFiles[index]->isFinished = true;
     } catch (std::exception& e) {
         return e.what();
     }
