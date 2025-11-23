@@ -2030,7 +2030,9 @@ std::string ASTGen::parse(const std::string& path) {
             for (auto& node : srcFiles[index]->code->body) {
                 if (node->objType == ASTNodeType::DECL_STRUCT) {
                     DeclStructNode* decl = static_cast<DeclStructNode*>(node.get());
-                    isModified = isModified | completeStruct(*srcFiles[index], *decl);
+                    if (decl->structSize < 0) {
+                        isModified = isModified | completeStruct(*srcFiles[index], *decl);
+                    }
                 }
             }
         }
