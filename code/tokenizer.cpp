@@ -125,8 +125,8 @@ char getHexEscape(char c0, char c1) {
 }
 
 // Main function to tokenize the input source code, [can raise error]
-std::vector<Token> tokenize(const std::string& source, const std::string filename, const int source_id) {
-    std::vector<Token> result;
+std::unique_ptr<std::vector<Token>> tokenize(const std::string& source, const std::string filename, const int source_id) {
+    std::unique_ptr<std::vector<Token>> result = std::make_unique<std::vector<Token>>();
     std::vector<char> buffer;
     TokenizeStatus status = TokenizeStatus::DEFAULT;
     int line = 1;
@@ -179,14 +179,14 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                                     tkn.objType = TokenType::OP_DIV;
                                     tkn.location = Location(source_id, line);
                                     tkn.text = "/";
-                                    result.push_back(tkn);
+                                    result->push_back(tkn);
                                 }
                             } else { // divide
                                 Token tkn;
                                 tkn.objType = TokenType::OP_DIV;
                                 tkn.location = Location(source_id, line);
                                 tkn.text = "/";
-                                result.push_back(tkn);
+                                result->push_back(tkn);
                             }
                             break;
                         case '\'': // char start
@@ -214,7 +214,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                                     tkn.objType = tkn_type;
                                     tkn.location = Location(source_id, line);
                                     tkn.text = std::string(1, c);
-                                    result.push_back(tkn);
+                                    result->push_back(tkn);
                                 } else { // unknown char
                                     throw std::runtime_error(std::format("E0101 invalid char {} at {}:{}", c, filename, line)); // E0101
                                 }
@@ -264,7 +264,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                         tkn.objType = TokenType::IDENTIFIER;
                         tkn.value = Literal(id_str);
                     }
-                    result.push_back(tkn);
+                    result->push_back(tkn);
                     status = TokenizeStatus::DEFAULT;
                     readPos--; // rewind 1 char
                 }
@@ -278,14 +278,14 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     tkn.objType = tkn_type;
                     tkn.location = Location(source_id, line);
                     tkn.text = std::string(1, buffer[0]) + std::string(1, c);
-                    result.push_back(tkn);
+                    result->push_back(tkn);
                     status = TokenizeStatus::DEFAULT;
                 } else { // single char operator + char c
                     Token tkn;
                     tkn.objType = isSingleOp(buffer[0]);
                     tkn.location = Location(source_id, line);
                     tkn.text = std::string(1, buffer[0]);
-                    result.push_back(tkn);
+                    result->push_back(tkn);
                     status = TokenizeStatus::DEFAULT;
                     readPos--; // rewind 1 char
                 }
@@ -317,7 +317,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     } catch (std::exception& e) {
                         throw std::runtime_error(std::format("E0103 number literal conversion fail at {}:{}", filename, line)); // E0103
                     }
-                    result.push_back(tkn);
+                    result->push_back(tkn);
                     status = TokenizeStatus::DEFAULT;
                     readPos--; // rewind 1 char
                 }
@@ -340,7 +340,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     tkn.location = Location(source_id, line);
                     tkn.text = std::string(buffer.begin(), buffer.end());
                     tkn.value = Literal(buffer[0]);
-                    result.push_back(tkn);
+                    result->push_back(tkn);
                     status = TokenizeStatus::DEFAULT;
                 } else { // normal char
                     buffer.push_back(c);
@@ -389,7 +389,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     tkn.location = Location(source_id, line);
                     tkn.text = std::string(buffer.begin(), buffer.end());
                     tkn.value = Literal(tkn.text);
-                    result.push_back(tkn);
+                    result->push_back(tkn);
                     status = TokenizeStatus::DEFAULT;
                 } else { // normal char
                     buffer.push_back(c);
@@ -434,7 +434,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     tkn.location = Location(source_id, line);
                     tkn.text = std::string(buffer.begin(), buffer.end());
                     tkn.value = Literal(tkn.text);
-                    result.push_back(tkn);
+                    result->push_back(tkn);
                     status = TokenizeStatus::DEFAULT;
                 } else if (c == '\r') { // mac newline
                     line++;
@@ -458,7 +458,7 @@ std::vector<Token> tokenize(const std::string& source, const std::string filenam
                     if (tkn.objType == TokenType::NONE) { // invalid compiler order
                         throw std::runtime_error(std::format("E0112 unsupported compiler order {} at {}:{}", order_str, filename, line)); // E0112
                     }
-                    result.push_back(tkn);
+                    result->push_back(tkn);
                     status = TokenizeStatus::DEFAULT;
                     readPos--; // rewind 1 char
                 }

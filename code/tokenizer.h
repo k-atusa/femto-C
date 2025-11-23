@@ -126,15 +126,15 @@ class Token {
 };
 
 // tokenize source code into tokens, [can raise exception]
-std::vector<Token> tokenize(const std::string& source, const std::string filename, const int source_id);
+std::unique_ptr<std::vector<Token>> tokenize(const std::string& source, const std::string filename, const int source_id);
 
 class TokenProvider {
     public:
-    std::vector<Token> tokens;
+    std::vector<Token>& tokens;
     Token nulltkn;
     int pos;
 
-    TokenProvider(std::vector<Token> data) : tokens(std::move(data)), nulltkn(), pos(0) {
+    TokenProvider(std::vector<Token>& data) : tokens(data), nulltkn(), pos(0) {
         if (tokens.size() > 0) {
             nulltkn.location.srcLoc = tokens[0].location.srcLoc;
             nulltkn.location.line = -1;

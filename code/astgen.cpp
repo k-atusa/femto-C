@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "astgen.h"
 
 // get pratt operator precedence, -1 if not an operator
@@ -993,7 +994,7 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
     }
 
     // parse function body, check function
-    funcNode->body->body.push_back(parseStatement(tp, *funcNode->body, src));
+    funcNode->body->body.push_back(parseScope(tp, *funcNode->body, src));
     funcNode->isVaArg = isVaArg;
     funcNode->isExported = isExported;
     if (!funcNode->structNm.empty()) { // check method
@@ -1602,11 +1603,17 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             }
 
             case TokenType::ORDER_DEFINE:
+                if (isDefine) {
+                    throw std::runtime_error(std::format("E0630 duplicated define at {}", getLocString(tkn.location))); // E0630
+                }
                 isDefine = true;
                 tp.pop();
                 break;
 
             case TokenType::ORDER_EXTERN:
+                if (isExtern) {
+                    throw std::runtime_error(std::format("E0631 duplicated extern at {}", getLocString(tkn.location))); // E0631
+                }
                 isExtern = true;
                 tp.pop();
                 break;
@@ -1625,18 +1632,18 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                     } else if (opTkn.objType == TokenType::OP_SEMICOLON) { // expression statement
                         return left;
                     } else {
-                        throw std::runtime_error(std::format("E0630 expected ';' at {}", getLocString(opTkn.location))); // E0630
+                        throw std::runtime_error(std::format("E0632 expected ';' at {}", getLocString(opTkn.location))); // E0632
                     }
                 }
         }
     }
-    throw std::runtime_error(std::format("E0631 unexpected EOF while parsing statement at {}", getLocString(current.location))); // E0631
+    throw std::runtime_error(std::format("E0633 unexpected EOF while parsing statement at {}", getLocString(current.location))); // E0633
 }
 
 // parse scope
 std::unique_ptr<ScopeNode> ASTGen::parseScope(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
     if (tp.pop().objType != TokenType::OP_LBRACE) {
-        throw std::runtime_error(std::format("E0632 expected '{{' at {}", getLocString(current.location))); // E0632
+        throw std::runtime_error(std::format("E0634 expected '{{' at {}", getLocString(current.location))); // E0634
     }
     std::unique_ptr<ScopeNode> scope = std::make_unique<ScopeNode>();
     scope->location = current.location;
@@ -1676,7 +1683,7 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
                             tp.pop();
                             break;
                         } else {
-                            throw std::runtime_error(std::format("E0633 expected '>' at {}", getLocString(opTkn.location))); // E0633
+                            throw std::runtime_error(std::format("E0635 expected '>' at {}", getLocString(opTkn.location))); // E0635
                         }
                     }
                 }
@@ -1684,7 +1691,7 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
                     result->path = tp.pop().text;
                     result->name = tp.pop().text;
                 } else {
-                    throw std::runtime_error(std::format("E0634 expected module filepath at {}", getLocString(tkn.location))); // E0634
+                    throw std::runtime_error(std::format("E0636 expected module filepath at {}", getLocString(tkn.location))); // E0636
                 }
                 std::string nmValidity = src.isNameUsable(result->name, tkn.location);
                 if (!nmValidity.empty()) {
@@ -1700,7 +1707,7 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
                 result->location = tkn.location;
                 Token& tmpTkn = tp.pop();
                 if (tmpTkn.objType != TokenType::IDENTIFIER) {
-                    throw std::runtime_error(std::format("E0635 expected typename at {}", getLocString(tmpTkn.location))); // E0635
+                    throw std::runtime_error(std::format("E0637 expected typename at {}", getLocString(tmpTkn.location))); // E0637
                 }
                 std::string nmValidity = src.isNameUsable(tmpTkn.text, tmpTkn.location);
                 if (!nmValidity.empty()) {
@@ -1713,22 +1720,42 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
             case TokenType::ORDER_RAW_C: case TokenType::ORDER_RAW_IR:
                 return parseRawCode(tp);
 
+            case TokenType::OP_SEMICOLON:
+            {
+                tp.pop();
+                std::unique_ptr<ShortStatNode> result = std::make_unique<ShortStatNode>(ASTNodeType::EMPTY);
+                result->location = tkn.location;
+                return result;
+            }
+
             case TokenType::ORDER_DEFINE:
+                if (isDefine) {
+                    throw std::runtime_error(std::format("E0638 duplicate define at {}", getLocString(tkn.location))); // E0638
+                }
                 tp.pop();
                 isDefine = true;
                 break;
 
             case TokenType::ORDER_EXTERN:
+                if (isExtern) {
+                    throw std::runtime_error(std::format("E0639 duplicate extern at {}", getLocString(tkn.location))); // E0639
+                }
                 tp.pop();
                 isExtern = true;
                 break;
 
             case TokenType::ORDER_EXPORT:
+                if (isExported) {
+                    throw std::runtime_error(std::format("E0640 duplicate export at {}", getLocString(tkn.location))); // E0640
+                }
                 tp.pop();
                 isExported = true;
                 break;
 
             case TokenType::ORDER_VA_ARG:
+                if (isVaArg) {
+                    throw std::runtime_error(std::format("E0641 duplicate va_arg at {}", getLocString(tkn.location))); // E0641
+                }
                 tp.pop();
                 isVaArg = true;
                 break;
@@ -1747,7 +1774,7 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
                 if (tp.match({TokenType::IDENTIFIER, TokenType::OP_SEMICOLON}) || tp.match({TokenType::IDENTIFIER, TokenType::OP_ASSIGN})) { // var declaration
                     std::unique_ptr<DeclVarNode> varDecl = parseVarDecl(tp, current, src, std::move(vtype), isDefine, isExtern, isExported);
                     if (varDecl->varExpr != nullptr && varDecl->varExpr->objType != ASTNodeType::LITERAL && varDecl->varExpr->objType != ASTNodeType::LITERAL_KEY) {
-                        throw std::runtime_error(std::format("E0636 variable should be initialized with constexpr at {}", getLocString(vtype->location))); // E0636
+                        throw std::runtime_error(std::format("E0642 variable should be initialized with constexpr at {}", getLocString(vtype->location))); // E0642
                     }
                     std::string nmValidity = src.isNameUsable(varDecl->name, varDecl->location);
                     if (!nmValidity.empty()) {
@@ -1760,7 +1787,7 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
             }
         }
     }
-    throw std::runtime_error(std::format("E0637 unexpected EOF while parsing toplevel at {}", getLocString(current.location))); // E0637
+    throw std::runtime_error(std::format("E0643 unexpected EOF while parsing toplevel at {}", getLocString(current.location))); // E0643
 }
 
 // calculate type size, return true if modified
@@ -1846,10 +1873,157 @@ bool ASTGen::completeType(SrcFile& src, TypeNode& tgt) {
 
 // complete struct size, return true if modified
 bool ASTGen::completeStruct(SrcFile& src, DeclStructNode& tgt) {
+    bool isModified = false;
+    for (auto& mem : tgt.memTypes) {
+        isModified = isModified | completeType(src, *mem);
+    }
+    for (auto& mem : tgt.memTypes) {
+        if (mem->typeSize == -1) {
+            return isModified;
+        }
+    }
+    tgt.structSize = 0;
+    tgt.structAlign = 1;
+    for (size_t i = 0; i < tgt.memTypes.size(); i++) {
+        if (tgt.structSize % tgt.memTypes[i]->typeAlign != 0) {
+            tgt.structSize += tgt.memTypes[i]->typeAlign - tgt.structSize % tgt.memTypes[i]->typeAlign;
+        }
+        tgt.memOffsets[i] =  tgt.structSize;
+        tgt.structSize += tgt.memTypes[i]->typeSize;
+        tgt.structAlign = std::max(tgt.structAlign, tgt.memTypes[i]->typeAlign);
+    }
+    if (tgt.structSize % tgt.structAlign != 0) {
+        tgt.structSize += tgt.structAlign - tgt.structSize % tgt.structAlign;
+    }
+    return true;
+}
 
+// jump variable or function declaration
+void jumpDecl(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
+    src.parseType(tp, current, 1);
+    if (tp.match({TokenType::IDENTIFIER, TokenType::OP_SEMICOLON}) || tp.match({TokenType::IDENTIFIER, TokenType::OP_ASSIGN})) { // variable
+        while (tp.canPop(1)) {
+            if (tp.pop().objType == TokenType::OP_SEMICOLON) {
+                break;
+            }
+        }
+    } else { // function
+        int count = 0;
+        while (tp.canPop(1)) {
+            if (tp.pop().objType == TokenType::OP_LBRACE) {
+                count++;
+                break;
+            }
+        }
+        while (tp.canPop(1)) {
+            Token& tkn = tp.pop();
+            if (tkn.objType == TokenType::OP_LBRACE) {
+                count++;
+            } else if (tkn.objType == TokenType::OP_RBRACE) {
+                count--;
+                if (count == 0) {
+                    break;
+                }
+            }
+        }
+    }
 }
 
 // final parser, returns error message or empty if ok
 std::string ASTGen::parse(const std::string& path) {
+    // check if already parsed
+    int index = findSource(path);
+    if (index != -1) {
+        return std::format("E0706 source {} already parsed", path); // E0706
+    }
 
+    try {
+        // find unique name
+        std::string name = getFileName(path);
+        std::string dir = getWorkingDir(path);
+        int count = 0;
+        bool isIncluded = true;
+        while (isIncluded) {
+            isIncluded = false;
+            std::string uname;
+            if (count == 0) {
+                uname = name;
+            } else {
+                uname = std::format("{}_{}", name, count);
+            }
+            for (auto& src : srcFiles) {
+                if (src->uniqueName == uname) {
+                    isIncluded = true;
+                    break;
+                }
+            }
+            if (isIncluded) {
+                count++;
+            } else {
+                srcFiles.push_back(std::make_unique<SrcFile>(path, uname));
+                index = static_cast<int>(srcFiles.size() - 1);
+            }
+        }
+
+        // tokenize source
+        std::string text = readFile(path);
+        std::unique_ptr<std::vector<Token>> tokens = tokenize(text, path, index);
+        TokenProvider tp = TokenProvider(*tokens);
+
+        // parse source
+        std::vector<int> reserved;
+        while (tp.canPop(1)) {
+            Token& tkn = tp.seek();
+            switch (tkn.objType) {
+                case TokenType::ORDER_INCLUDE: // include source, detect import cycle
+                {
+                    std::unique_ptr<ASTNode> node = parseTopLevel(tp, *srcFiles[index]->code, *srcFiles[index]);
+                    if (node->objType != ASTNodeType::INCLUDE) {
+                        return std::format("E0707 invalid include statement at {}", getLocString(tkn.location)); // E0707
+                    }
+                    IncludeNode* inc = static_cast<IncludeNode*>(node.get());
+                    int idx = findSource(inc->path);
+                    if (idx == -1) { // not found, parse and add
+                        std::string emsg = parse(inc->path);
+                        if (!emsg.empty()) {
+                            return emsg;
+                        }
+                    } else if (!srcFiles[idx]->isFinished) { // import cycle, return error message
+                        return std::format("E0708 import cycle detected with {} at {}", inc->path, getLocString(tkn.location)); // E0708
+                    } // else: already parsed, skip
+                }
+                break;
+
+                case TokenType::ORDER_TEMPLATE: case TokenType::ORDER_RAW_C: case TokenType::ORDER_RAW_IR: case TokenType::ORDER_DEFINE: // need to be parsed for deciding types
+                    srcFiles[index]->code->body.push_back(parseTopLevel(tp, *srcFiles[index]->code, *srcFiles[index]));
+                    break;
+
+                case TokenType::KEY_STRUCT: case TokenType::KEY_ENUM: case TokenType::OP_SEMICOLON: // definitions of structs and enums are parsed now
+                    srcFiles[index]->code->body.push_back(parseTopLevel(tp, *srcFiles[index]->code, *srcFiles[index]));
+                    break;
+
+                case TokenType::ORDER_EXPORT:
+                    if (tp.match({TokenType::ORDER_EXPORT, TokenType::KEY_STRUCT}) || tp.match({TokenType::ORDER_EXPORT, TokenType::KEY_ENUM})) {
+                        srcFiles[index]->code->body.push_back(parseTopLevel(tp, *srcFiles[index]->code, *srcFiles[index]));
+                    } else {
+                        reserved.push_back(tp.pos);
+                        tp.pop();
+                    }
+                    break;
+
+                case TokenType::ORDER_EXTERN: case TokenType::ORDER_VA_ARG: // order before variable or function declaration
+                    reserved.push_back(tp.pos);
+                    tp.pop();
+                    break;
+
+                default: // declarations of functions and variables are parsed later
+                    reserved.push_back(tp.pos);
+                    jumpDecl(tp, *srcFiles[index]->code, *srcFiles[index]);
+                    break;
+            }
+        }
+    } catch (std::exception& e) {
+        return e.what();
+    }
+    return "";
 }
