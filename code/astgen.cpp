@@ -1762,3 +1762,94 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
     }
     throw std::runtime_error(std::format("E0637 unexpected EOF while parsing toplevel at {}", getLocString(current.location))); // E0637
 }
+
+// calculate type size, return true if modified
+bool ASTGen::completeType(SrcFile& src, TypeNode& tgt) {
+    bool modified = false;
+    if (tgt.direct != nullptr) {
+        modified = modified | completeType(src, *tgt.direct);
+    }
+    for (auto& indirect : tgt.indirect) {
+        modified = modified | completeType(src, *indirect);
+    }
+    if (tgt.typeSize != -1) {
+        return modified;
+    }
+    switch (tgt.subType) {
+        case TypeNodeType::ARRAY:
+            if (tgt.direct->typeSize == 0) {
+                throw std::runtime_error(std::format("E0701 cannot create array/slice of void type at {}", getLocString(tgt.location))); // E0701
+            }
+            if (tgt.direct->typeSize != -1) {
+                tgt.typeSize = tgt.direct->typeSize * tgt.length;
+                tgt.typeAlign = tgt.direct->typeAlign;
+                modified = true;
+            }
+            break;
+
+        case TypeNodeType::NAME:
+            {
+                DeclStructNode* structNode = static_cast<DeclStructNode*>(src.findNodeByName(ASTNodeType::DECL_STRUCT, tgt.name, false));
+                if (structNode != nullptr && structNode->structSize != -1) {
+                    tgt.typeSize = structNode->structSize;
+                    tgt.typeAlign = structNode->structAlign;
+                    modified = true;
+                }
+                DeclEnumNode* enumNode = static_cast<DeclEnumNode*>(src.findNodeByName(ASTNodeType::DECL_ENUM, tgt.name, false));
+                if (enumNode != nullptr) {
+                    tgt.typeSize = enumNode->enumSize;
+                    tgt.typeAlign = enumNode->enumSize;
+                    modified = true;
+                }
+                DeclTemplateNode* templateNode = static_cast<DeclTemplateNode*>(src.findNodeByName(ASTNodeType::DECL_TEMPLATE, tgt.name, false));
+                if (templateNode != nullptr && templateNode->tmpSize != -1) {
+                    tgt.typeSize = templateNode->tmpSize;
+                    tgt.typeAlign = templateNode->tmpAlign;
+                    modified = true;
+                }
+                if (structNode == nullptr && enumNode == nullptr && templateNode == nullptr) {
+                    throw std::runtime_error(std::format("E0702 type {} not found at {}", tgt.name, getLocString(tgt.location))); // E0702
+                }
+            }
+            break;
+
+        case TypeNodeType::FOREIGN:
+            {
+                IncludeNode* includeNode = static_cast<IncludeNode*>(src.findNodeByName(ASTNodeType::INCLUDE, tgt.includeName, false));
+                if (includeNode == nullptr) {
+                    throw std::runtime_error(std::format("E0703 include name {} not found at {}", tgt.name, getLocString(tgt.location))); // E0703
+                }
+                int index = findSource(includeNode->path);
+                if (index == -1) {
+                    throw std::runtime_error(std::format("E0704 included module {} not found at {}", includeNode->path, getLocString(tgt.location))); // E0704
+                }
+                DeclStructNode* structNode = static_cast<DeclStructNode*>(srcFiles[index]->findNodeByName(ASTNodeType::DECL_STRUCT, tgt.name, true));
+                if (structNode != nullptr && structNode->structSize != -1) {
+                    tgt.typeSize = structNode->structSize;
+                    tgt.typeAlign = structNode->structAlign;
+                    modified = true;
+                }
+                DeclEnumNode* enumNode = static_cast<DeclEnumNode*>(srcFiles[index]->findNodeByName(ASTNodeType::DECL_ENUM, tgt.name, true));
+                if (enumNode != nullptr) {
+                    tgt.typeSize = enumNode->enumSize;
+                    tgt.typeAlign = enumNode->enumSize;
+                    modified = true;
+                }
+                if (structNode == nullptr && enumNode == nullptr) {
+                    throw std::runtime_error(std::format("E0705 type {}.{} not found at {}", tgt.includeName, tgt.name, getLocString(tgt.location))); // E0705
+                }
+            }
+            break;
+    }
+    return modified;
+}
+
+// complete struct size, return true if modified
+bool ASTGen::completeStruct(SrcFile& src, DeclStructNode& tgt) {
+
+}
+
+// final parser, returns error message or empty if ok
+std::string ASTGen::parse(const std::string& path) {
+
+}

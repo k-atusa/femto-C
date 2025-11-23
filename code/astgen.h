@@ -81,8 +81,10 @@ class IncludeNode: public ASTNode {
 class DeclTemplateNode: public ASTNode {
     public:
     std::string& name; // template argument name
+    int tmpSize;
+    int tmpAlign;
 
-    DeclTemplateNode(): ASTNode(ASTNodeType::DECL_TEMPLATE), name(text) {}
+    DeclTemplateNode(): ASTNode(ASTNodeType::DECL_TEMPLATE), name(text), tmpSize(-1), tmpAlign(-1) {}
 
     std::string toString(int indent) { return std::string(indent, '  ') + std::format("DECLTMP {}", name); }
 };
@@ -566,6 +568,9 @@ class ASTGen {
     std::unique_ptr<ASTNode> parseStatement(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse general statement
     std::unique_ptr<ScopeNode> parseScope(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse scope
     std::unique_ptr<ASTNode> parseTopLevel(TokenProvider& tp, ScopeNode& current, SrcFile& src); // parse toplevel declaration
+
+    bool completeType(SrcFile& src, TypeNode& tgt); // calculate type size, return true if modified
+    bool completeStruct(SrcFile& src, DeclStructNode& tgt); // complete struct size, return true if modified
 };
 
 #endif // ASTGEN_H
