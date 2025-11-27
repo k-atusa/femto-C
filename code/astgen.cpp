@@ -838,6 +838,7 @@ std::unique_ptr<DeclStructNode> ASTGen::parseStruct(TokenProvider& tp, ScopeNode
         throw std::runtime_error(std::format("E0409 expected '}}' at {}", getLocString(tp.seek().location))); // E0409
     }
     structNode->isExported = isExported;
+    prt.Log(std::format("ASTGen struct {} at {}", structNode->name, getLocString(structNode->location)), 1);
     return structNode;
 }
 
@@ -921,6 +922,7 @@ std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& cu
         enumNode->enumSize = 8;
     }
     enumNode->isExported = isExported;
+    prt.Log(std::format("ASTGen enum {} at {}", enumNode->name, getLocString(enumNode->location)), 1);
     return enumNode;
 }
 
@@ -1026,6 +1028,7 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
             throw std::runtime_error(std::format("E0428 last two parameters must be (void**, int) at {}", getLocString(funcNode->location))); // E0428
         }
     }
+    prt.Log(std::format("ASTGen func {} at {}", funcNode->name, getLocString(funcNode->location)), 1);
     return funcNode;
 }
 
@@ -1359,6 +1362,7 @@ std::unique_ptr<DeclVarNode> ASTGen::parseVarDecl(TokenProvider& tp, ScopeNode& 
     if (isExtern && isExported) { // cannot be both extern and exported
         throw std::runtime_error(std::format("E0607 cannot be both extern and exported at {}", getLocString(nameTkn.location))); // E0607
     }
+    prt.Log(std::format("ASTGen var decl {} at {}", varDecl->name, getLocString(varDecl->location)), 1);
     return varDecl;
 }
 
@@ -1703,6 +1707,7 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
             case TokenType::ORDER_TEMPLATE:
             {
                 tp.pop();
+                src.isTemplate = true;
                 std::unique_ptr<DeclTemplateNode> result = std::make_unique<DeclTemplateNode>();
                 result->location = tkn.location;
                 Token& tmpTkn = tp.pop();
@@ -1895,6 +1900,7 @@ bool ASTGen::completeStruct(SrcFile& src, DeclStructNode& tgt) {
     if (tgt.structSize % tgt.structAlign != 0) {
         tgt.structSize += tgt.structAlign - tgt.structSize % tgt.structAlign;
     }
+    prt.Log(std::format("calculated struct size {} at {}", tgt.name, getLocString(tgt.location)), 1);
     return true;
 }
 
@@ -1964,11 +1970,13 @@ std::string ASTGen::parse(const std::string& path) {
                 index = static_cast<int>(srcFiles.size() - 1);
             }
         }
+        prt.Log(std::format("start parsing source {} as {}", path, srcFiles[index]->uniqueName), 2);
 
         // tokenize source
         std::string text = readFile(path);
         std::unique_ptr<std::vector<Token>> tokens = tokenize(text, path, index);
         TokenProvider tp = TokenProvider(*tokens);
+        prt.Log(std::format("tokenized source {}", srcFiles[index]->uniqueName), 2);
 
         // source parsing pass1, parse structs and enums
         std::vector<int> reserved;
@@ -2022,6 +2030,7 @@ std::string ASTGen::parse(const std::string& path) {
                     break;
             }
         }
+        prt.Log(std::format("pass1 finished for source {}", srcFiles[index]->uniqueName), 2);
 
         // source parsing pass2, static calculation of struct size
         bool isModified = true;
@@ -2036,6 +2045,7 @@ std::string ASTGen::parse(const std::string& path) {
                 }
             }
         }
+        prt.Log(std::format("pass2 finished for source {}", srcFiles[index]->uniqueName), 2);
 
         // source parsing pass3, parse functions and variables
         tp.pos = 0;
@@ -2045,9 +2055,11 @@ std::string ASTGen::parse(const std::string& path) {
                 srcFiles[index]->code->body.push_back(parseTopLevel(tp, *srcFiles[index]->code, *srcFiles[index]));
             }
         }
+        prt.Log(std::format("pass3 finished for source {}", srcFiles[index]->uniqueName), 2);
 
         // finish parsing
         srcFiles[index]->isFinished = true;
+        prt.Log(std::format("finished parsing source {} as {}", path, srcFiles[index]->uniqueName), 3);
     } catch (std::exception& e) {
         return e.what();
     }

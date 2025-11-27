@@ -56,6 +56,13 @@ class ASTNode {
     ASTNode(ASTNodeType tp, const std::string& tx): objType(tp), location(), text(tx) {}
     virtual ~ASTNode() = default;
 
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<ASTNode> newNode = std::make_unique<ASTNode>(objType);
+        newNode->location = location;
+        newNode->text = text;
+        return newNode;
+    }
+
     virtual std::string toString(int indent) { return std::string(indent, '  ') + std::format("AST {} {}", (int)objType, text); }
 };
 
@@ -68,7 +75,18 @@ class IncludeNode: public ASTNode {
 
     IncludeNode(): ASTNode(ASTNodeType::INCLUDE), path(""), name(text), args() {}
 
-    std::string toString(int indent) {
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<IncludeNode> newNode = std::make_unique<IncludeNode>();
+        newNode->location = location;
+        newNode->text = text;
+        newNode->path = path;
+        for (auto& arg : args) {
+            newNode->args.push_back(arg->clone());
+        }
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + std::format("INCLUDE {} {}", path, name);
         for (auto& arg : args) {
             result += "\n" + arg->toString(indent + 1);
@@ -86,7 +104,16 @@ class DeclTemplateNode: public ASTNode {
 
     DeclTemplateNode(): ASTNode(ASTNodeType::DECL_TEMPLATE), name(text), tmpSize(-1), tmpAlign(-1) {}
 
-    std::string toString(int indent) { return std::string(indent, '  ') + std::format("DECLTMP {}", name); }
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<DeclTemplateNode> newNode = std::make_unique<DeclTemplateNode>();
+        newNode->location = location;
+        newNode->text = text;
+        newNode->tmpSize = tmpSize;
+        newNode->tmpAlign = tmpAlign;
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) { return std::string(indent, '  ') + std::format("DECLTMP {}", name); }
 };
 
 // raw code node
@@ -97,7 +124,14 @@ class RawCodeNode: public ASTNode {
     RawCodeNode(): ASTNode(ASTNodeType::NONE), code(text) {}
     RawCodeNode(ASTNodeType tp): ASTNode(tp), code(text) {}
 
-    std::string toString(int indent) { return std::string(indent, '  ') + std::format("RAW {}", code); }
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<RawCodeNode> newNode = std::make_unique<RawCodeNode>(objType);
+        newNode->location = location;
+        newNode->text = text;
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) { return std::string(indent, '  ') + std::format("RAW {}", code); }
 };
 
 // type node
@@ -127,27 +161,31 @@ class TypeNode: public ASTNode {
     TypeNode(TypeNodeType tp, const std::string& nm): ASTNode(ASTNodeType::TYPE, nm), subType(tp), name(text), includeName(""), direct(nullptr), indirect(), length(-1), typeSize(-1), typeAlign(-1) {}
     TypeNode(const std::string& incNm, const std::string& tpNm): ASTNode(ASTNodeType::TYPE, tpNm), subType(TypeNodeType::FOREIGN), name(text), includeName(incNm), direct(nullptr), indirect(), length(-1), typeSize(-1), typeAlign(-1) {}
 
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        return clone();
+    }
+
     std::unique_ptr<TypeNode> clone() {
         std::unique_ptr<TypeNode> newType = std::make_unique<TypeNode>();
-        newType->objType = this->objType;
-        newType->location = this->location;
-        newType->text = this->text;
-        newType->subType = this->subType;
-        newType->name = this->name;
-        newType->includeName = this->includeName;
-        if (this->direct != nullptr) {
-            newType->direct = this->direct->clone();
+        newType->objType = objType;
+        newType->location = location;
+        newType->text = text;
+        newType->subType = subType;
+        newType->name = name;
+        newType->includeName = includeName;
+        if (direct != nullptr) {
+            newType->direct = direct->clone();
         }
-        for (auto& ind : this->indirect) {
+        for (auto& ind : indirect) {
             newType->indirect.push_back(ind->clone());
         }
-        newType->length = this->length;
-        newType->typeSize = this->typeSize;
-        newType->typeAlign = this->typeAlign;
+        newType->length = length;
+        newType->typeSize = typeSize;
+        newType->typeAlign = typeAlign;
         return newType;
     }
 
-    std::string toString(int indent) {
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + std::format("TYPE {} {} {} {} {} {}", name, includeName, subType, length, typeSize, typeAlign);
         if (direct) result += "\n" + direct->toString(indent + 1);
         for (auto& ind : indirect) {
@@ -212,7 +250,19 @@ class AtomicExprNode: public ASTNode {
     AtomicExprNode(Literal l): ASTNode(ASTNodeType::LITERAL), literal(l), elements(), word(text) {}
     AtomicExprNode(const std::string& name): ASTNode(ASTNodeType::NAME, name), literal(), elements(), word(text) {}
 
-    std::string toString(int indent) {
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<AtomicExprNode> newNode = std::make_unique<AtomicExprNode>();
+        newNode->objType = objType;
+        newNode->location = location;
+        newNode->text = text;
+        newNode->literal = literal;
+        for (auto& element : elements) {
+            newNode->elements.push_back(element->Clone(parent));
+        }
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ');
         if (objType == ASTNodeType::LITERAL) result += std::format("LITERAL {}", literal.toString());
         if (objType == ASTNodeType::LITERAL_ARRAY) {
@@ -268,7 +318,17 @@ class OperationNode: public ASTNode {
     OperationNode(): ASTNode(ASTNodeType::OPERATION), subType(OperationType::NONE), operand0(nullptr), operand1(nullptr), operand2(nullptr) {}
     OperationNode(OperationType tp): ASTNode(ASTNodeType::OPERATION), subType(tp), operand0(nullptr), operand1(nullptr), operand2(nullptr) {}
 
-    std::string toString(int indent) {
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<OperationNode> newNode = std::make_unique<OperationNode>(subType);
+        newNode->location = location;
+        newNode->text = text;
+        if (operand0) newNode->operand0 = operand0->Clone(parent);
+        if (operand1) newNode->operand1 = operand1->Clone(parent);
+        if (operand2) newNode->operand2 = operand2->Clone(parent);
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + std::format("OPERATION {}", subType);
         if (operand0 != nullptr) result += "\n" + operand0->toString(indent + 1);
         if (operand1 != nullptr) result += "\n" + operand1->toString(indent + 1);
@@ -285,7 +345,18 @@ class FuncCallNode: public ASTNode {
 
     FuncCallNode(): ASTNode(ASTNodeType::FUNC_CALL), funcExpr(nullptr), args() {}
 
-    std::string toString(int indent) {
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<FuncCallNode> newNode = std::make_unique<FuncCallNode>();
+        newNode->location = location;
+        newNode->text = text;
+        if (funcExpr) newNode->funcExpr = funcExpr->Clone(parent);
+        for (auto& arg : args) {
+            newNode->args.push_back(arg->Clone(parent));
+        }
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + "FUNC_CALL";
         result += "\n" + funcExpr->toString(indent + 1);
         for (auto& arg : args) {
@@ -309,7 +380,19 @@ class DeclVarNode: public ASTNode {
     DeclVarNode(): ASTNode(ASTNodeType::DECL_VAR), varType(nullptr), name(text), varExpr(nullptr), isDefine(false), isExtern(false), isExported(false), isParam(false) {}
     DeclVarNode(std::unique_ptr<TypeNode> vt, const std::string& nm): ASTNode(ASTNodeType::DECL_VAR, nm), varType(std::move(vt)), name(text), varExpr(nullptr), isDefine(false), isExtern(false), isExported(false), isParam(false) {}
 
-    std::string toString(int indent) {
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<DeclVarNode> newNode = std::make_unique<DeclVarNode>(varType->clone(), name);
+        newNode->location = location;
+        newNode->text = text;
+        if (varExpr) newNode->varExpr = varExpr->Clone(parent);
+        newNode->isDefine = isDefine;
+        newNode->isExtern = isExtern;
+        newNode->isExported = isExported;
+        newNode->isParam = isParam;
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + std::format("VAR_DECL {} {} {} {} {}", name, isDefine, isExtern, isExported, isParam);
         if (varType) result += "\n" + varType->toString(indent + 1);
         if (varExpr) result += "\n" + varExpr->toString(indent + 1);
@@ -325,7 +408,16 @@ class AssignNode: public ASTNode {
 
     AssignNode(): ASTNode(ASTNodeType::ASSIGN), lvalue(nullptr), rvalue(nullptr) {}
 
-    std::string toString(int indent) {
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<AssignNode> newNode = std::make_unique<AssignNode>();
+        newNode->location = location;
+        newNode->text = text;
+        if (lvalue) newNode->lvalue = lvalue->Clone(parent);
+        if (rvalue) newNode->rvalue = rvalue->Clone(parent);
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + "ASSIGN";
         result += "\n" + lvalue->toString(indent + 1);
         result += "\n" + rvalue->toString(indent + 1);
@@ -340,7 +432,15 @@ class ShortStatNode: public ASTNode {
     ShortStatNode(): ASTNode(ASTNodeType::NONE), statExpr(nullptr) {}
     ShortStatNode(ASTNodeType tp): ASTNode(tp), statExpr(nullptr) {}
 
-    std::string toString(int indent) {
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<ShortStatNode> newNode = std::make_unique<ShortStatNode>(objType);
+        newNode->location = location;
+        newNode->text = text;
+        if (statExpr) newNode->statExpr = statExpr->Clone(parent);
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + std::format("SHORTSTAT {}", objType);
         if (statExpr) result += "\n" + statExpr->toString(indent + 1);
         return result;
@@ -356,7 +456,19 @@ class ScopeNode: public ASTNode {
     ScopeNode(): ASTNode(ASTNodeType::SCOPE), body(), parent(nullptr) {}
     ScopeNode(ScopeNode* p): ASTNode(ASTNodeType::SCOPE), body(), parent(p) {}
 
-    std::string toString(int indent) {
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent_g) {
+        return clone(parent_g);
+    }
+
+    std::unique_ptr<ScopeNode> clone(ScopeNode* parent_g) {
+        std::unique_ptr<ScopeNode> newNode = std::make_unique<ScopeNode>(parent_g);
+        newNode->location = location;
+        newNode->text = text;
+        for (auto& node : body) newNode->body.push_back(node->Clone(newNode.get()));
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + "SCOPE";
         for (auto& node : body) result += "\n" + node->toString(indent + 1);
         return result;
@@ -374,7 +486,17 @@ class IfNode: public ASTNode {
 
     IfNode(): ASTNode(ASTNodeType::IF), cond(nullptr), ifBody(nullptr), elseBody(nullptr) {}
 
-    std::string toString(int indent) {
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<IfNode> newNode = std::make_unique<IfNode>();
+        newNode->location = location;
+        newNode->text = text;
+        if (cond) newNode->cond = cond->Clone(parent);
+        if (ifBody) newNode->ifBody = ifBody->Clone(parent);
+        if (elseBody) newNode->elseBody = elseBody->Clone(parent);
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + "IF";
         if (cond) result += "\n" + cond->toString(indent + 1);
         if (ifBody) result += "\n" + ifBody->toString(indent + 1);
@@ -390,7 +512,16 @@ class WhileNode: public ASTNode {
 
     WhileNode(): ASTNode(ASTNodeType::WHILE), cond(nullptr), body(nullptr) {}
 
-    std::string toString(int indent) {
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<WhileNode> newNode = std::make_unique<WhileNode>();
+        newNode->location = location;
+        newNode->text = text;
+        if (cond) newNode->cond = cond->Clone(parent);
+        if (body) newNode->body = body->Clone(parent);
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + "WHILE";
         if (cond) result += "\n" + cond->toString(indent + 1);
         if (body) result += "\n" + body->toString(indent + 1);
@@ -407,7 +538,17 @@ class ForNode: public ASTNode {
 
     ForNode(): ASTNode(ASTNodeType::FOR), cond(nullptr), body(nullptr), step(nullptr) {}
 
-    std::string toString(int indent) {
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<ForNode> newNode = std::make_unique<ForNode>();
+        newNode->location = location;
+        newNode->text = text;
+        if (cond) newNode->cond = cond->Clone(parent);
+        if (body) newNode->body = body->Clone(parent);
+        if (step) newNode->step = step->Clone(parent);
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + "FOR_BODY";
         if (cond) result += "\n" + cond->toString(indent + 1);
         if (body) result += "\n" + body->toString(indent + 1);
@@ -425,7 +566,28 @@ class SwitchNode: public ASTNode {
 
     SwitchNode(): ASTNode(ASTNodeType::SWITCH), cond(nullptr), caseConds(), caseBodies(), defaultBody() {}
 
-    std::string toString(int indent) {
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<SwitchNode> newNode = std::make_unique<SwitchNode>();
+        newNode->location = location;
+        newNode->text = text;
+        if (cond) newNode->cond = cond->Clone(parent);
+        for (auto& cond : caseConds) {
+            newNode->caseConds.push_back(cond);
+        }
+        for (auto& body : caseBodies) {
+            std::vector<std::unique_ptr<ASTNode>> newBody;
+            for (auto& stmt : body) {
+                newBody.push_back(stmt->Clone(parent));
+            }
+            newNode->caseBodies.push_back(std::move(newBody));
+        }
+        for (auto& stmt : defaultBody) {
+            newNode->defaultBody.push_back(stmt->Clone(parent));
+        }
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + "SWITCH";
         if (cond) result += "\n" + cond->toString(indent + 1);
         for (size_t i = 0; i < caseConds.size(); i++) {
@@ -457,7 +619,22 @@ class DeclFuncNode: public ASTNode {
 
     DeclFuncNode(): ASTNode(ASTNodeType::DECL_FUNC), name(text), structNm(""), funcNm(""), paramTypes(), paramNames(), retType(nullptr), body(), isVaArg(false), isExported(false) { body = nullptr; }
 
-    std::string toString(int indent) {
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<DeclFuncNode> newNode = std::make_unique<DeclFuncNode>();
+        newNode->location = location;
+        newNode->text = text;
+        newNode->structNm = structNm;
+        newNode->funcNm = funcNm;
+        for (auto& type : paramTypes) newNode->paramTypes.push_back(type->clone());
+        for (auto& nm : paramNames) newNode->paramNames.push_back(nm);
+        if (retType) newNode->retType = retType->clone();
+        if (body) newNode->body = body->clone(parent);
+        newNode->isVaArg = isVaArg;
+        newNode->isExported = isExported;
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + std::format("DECLFUNC {} {} {}", name, isVaArg, isExported);
         if (retType) result += "\n" + retType->toString(indent + 1);
         for (auto& type : paramTypes) result += "\n" + type->toString(indent + 1);
@@ -478,7 +655,20 @@ class DeclStructNode: public ASTNode {
 
     DeclStructNode(): ASTNode(ASTNodeType::DECL_STRUCT), name(text), structSize(-1), structAlign(-1), memTypes(), memNames(), memOffsets(), isExported(false) {}
 
-    std::string toString(int indent) {
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<DeclStructNode> newNode = std::make_unique<DeclStructNode>();
+        newNode->location = location;
+        newNode->text = text;
+        newNode->structSize = structSize;
+        newNode->structAlign = structAlign;
+        for (auto& type : memTypes) newNode->memTypes.push_back(type->clone());
+        for (auto& name : memNames) newNode->memNames.push_back(name);
+        for (auto& offset : memOffsets) newNode->memOffsets.push_back(offset);
+        newNode->isExported = isExported;
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + std::format("DECLSTRUCT {} {} {} {}", name, structSize, structAlign, isExported);
         for (size_t i = 0; i < memNames.size(); i++) {
             result += "\n" + std::string(indent + 1, '  ') + std::to_string(memOffsets[i]) + "\n" + memTypes[i]->toString(indent + 1);
@@ -497,7 +687,18 @@ class DeclEnumNode: public ASTNode {
 
     DeclEnumNode(): ASTNode(ASTNodeType::DECL_ENUM), name(text), enumSize(-1), memNames(), memValues(), isExported(false) {}
 
-    std::string toString(int indent) {
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<DeclEnumNode> newNode = std::make_unique<DeclEnumNode>();
+        newNode->location = location;
+        newNode->text = text;
+        newNode->enumSize = enumSize;
+        for (auto& name : memNames) newNode->memNames.push_back(name);
+        for (auto& value : memValues) newNode->memValues.push_back(value);
+        newNode->isExported = isExported;
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
         std::string result = std::string(indent, '  ') + std::format("DECLENUM {} {} {}", name, enumSize, isExported);
         for (size_t i = 0; i < memNames.size(); i++) {
             result += "\n" + std::string(indent + 1, '  ') + memNames[i] + " " + std::to_string(memValues[i]);
@@ -512,11 +713,19 @@ class SrcFile {
     std::string path;
     std::string uniqueName; // for non-duplicate compile
     std::unique_ptr<ScopeNode> code;
+    bool isTemplate;
     bool isFinished;
 
-    SrcFile(): path(""), uniqueName(""), isFinished(false), code() { code = std::make_unique<ScopeNode>(nullptr); }
-    SrcFile(const std::string& fpath): path(fpath), uniqueName(""), isFinished(false), code() { code = std::make_unique<ScopeNode>(nullptr); }
-    SrcFile(const std::string& fpath, const std::string& uname): path(fpath), uniqueName(uname), isFinished(false), code() { code = std::make_unique<ScopeNode>(nullptr); }
+    SrcFile(): path(""), uniqueName(""), isTemplate(false), isFinished(false), code() { code = std::make_unique<ScopeNode>(nullptr); }
+    SrcFile(const std::string& fpath): path(fpath), uniqueName(""), isTemplate(false), isFinished(false), code() { code = std::make_unique<ScopeNode>(nullptr); }
+    SrcFile(const std::string& fpath, const std::string& uname): path(fpath), uniqueName(uname), isTemplate(false), isFinished(false), code() { code = std::make_unique<ScopeNode>(nullptr); }
+
+    std::unique_ptr<SrcFile> Clone() {
+        std::unique_ptr<SrcFile> result = std::make_unique<SrcFile>(path, uniqueName);
+        result->code = code->clone(nullptr);
+        result->isFinished = isFinished;
+        return result;
+    }
 
     std::string toString() {
         std::string result = std::format("SrcFile {} {}", path, uniqueName);
