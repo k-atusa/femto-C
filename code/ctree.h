@@ -12,7 +12,8 @@ enum class CTypeType {
     SLICE,
     FUNCTION,
     STRUCT,
-    FOREIGN // foreign struct
+    FOREIGN, // foreign struct
+    L_INT, L_FLOAT // literal type or logical operation result
 };
 
 class CTypeNode {
@@ -52,6 +53,8 @@ class CDeclNode {
     CDeclNode(): objType(CDeclType::NONE), location(), name(""), uid(-1), declType(nullptr), isExported(false) {}
     CDeclNode(CDeclType tp): objType(tp), location(), name(""), uid(-1), declType(nullptr), isExported(false) {}
     CDeclNode(CDeclType tp, const std::string& nm): objType(tp), uid(-1), location(), name(nm), declType(nullptr), isExported(false) {}
+
+    virtual ~CDeclNode() {}
 };
 
 class CDeclVar : public CDeclNode {
@@ -139,9 +142,12 @@ class CExprNode {
     CExprType objType;
     Location location;
     std::unique_ptr<CTypeNode> exprType;
+    bool isLValue;
 
-    CExprNode(): objType(CExprType::NONE), location(), exprType(nullptr) {}
-    CExprNode(CExprType tp): objType(tp), location(), exprType(nullptr) {}
+    CExprNode(): objType(CExprType::NONE), location(), exprType(nullptr), isLValue(false) {}
+    CExprNode(CExprType tp): objType(tp), location(), exprType(nullptr), isLValue(false) {}
+
+    virtual ~CExprNode() {}
 };
 
 class CExprLiteral : public CExprNode {
@@ -172,9 +178,10 @@ class CExprOp : public CExprNode {
     public:
     std::unique_ptr<CExprNode> left;
     std::unique_ptr<CExprNode> right;
-    int offset; // byte offset for dot & arrow
+    int bytePos; // byte offset for dot & arrow
+    int idxPos; // index offset for dot & arrow
 
-    CExprOp(): CExprNode(), left(nullptr), right(nullptr), offset(-1) {}
+    CExprOp(): CExprNode(), left(nullptr), right(nullptr), bytePos(-1), idxPos(-1) {}
 };
 
 // compile tree statement node
@@ -203,6 +210,8 @@ class CStatNode {
 
     CStatNode(): objType(CStatType::NONE), location(), uid(-1), statType(nullptr), isReturnable(false) {}
     CStatNode(CStatType tp): objType(tp), location(), uid(-1), statType(nullptr), isReturnable(false) {}
+
+    virtual ~CStatNode() {}
 };
 
 class CStatRaw : public CStatNode {
