@@ -12,7 +12,6 @@ enum class CTypeType {
     SLICE,
     FUNCTION,
     STRUCT,
-    FOREIGN, // foreign struct
     L_INT, L_FLOAT // literal type or logical operation result
 };
 
@@ -20,7 +19,6 @@ class CTypeNode {
     public:
     CTypeType objType;
     std::string name;
-    std::string includeName; // include namespace for FOREIGN
     CDeclStruct* structLnk; // link to struct declaration
     std::unique_ptr<CTypeNode> direct; // ptr, arr, slice target & func return
     std::vector<std::unique_ptr<CTypeNode>> indirect; // func args
@@ -28,7 +26,7 @@ class CTypeNode {
     int typeSize; // total size in bytes
     int typeAlign; // align requirement in bytes
 
-    CTypeNode(): objType(CTypeType::NONE), name(""), includeName(""), structLnk(nullptr), direct(nullptr), indirect(), length(-1), typeSize(-1), typeAlign(-1) {}
+    CTypeNode(): objType(CTypeType::NONE), name(""), structLnk(nullptr), direct(nullptr), indirect(), length(-1), typeSize(-1), typeAlign(-1) {}
 };
 
 // compile tree declaration node
@@ -37,8 +35,7 @@ enum class CDeclType {
     VAR,
     FUNC,
     STRUCT,
-    ENUM,
-    INCLUDE
+    ENUM
 };
 
 class CDeclNode {
@@ -74,10 +71,9 @@ class CDeclFunc : public CDeclNode {
     std::vector<std::unique_ptr<CTypeNode>> paramTypes;
     std::vector<std::string> paramNames;
     std::unique_ptr<CStatNode> body;
-    bool isVaArg;
 
-    CDeclFunc(): CDeclNode(CDeclType::FUNC), retType(nullptr), paramTypes(), paramNames(), body(nullptr), isVaArg(false) {}
-    CDeclFunc(const std::string& nm): CDeclNode(CDeclType::FUNC, nm), retType(nullptr), paramTypes(), paramNames(), body(nullptr), isVaArg(false) {}
+    CDeclFunc(): CDeclNode(CDeclType::FUNC), retType(nullptr), paramTypes(), paramNames(), body(nullptr) {}
+    CDeclFunc(const std::string& nm): CDeclNode(CDeclType::FUNC, nm), retType(nullptr), paramTypes(), paramNames(), body(nullptr) {}
 };
 
 class CDeclStruct : public CDeclNode {
@@ -100,16 +96,6 @@ class CDeclEnum : public CDeclNode {
 
     CDeclEnum(): CDeclNode(CDeclType::ENUM), enumSize(-1), memNames(), memValues() {}
     CDeclEnum(const std::string& nm): CDeclNode(CDeclType::ENUM, nm), enumSize(-1), memNames(), memValues() {}
-};
-
-class CDeclInclude : public CDeclNode {
-    public:
-    std::string path; // path to include file
-    std::vector<int> tmpSize; // template arguments size
-    std::vector<int> tmpAlign; // template arguments align
-
-    CDeclInclude(): CDeclNode(CDeclType::INCLUDE), path(""), tmpSize(), tmpAlign() {}
-    CDeclInclude(const std::string& nm): CDeclNode(CDeclType::INCLUDE, nm), path(""), tmpSize(), tmpAlign() {}
 };
 
 // compile tree expression node
@@ -282,5 +268,7 @@ class CStatSwitch : public CStatNode {
 
     CStatSwitch(): CStatNode(CStatType::SWITCH), cond(nullptr), caseConds(), caseFalls(), caseBodies(), defaultBody() {}
 };
+
+
 
 #endif
