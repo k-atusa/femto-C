@@ -1936,7 +1936,7 @@ void jumpDecl(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
 }
 
 // final parser, returns error message or empty if ok
-std::string ASTGen::parse(const std::string& path) {
+std::string ASTGen::parse(const std::string& path, int nameCut) {
     // check if already parsed
     int index = findSource(path);
     if (index != -1) {
@@ -1947,6 +1947,9 @@ std::string ASTGen::parse(const std::string& path) {
         // find unique name
         std::string name = getFileName(path);
         std::string dir = getWorkingDir(path);
+        if (nameCut > 0) { // cut name
+            name = name.substr(nameCut);
+        }
         int count = 0;
         bool isIncluded = true;
         while (isIncluded) {

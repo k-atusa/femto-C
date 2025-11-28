@@ -755,7 +755,7 @@ class ASTGen {
         return result;
     }
 
-    std::string parse(const std::string& path); // returns error message or empty if ok
+    std::string parse(const std::string& path, int nameCut = -1); // returns error message or empty if ok
 
     private:
     std::string getLocString(const Location& loc) { return std::format("{}:{}", srcFiles[loc.srcLoc]->path, loc.line); }
