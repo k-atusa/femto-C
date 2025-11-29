@@ -5,6 +5,10 @@
 #include "baseFunc.h"
 #include "tokenizer.h"
 
+// forward declarations
+class ScopeNode;
+class TypeNode;
+
 // AST node types
 enum class ASTNodeType {
     NONE,
@@ -63,75 +67,7 @@ class ASTNode {
         return newNode;
     }
 
-    virtual std::string toString(int indent) { return std::string(indent, '  ') + std::format("AST {} {}", (int)objType, text); }
-};
-
-// include node
-class IncludeNode: public ASTNode {
-    public:
-    std::string path; // normal or template source file path
-    std::string& name; // import name
-    std::vector<std::unique_ptr<TypeNode>> args; // template type arguments
-
-    IncludeNode(): ASTNode(ASTNodeType::INCLUDE), path(""), name(text), args() {}
-
-    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
-        std::unique_ptr<IncludeNode> newNode = std::make_unique<IncludeNode>();
-        newNode->location = location;
-        newNode->text = text;
-        newNode->path = path;
-        for (auto& arg : args) {
-            newNode->args.push_back(arg->clone());
-        }
-        return newNode;
-    }
-
-    virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + std::format("INCLUDE {} {}", path, name);
-        for (auto& arg : args) {
-            result += "\n" + arg->toString(indent + 1);
-        }
-        return result;
-    }
-};
-
-// template variable node
-class DeclTemplateNode: public ASTNode {
-    public:
-    std::string& name; // template argument name
-    int tmpSize;
-    int tmpAlign;
-
-    DeclTemplateNode(): ASTNode(ASTNodeType::DECL_TEMPLATE), name(text), tmpSize(-1), tmpAlign(-1) {}
-
-    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
-        std::unique_ptr<DeclTemplateNode> newNode = std::make_unique<DeclTemplateNode>();
-        newNode->location = location;
-        newNode->text = text;
-        newNode->tmpSize = tmpSize;
-        newNode->tmpAlign = tmpAlign;
-        return newNode;
-    }
-
-    virtual std::string toString(int indent) { return std::string(indent, '  ') + std::format("DECLTMP {}", name); }
-};
-
-// raw code node
-class RawCodeNode: public ASTNode {
-    public:
-    std::string& code; // raw code of C or IR
-
-    RawCodeNode(): ASTNode(ASTNodeType::NONE), code(text) {}
-    RawCodeNode(ASTNodeType tp): ASTNode(tp), code(text) {}
-
-    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
-        std::unique_ptr<RawCodeNode> newNode = std::make_unique<RawCodeNode>(objType);
-        newNode->location = location;
-        newNode->text = text;
-        return newNode;
-    }
-
-    virtual std::string toString(int indent) { return std::string(indent, '  ') + std::format("RAW {}", code); }
+    virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("AST {} {}", (int)objType, text); }
 };
 
 // type node
@@ -186,7 +122,7 @@ class TypeNode: public ASTNode {
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + std::format("TYPE {} {} {} {} {} {}", name, includeName, subType, length, typeSize, typeAlign);
+        std::string result = std::string(indent * 2, ' ') + std::format("TYPE {} {} {} {} {} {}", name, includeName, (int)subType, length, typeSize, typeAlign);
         if (direct) result += "\n" + direct->toString(indent + 1);
         for (auto& ind : indirect) {
             result += "\n" + ind->toString(indent + 1);
@@ -239,6 +175,74 @@ class TypeNode: public ASTNode {
     }
 };
 
+// include node
+class IncludeNode: public ASTNode {
+    public:
+    std::string path; // normal or template source file path
+    std::string& name; // import name
+    std::vector<std::unique_ptr<TypeNode>> args; // template type arguments
+
+    IncludeNode(): ASTNode(ASTNodeType::INCLUDE), path(""), name(text), args() {}
+
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<IncludeNode> newNode = std::make_unique<IncludeNode>();
+        newNode->location = location;
+        newNode->text = text;
+        newNode->path = path;
+        for (auto& arg : args) {
+            newNode->args.push_back(arg->clone());
+        }
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("INCLUDE {} {}", path, name);
+        for (auto& arg : args) {
+            result += "\n" + arg->toString(indent + 1);
+        }
+        return result;
+    }
+};
+
+// template variable node
+class DeclTemplateNode: public ASTNode {
+    public:
+    std::string& name; // template argument name
+    int tmpSize;
+    int tmpAlign;
+
+    DeclTemplateNode(): ASTNode(ASTNodeType::DECL_TEMPLATE), name(text), tmpSize(-1), tmpAlign(-1) {}
+
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<DeclTemplateNode> newNode = std::make_unique<DeclTemplateNode>();
+        newNode->location = location;
+        newNode->text = text;
+        newNode->tmpSize = tmpSize;
+        newNode->tmpAlign = tmpAlign;
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("DECLTMP {}", name); }
+};
+
+// raw code node
+class RawCodeNode: public ASTNode {
+    public:
+    std::string& code; // raw code of C or IR
+
+    RawCodeNode(): ASTNode(ASTNodeType::NONE), code(text) {}
+    RawCodeNode(ASTNodeType tp): ASTNode(tp), code(text) {}
+
+    virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
+        std::unique_ptr<RawCodeNode> newNode = std::make_unique<RawCodeNode>(objType);
+        newNode->location = location;
+        newNode->text = text;
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("RAW {}", code); }
+};
+
 // atomic expression for literal, name
 class AtomicExprNode: public ASTNode {
     public:
@@ -263,7 +267,7 @@ class AtomicExprNode: public ASTNode {
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ');
+        std::string result = std::string(indent * 2, ' ');
         if (objType == ASTNodeType::LITERAL) result += std::format("LITERAL {}", literal.toString());
         if (objType == ASTNodeType::LITERAL_ARRAY) {
             result += "LITERAL_ARRAY";
@@ -329,7 +333,7 @@ class OperationNode: public ASTNode {
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + std::format("OPERATION {}", subType);
+        std::string result = std::string(indent * 2, ' ') + std::format("OPERATION {}", (int)subType);
         if (operand0 != nullptr) result += "\n" + operand0->toString(indent + 1);
         if (operand1 != nullptr) result += "\n" + operand1->toString(indent + 1);
         if (operand2 != nullptr) result += "\n" + operand2->toString(indent + 1);
@@ -357,7 +361,7 @@ class FuncCallNode: public ASTNode {
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + "FUNC_CALL";
+        std::string result = std::string(indent * 2, ' ') + "FUNC_CALL";
         result += "\n" + funcExpr->toString(indent + 1);
         for (auto& arg : args) {
             result += "\n" + arg->toString(indent + 1);
@@ -393,7 +397,7 @@ class DeclVarNode: public ASTNode {
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + std::format("VAR_DECL {} {} {} {} {}", name, isDefine, isExtern, isExported, isParam);
+        std::string result = std::string(indent * 2, ' ') + std::format("VAR_DECL {} {} {} {} {}", name, isDefine, isExtern, isExported, isParam);
         if (varType) result += "\n" + varType->toString(indent + 1);
         if (varExpr) result += "\n" + varExpr->toString(indent + 1);
         return result;
@@ -418,7 +422,7 @@ class AssignNode: public ASTNode {
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + "ASSIGN";
+        std::string result = std::string(indent * 2, ' ') + "ASSIGN";
         result += "\n" + lvalue->toString(indent + 1);
         result += "\n" + rvalue->toString(indent + 1);
         return result;
@@ -441,7 +445,7 @@ class ShortStatNode: public ASTNode {
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + std::format("SHORTSTAT {}", objType);
+        std::string result = std::string(indent * 2, ' ') + std::format("SHORTSTAT {}", (int)objType);
         if (statExpr) result += "\n" + statExpr->toString(indent + 1);
         return result;
     }
@@ -469,7 +473,7 @@ class ScopeNode: public ASTNode {
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + "SCOPE";
+        std::string result = std::string(indent * 2, ' ') + "SCOPE";
         for (auto& node : body) result += "\n" + node->toString(indent + 1);
         return result;
     }
@@ -497,7 +501,7 @@ class IfNode: public ASTNode {
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + "IF";
+        std::string result = std::string(indent * 2, ' ') + "IF";
         if (cond) result += "\n" + cond->toString(indent + 1);
         if (ifBody) result += "\n" + ifBody->toString(indent + 1);
         if (elseBody) result += "\n" + elseBody->toString(indent + 1);
@@ -522,7 +526,7 @@ class WhileNode: public ASTNode {
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + "WHILE";
+        std::string result = std::string(indent * 2, ' ') + "WHILE";
         if (cond) result += "\n" + cond->toString(indent + 1);
         if (body) result += "\n" + body->toString(indent + 1);
         return result;
@@ -549,7 +553,7 @@ class ForNode: public ASTNode {
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + "FOR_BODY";
+        std::string result = std::string(indent * 2, ' ') + "FOR_BODY";
         if (cond) result += "\n" + cond->toString(indent + 1);
         if (body) result += "\n" + body->toString(indent + 1);
         if (step) result += "\n" + step->toString(indent + 1);
@@ -588,15 +592,15 @@ class SwitchNode: public ASTNode {
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + "SWITCH";
+        std::string result = std::string(indent * 2, ' ') + "SWITCH";
         if (cond) result += "\n" + cond->toString(indent + 1);
         for (size_t i = 0; i < caseConds.size(); i++) {
-            result += "\n" + std::string(indent + 1, '  ') + std::to_string(caseConds[i]);
+            result += "\n" + std::string((indent + 1) * 2, ' ') + std::to_string(caseConds[i]);
             for (auto& stmt : caseBodies[i]) {
                 result += "\n" + stmt->toString(indent + 1);
             }
         }
-        result += "\n" + std::string(indent + 1, '  ') + "_";
+        result += "\n" + std::string((indent + 1) * 2, ' ') + "_";
         for (auto& stmt : defaultBody) {
             result += "\n" + stmt->toString(indent + 1);
         }
@@ -635,7 +639,7 @@ class DeclFuncNode: public ASTNode {
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + std::format("DECLFUNC {} {} {}", name, isVaArg, isExported);
+        std::string result = std::string(indent * 2, ' ') + std::format("DECLFUNC {} {} {}", name, isVaArg, isExported);
         if (retType) result += "\n" + retType->toString(indent + 1);
         for (auto& type : paramTypes) result += "\n" + type->toString(indent + 1);
         if (body) result += "\n" + body->toString(indent + 1);
@@ -669,9 +673,9 @@ class DeclStructNode: public ASTNode {
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + std::format("DECLSTRUCT {} {} {} {}", name, structSize, structAlign, isExported);
+        std::string result = std::string(indent * 2, ' ') + std::format("DECLSTRUCT {} {} {} {}", name, structSize, structAlign, isExported);
         for (size_t i = 0; i < memNames.size(); i++) {
-            result += "\n" + std::string(indent + 1, '  ') + std::to_string(memOffsets[i]) + "\n" + memTypes[i]->toString(indent + 1);
+            result += "\n" + std::string((indent + 1) * 2, ' ') + std::to_string(memOffsets[i]) + "\n" + memTypes[i]->toString(indent + 1);
         }
         return result;
     }
@@ -699,9 +703,9 @@ class DeclEnumNode: public ASTNode {
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent, '  ') + std::format("DECLENUM {} {} {}", name, enumSize, isExported);
+        std::string result = std::string(indent * 2, ' ') + std::format("DECLENUM {} {} {}", name, enumSize, isExported);
         for (size_t i = 0; i < memNames.size(); i++) {
-            result += "\n" + std::string(indent + 1, '  ') + memNames[i] + " " + std::to_string(memValues[i]);
+            result += "\n" + std::string((indent + 1) * 2, ' ') + memNames[i] + " " + std::to_string(memValues[i]);
         }
         return result;
     }
@@ -723,6 +727,7 @@ class SrcFile {
     std::unique_ptr<SrcFile> Clone() {
         std::unique_ptr<SrcFile> result = std::make_unique<SrcFile>(path, uniqueName);
         result->code = code->clone(nullptr);
+        result->isTemplate = isTemplate;
         result->isFinished = isFinished;
         return result;
     }
@@ -744,7 +749,7 @@ class ASTGen {
     public:
     CompileMessage prt;
     int arch; // target architecture in bytes
-    std::vector<std::unique_ptr<SrcFile>> srcFiles;
+    std::vector<std::unique_ptr<SrcFile>> srcFiles; // parse result
 
     ASTGen(): prt(3), arch(8), srcFiles() {}
     ASTGen(int p, int a): prt(p), arch(a), srcFiles() {}
@@ -755,11 +760,11 @@ class ASTGen {
         return result;
     }
 
+    int findSource(const std::string& path); // find source file index, -1 if not found
     std::string parse(const std::string& path, int nameCut = -1); // returns error message or empty if ok
 
     private:
     std::string getLocString(const Location& loc) { return std::format("{}:{}", srcFiles[loc.srcLoc]->path, loc.line); }
-    int findSource(const std::string& path); // find source file index, -1 if not found
     bool isTypeStart(TokenProvider& tp, SrcFile& src);
     Literal foldNode(ASTNode& tgt, ScopeNode& current, SrcFile& src); // constant folding for name & oper, type NONE if not folded
 

@@ -214,7 +214,7 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
 
     } else if (tp.match({TokenType::IDENTIFIER})) { // tmp, struct, enum
         Token& nameTkn = tp.pop();
-        result = std::make_unique<TypeNode>(nameTkn.text);
+        result = std::make_unique<TypeNode>(TypeNodeType::NAME, nameTkn.text);
         result->location = nameTkn.location;
 
     } else if (tp.canPop(1)) { // primitive
@@ -932,7 +932,7 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
     std::unique_ptr<DeclFuncNode> funcNode = std::make_unique<DeclFuncNode>();
     funcNode->location = retType->location;
     funcNode->retType = std::move(retType);
-    funcNode->body = std::make_unique<ScopeNode>(current);
+    funcNode->body = std::make_unique<ScopeNode>(&current);
     if (tp.match({TokenType::IDENTIFIER, TokenType::OP_DOT, TokenType::IDENTIFIER})) { // method
         Token& structTkn = tp.pop();
         tp.pop();
@@ -1426,7 +1426,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             {
                 // init statement will be at another outside scope
                 tp.pop();
-                std::unique_ptr<ScopeNode> forScope = std::make_unique<ScopeNode>(current);
+                std::unique_ptr<ScopeNode> forScope = std::make_unique<ScopeNode>(&current);
                 forScope->location = tkn.location;
                 std::unique_ptr<ForNode> forNode = std::make_unique<ForNode>();
                 forNode->location = tkn.location;
@@ -1481,7 +1481,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                     throw std::runtime_error(std::format("E0618 expected ')' at {}", getLocString(switchNode->location))); // E0618
                 }
                 if (tp.pop().objType != TokenType::OP_LBRACE) {
-                    throw std::runtime_error(std::format("E0619 expected '{' at {}", getLocString(switchNode->location))); // E0619
+                    throw std::runtime_error(std::format("E0619 expected '{{' at {}", getLocString(switchNode->location))); // E0619
                 }
 
                 // parse case/default bodies
@@ -1883,7 +1883,7 @@ bool ASTGen::completeStruct(SrcFile& src, DeclStructNode& tgt) {
         isModified = isModified | completeType(src, *mem);
     }
     for (auto& mem : tgt.memTypes) {
-        if (mem->typeSize == -1) {
+        if (mem->typeSize <= 0) {
             return isModified;
         }
     }

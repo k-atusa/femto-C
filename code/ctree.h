@@ -2,7 +2,31 @@
 #define CTREE_H
 
 #include <unordered_map>
-#include "astgen.h"
+#include "astGen.h"
+
+// complete AST nodes
+class ASTCalc {
+    public:
+    CompileMessage prt;
+    int arch; // target architecture in bytes
+    std::vector<std::unique_ptr<SrcFile>> srcFiles; // calculation result
+    ASTGen* astGen;
+
+    ASTCalc(): prt(3), arch(8), srcFiles(), astGen(nullptr) {}
+    ASTCalc(ASTGen* ast): prt(ast->prt), arch(ast->arch), srcFiles(), astGen(ast) {}
+
+    std::string complete(); // returns error message or empty if ok
+
+    private:
+    
+};
+
+class CDeclStruct;
+class CStatNode;
+class CStatWhile;
+class CDeclVar;
+class CDeclFunc;
+class CStatExpr;
 
 // compile tree type node
 enum class CTypeType {
@@ -45,6 +69,61 @@ class CTypeNode {
         newType->typeAlign = typeAlign;
         return newType;
     }
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("CTYPE {} {} {} {} {}", name, (int)objType, length, typeSize, typeAlign);
+        if (direct) result += "\n" + direct->toString(indent + 1);
+        for (auto& ind : indirect) {
+            result += "\n" + ind->toString(indent + 1);
+        }
+        return result;
+    }
+};
+
+// forward declaration for compile tree statement node
+enum class CStatType {
+    NONE,
+    RAW_C,
+    RAW_IR,
+    BREAK,
+    CONTINUE,
+    RETURN,
+    EXPR,
+    ASSIGN,
+    SCOPE,
+    IF,
+    WHILE,
+    SWITCH
+};
+
+class CStatNode {
+    public:
+    CStatType objType;
+    Location location;
+    int uid; // unique id
+    std::unique_ptr<CTypeNode> statType;
+    bool isReturnable;
+
+    CStatNode(): objType(CStatType::NONE), location(), uid(-1), statType(nullptr), isReturnable(false) {}
+    CStatNode(CStatType tp): objType(tp), location(), uid(-1), statType(nullptr), isReturnable(false) {}
+
+    virtual ~CStatNode() {}
+
+    virtual std::unique_ptr<CStatNode> clone() {
+        std::unique_ptr<CStatNode> newStat = std::make_unique<CStatNode>(objType);
+        newStat->location = location;
+        if (statType != nullptr) {
+            newStat->statType = statType->clone();
+        }
+        newStat->isReturnable = isReturnable;
+        return newStat;
+    }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("CSTAT {} {} {}", (int)objType, uid, isReturnable);
+        if (statType) result += "\n" + statType->toString(indent + 1);
+        return result;
+    }
 };
 
 // compile tree declaration node
@@ -82,6 +161,12 @@ class CDeclNode {
         newDecl->isExported = isExported;
         return newDecl;
     }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("CDECL {} {} {} {}", name, (int)objType, uid, isExported);
+        if (declType) result += "\n" + declType->toString(indent + 1);
+        return result;
+    }
 };
 
 class CDeclVar : public CDeclNode {
@@ -107,6 +192,12 @@ class CDeclVar : public CDeclNode {
         newDecl->isExtern = isExtern;
         newDecl->isParam = isParam;
         return newDecl;
+    }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("CDECL_VAR {} {} {} {} {}", name, init.toString(), isDefine, isExtern, isParam);
+        if (declType) result += "\n" + declType->toString(indent + 1);
+        return result;
     }
 };
 
@@ -138,6 +229,17 @@ class CDeclFunc : public CDeclNode {
             newDecl->body = body->clone();
         }
         return newDecl;
+    }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("CDECL_FUNC {}", name);
+        if (retType) result += "\n" + retType->toString(indent + 1);
+        for (size_t i = 0; i < paramTypes.size(); i++) {
+            result += "\n" + std::string((indent + 1) * 2, ' ') + paramNames[i];
+            result += "\n" + paramTypes[i]->toString(indent + 1);
+        }
+        if (body) result += "\n" + body->toString(indent + 1);
+        return result;
     }
 };
 
@@ -173,6 +275,15 @@ class CDeclStruct : public CDeclNode {
         }
         return newDecl;
     }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("CDECL_STRUCT {} {} {}", name, structSize, structAlign);
+        for (size_t i = 0; i < memNames.size(); i++) {
+            result += "\n" + std::string((indent + 1) * 2, ' ') + std::format("{} {}", memNames[i], memOffsets[i]);
+            result += "\n" + memTypes[i]->toString(indent + 1);
+        }
+        return result;
+    }
 };
 
 class CDeclEnum : public CDeclNode {
@@ -200,6 +311,14 @@ class CDeclEnum : public CDeclNode {
             newDecl->memValues.push_back(value);
         }
         return newDecl;
+    }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("CDECL_ENUM {} {}", name, enumSize);
+        for (size_t i = 0; i < memNames.size(); i++) {
+            result += "\n" + std::string((indent + 1) * 2, ' ') + std::format("{} {}", memNames[i], memValues[i]);
+        }
+        return result;
     }
 };
 
@@ -250,6 +369,12 @@ class CExprNode {
         newExpr->isLValue = isLValue;
         return newExpr;
     }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("CEXPR {} {}", (int)objType, isLValue);
+        if (exprType) result += "\n" + exprType->toString(indent + 1);
+        return result;
+    }
 };
 
 class CExprLiteral : public CExprNode {
@@ -269,6 +394,14 @@ class CExprLiteral : public CExprNode {
         }
         newExpr->word = word;
         return newExpr;
+    }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("CEXPR_LITERAL {} {}", literal.toString(), word);
+        for (auto& elem : elements) {
+            result += "\n" + elem->toString(indent + 1);
+        }
+        return result;
     }
 };
 
@@ -290,6 +423,13 @@ class CExprUse : public CExprNode {
         }
         return newExpr;
     }
+
+    virtual std::string toString(int indent) {
+        std::string target = "null";
+        if (var) target = var->name;
+        if (func) target = func->name;
+        return std::string(indent * 2, ' ') + std::format("CEXPR_USE {}", target);
+    }
 };
 
 class CExprCall : public CExprNode {
@@ -309,6 +449,15 @@ class CExprCall : public CExprNode {
             newExpr->args.push_back(arg->clone());
         }
         return newExpr;
+    }
+
+    virtual std::string toString(int indent) {
+        std::string target = func ? func->name : "null";
+        std::string result = std::string(indent * 2, ' ') + std::format("CEXPR_CALL {}", target);
+        for (auto& arg : args) {
+            result += "\n" + arg->toString(indent + 1);
+        }
+        return result;
     }
 };
 
@@ -334,47 +483,16 @@ class CExprOp : public CExprNode {
         newExpr->idxPos = idxPos;
         return newExpr;
     }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("CEXPR_OP {} {}", bytePos, idxPos);
+        if (left) result += "\n" + left->toString(indent + 1);
+        if (right) result += "\n" + right->toString(indent + 1);
+        return result;
+    }
 };
 
 // compile tree statement node
-enum class CStatType {
-    NONE,
-    RAW_C,
-    RAW_IR,
-    BREAK,
-    CONTINUE,
-    RETURN,
-    EXPR,
-    ASSIGN,
-    SCOPE,
-    IF,
-    WHILE,
-    SWITCH
-};
-
-class CStatNode {
-    public:
-    CStatType objType;
-    Location location;
-    int uid; // unique id
-    std::unique_ptr<CTypeNode> statType;
-    bool isReturnable;
-
-    CStatNode(): objType(CStatType::NONE), location(), uid(-1), statType(nullptr), isReturnable(false) {}
-    CStatNode(CStatType tp): objType(tp), location(), uid(-1), statType(nullptr), isReturnable(false) {}
-
-    virtual ~CStatNode() {}
-
-    virtual std::unique_ptr<CStatNode> clone() {
-        std::unique_ptr<CStatNode> newStat = std::make_unique<CStatNode>(objType);
-        newStat->location = location;
-        if (statType != nullptr) {
-            newStat->statType = statType->clone();
-        }
-        newStat->isReturnable = isReturnable;
-        return newStat;
-    }
-};
 
 class CStatRaw : public CStatNode {
     public:
@@ -387,6 +505,10 @@ class CStatRaw : public CStatNode {
         newStat->location = location;
         newStat->code = code;
         return newStat;
+    }
+
+    virtual std::string toString(int indent) {
+        return std::string(indent * 2, ' ') + std::format("CSTAT_RAW {}", code);
     }
 };
 
@@ -408,6 +530,12 @@ class CStatCtrl : public CStatNode {
         }
         return newStat;
     }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + "CSTAT_CTRL";
+        if (expr) result += "\n" + expr->toString(indent + 1);
+        return result;
+    }
 };
 
 class CStatExpr : public CStatNode {
@@ -423,6 +551,12 @@ class CStatExpr : public CStatNode {
             newStat->expr = expr->clone();
         }
         return newStat;
+    }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + "CSTAT_EXPR";
+        if (expr) result += "\n" + expr->toString(indent + 1);
+        return result;
     }
 };
 
@@ -444,6 +578,13 @@ class CStatAssign : public CStatNode {
         }
         return newStat;
     }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + "CSTAT_ASSIGN";
+        if (left) result += "\n" + left->toString(indent + 1);
+        if (right) result += "\n" + right->toString(indent + 1);
+        return result;
+    }
 };
 
 class CStatScope : public CStatNode {
@@ -451,7 +592,6 @@ class CStatScope : public CStatNode {
     std::vector<std::unique_ptr<CDeclNode>> decls;
     std::vector<std::unique_ptr<CStatNode>> stats;
 
-    CStatScope(): CStatNode(CStatType::SCOPE), decls(), stats() {}
     CStatScope(): CStatNode(CStatType::SCOPE), decls(), stats() {}
 
     virtual std::unique_ptr<CStatNode> clone() {
@@ -464,6 +604,13 @@ class CStatScope : public CStatNode {
             newStat->stats.push_back(stat->clone());
         }
         return newStat;
+    }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + "CSTAT_SCOPE";
+        for (auto& decl : decls) result += "\n" + decl->toString(indent + 1);
+        for (auto& stat : stats) result += "\n" + stat->toString(indent + 1);
+        return result;
     }
 };
 
@@ -489,6 +636,14 @@ class CStatIf : public CStatNode {
         }
         return newStat;
     }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + "CSTAT_IF";
+        if (cond) result += "\n" + cond->toString(indent + 1);
+        if (ifStat) result += "\n" + ifStat->toString(indent + 1);
+        if (elseStat) result += "\n" + elseStat->toString(indent + 1);
+        return result;
+    }
 };
 
 class CStatWhile : public CStatNode {
@@ -512,6 +667,13 @@ class CStatWhile : public CStatNode {
         newStat->isTgtBreak = isTgtBreak;
         newStat->isTgtContinue = isTgtContinue;
         return newStat;
+    }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("CSTAT_WHILE {} {}", isTgtBreak, isTgtContinue);
+        if (cond) result += "\n" + cond->toString(indent + 1);
+        if (stat) result += "\n" + stat->toString(indent + 1);
+        return result;
     }
 };
 
@@ -538,12 +700,24 @@ class CStatSwitch : public CStatNode {
             for (auto& stat : body) {
                 newBody.push_back(stat->clone());
             }
-            newStat->caseBodies.push_back(newBody);
+            newStat->caseBodies.push_back(std::move(newBody));
         }
         for (auto& stat : defaultBody) {
             newStat->defaultBody.push_back(stat->clone());
         }
         return newStat;
+    }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + "CSTAT_SWITCH";
+        if (cond) result += "\n" + cond->toString(indent + 1);
+        for (size_t i = 0; i < caseConds.size(); i++) {
+            result += "\n" + std::string((indent + 1) * 2, ' ') + std::format("CASE {} {}", caseConds[i], caseFalls[i]);
+            for (auto& stat : caseBodies[i]) result += "\n" + stat->toString(indent + 1);
+        }
+        result += "\n" + std::string((indent + 1) * 2, ' ') + "DEFAULT";
+        for (auto& stat : defaultBody) result += "\n" + stat->toString(indent + 1);
+        return result;
     }
 };
 
@@ -558,6 +732,13 @@ class CModule {
 
     CModule(): path(""), appendIdx(-1), decls(), stats(), nameMap() {}
     CModule(const std::string& p, int i): path(p), appendIdx(i), decls(), stats(), nameMap() {}
+
+    std::string toString() {
+        std::string result = std::format("CMODULE {} {}", path, appendIdx);
+        for (auto& decl : decls) result += "\n" + decl->toString(1);
+        for (auto& stat : stats) result += "\n" + stat->toString(1);
+        return result;
+    }
 };
 
 // compile tree generator
