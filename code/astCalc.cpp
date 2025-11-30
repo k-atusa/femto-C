@@ -196,7 +196,11 @@ std::string ASTCalc::complete(std::unique_ptr<SrcFile> src, std::vector<int>& tm
                     tmpAligns.push_back(arg->typeAlign);
                 }
                 if (findSource(incNodes[i]->path, tmpSizes, tmpAligns) == -1) { // include only if not imported
-                    std::unique_ptr<SrcFile> incArg = astGen->srcFiles[astGen->findSource(incNodes[i]->path)]->Clone();
+                    int idx = astGen->findSource(incNodes[i]->path);
+                    if (idx == -1) {
+                        return std::format("E0807 include {} not found at {}", incNodes[i]->name, getLocString(incNodes[i]->location)); // E0807
+                    }
+                    std::unique_ptr<SrcFile> incArg = astGen->srcFiles[idx]->Clone();
                     std::string err = complete(std::move(incArg), tmpSizes, tmpAligns);
                     if (!err.empty()) {
                         return err;
@@ -218,12 +222,12 @@ std::string ASTCalc::complete(std::unique_ptr<SrcFile> src, std::vector<int>& tm
     // check includes, structs
     for (auto& incNode : incNodes) {
         if (incNode != nullptr) {
-            return std::format("E0807 tmpArgs of include {} size undecidable at {}", incNode->name, getLocString(incNode->location)); // E0807
+            return std::format("E0808 tmpArgs of include {} size undecidable at {}", incNode->name, getLocString(incNode->location)); // E0808
         }
     }
     for (auto& structNode : structNodes) {
         if (structNode->structSize <= 0) {
-            return std::format("E0808 struct {} size undecidable at {}", structNode->name, getLocString(structNode->location)); // E0808
+            return std::format("E0809 struct {} size undecidable at {}", structNode->name, getLocString(structNode->location)); // E0809
         }
     }
 
@@ -233,14 +237,14 @@ std::string ASTCalc::complete(std::unique_ptr<SrcFile> src, std::vector<int>& tm
     bool found = true;
     while (found) {
         found = false;
-        for (auto& src : srcTrees) {
-            if (src->uniqueName == uname) {
+        for (auto& s : srcTrees) {
+            if (s->uniqueName == uname) {
                 found = true;
                 break;
             }
         }
         if (found) {
-            src->uniqueName = std::format("{}_{}", uname, count++);
+            uname = std::format("{}_{}", uname, count++);
         }
     }
     src->uniqueName = uname;

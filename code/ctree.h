@@ -4,28 +4,12 @@
 #include <unordered_map>
 #include "astGen.h"
 
-// complete AST nodes
-class ASTCalc {
-    public:
-    CompileMessage prt;
-    int arch; // target architecture in bytes
-    std::vector<std::unique_ptr<SrcFile>> srcFiles; // calculation result
-    ASTGen* astGen;
-
-    ASTCalc(): prt(3), arch(8), srcFiles(), astGen(nullptr) {}
-    ASTCalc(ASTGen* ast): prt(ast->prt), arch(ast->arch), srcFiles(), astGen(ast) {}
-
-    std::string complete(); // returns error message or empty if ok
-
-    private:
-    
-};
-
 class CDeclStruct;
 class CStatNode;
 class CStatWhile;
 class CDeclVar;
 class CDeclFunc;
+class CExprNode;
 class CStatExpr;
 
 // compile tree type node
@@ -36,8 +20,7 @@ enum class CTypeType {
     ARRAY,
     SLICE,
     FUNCTION,
-    STRUCT,
-    L_INT, L_FLOAT // literal type or logical operation result
+    STRUCT
 };
 
 class CTypeNode {
@@ -50,8 +33,9 @@ class CTypeNode {
     int64_t length; // array length
     int typeSize; // total size in bytes
     int typeAlign; // align requirement in bytes
+    bool autoCast; // auto cast primitive or struct having same memory layout
 
-    CTypeNode(): objType(CTypeType::NONE), name(""), structLnk(nullptr), direct(nullptr), indirect(), length(-1), typeSize(-1), typeAlign(-1) {}
+    CTypeNode(): objType(CTypeType::NONE), name(""), structLnk(nullptr), direct(nullptr), indirect(), length(-1), typeSize(-1), typeAlign(-1), autoCast(false) {}
 
     std::unique_ptr<CTypeNode> clone() {
         std::unique_ptr<CTypeNode> newType = std::make_unique<CTypeNode>();
@@ -67,6 +51,7 @@ class CTypeNode {
         newType->length = length;
         newType->typeSize = typeSize;
         newType->typeAlign = typeAlign;
+        newType->autoCast = autoCast;
         return newType;
     }
 
@@ -112,6 +97,7 @@ class CStatNode {
     virtual std::unique_ptr<CStatNode> clone() {
         std::unique_ptr<CStatNode> newStat = std::make_unique<CStatNode>(objType);
         newStat->location = location;
+        newStat->uid = uid;
         if (statType != nullptr) {
             newStat->statType = statType->clone();
         }
@@ -126,7 +112,62 @@ class CStatNode {
     }
 };
 
-// compile tree declaration node
+// forward declaration for compile tree expression node
+enum class CExprType {
+    NONE,
+    LITERAL,
+    LITERAL_KEY,
+    LITERAL_ARRAY,
+    VAR_USE,
+    FUNC_USE,
+    FUNC_CALL,
+    // operations
+    B_DOT, B_ARROW, B_INDEX,
+    U_PLUS, U_MINUS, U_LOGIC_NOT, U_BIT_NOT, U_REF, U_DEREF,
+    B_MUL, B_DIV, B_MOD,
+    B_ADD, B_SUB,
+    B_SHL, B_SHR,
+    B_LT, B_LE, B_GT, B_GE,
+    B_EQ, B_NE,
+    B_BIT_AND,
+    B_BIT_XOR,
+    B_BIT_OR,
+    B_LOGIC_AND,
+    B_LOGIC_OR,
+    // integrated func
+    U_SIZEOF, B_CAST, B_MAKE, U_LEN
+};
+
+class CExprNode {
+    public:
+    CExprType objType;
+    Location location;
+    std::unique_ptr<CTypeNode> exprType;
+    bool isLValue;
+
+    CExprNode(): objType(CExprType::NONE), location(), exprType(nullptr), isLValue(false) {}
+    CExprNode(CExprType tp): objType(tp), location(), exprType(nullptr), isLValue(false) {}
+
+    virtual ~CExprNode() {}
+
+    virtual std::unique_ptr<CExprNode> clone() {
+        std::unique_ptr<CExprNode> newExpr = std::make_unique<CExprNode>(objType);
+        newExpr->location = location;
+        if (exprType != nullptr) {
+            newExpr->exprType = exprType->clone();
+        }
+        newExpr->isLValue = isLValue;
+        return newExpr;
+    }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("CEXPR {} {}", (int)objType, isLValue);
+        if (exprType) result += "\n" + exprType->toString(indent + 1);
+        return result;
+    }
+};
+
+// forward delclation of compile tree declaration node
 enum class CDeclType {
     NONE,
     VAR,
@@ -169,6 +210,7 @@ class CDeclNode {
     }
 };
 
+// compile tree declaration node
 class CDeclVar : public CDeclNode {
     public:
     Literal init;
@@ -191,6 +233,7 @@ class CDeclVar : public CDeclNode {
         newDecl->isDefine = isDefine;
         newDecl->isExtern = isExtern;
         newDecl->isParam = isParam;
+        newDecl->isExported = isExported;
         return newDecl;
     }
 
@@ -216,6 +259,10 @@ class CDeclFunc : public CDeclNode {
         newDecl->location = location;
         newDecl->name = name;
         newDecl->uid = uid;
+        if (declType != nullptr) {
+            newDecl->declType = declType->clone();
+        }
+        newDecl->isExported = isExported;
         if (retType != nullptr) {
             newDecl->retType = retType->clone();
         }
@@ -273,6 +320,7 @@ class CDeclStruct : public CDeclNode {
         for (auto& offset : memOffsets) {
             newDecl->memOffsets.push_back(offset);
         }
+        newDecl->isExported = isExported;
         return newDecl;
     }
 
@@ -310,6 +358,7 @@ class CDeclEnum : public CDeclNode {
         for (auto& value : memValues) {
             newDecl->memValues.push_back(value);
         }
+        newDecl->isExported = isExported;
         return newDecl;
     }
 
@@ -323,60 +372,6 @@ class CDeclEnum : public CDeclNode {
 };
 
 // compile tree expression node
-enum class CExprType {
-    NONE,
-    LITERAL,
-    LITERAL_KEY,
-    LITERAL_ARRAY,
-    VAR_USE,
-    FUNC_USE,
-    FUNC_CALL,
-    // operations
-    B_DOT, B_ARROW, B_INDEX,
-    U_PLUS, U_MINUS, U_LOGIC_NOT, U_BIT_NOT, U_REF, U_DEREF,
-    B_MUL, B_DIV, B_MOD,
-    B_ADD, B_SUB,
-    B_SHL, B_SHR,
-    B_LT, B_LE, B_GT, B_GE,
-    B_EQ, B_NE,
-    B_BIT_AND,
-    B_BIT_XOR,
-    B_BIT_OR,
-    B_LOGIC_AND,
-    B_LOGIC_OR,
-    // integrated func
-    U_SIZEOF, B_CAST, B_MAKE, U_LEN
-};
-
-class CExprNode {
-    public:
-    CExprType objType;
-    Location location;
-    std::unique_ptr<CTypeNode> exprType;
-    bool isLValue;
-
-    CExprNode(): objType(CExprType::NONE), location(), exprType(nullptr), isLValue(false) {}
-    CExprNode(CExprType tp): objType(tp), location(), exprType(nullptr), isLValue(false) {}
-
-    virtual ~CExprNode() {}
-
-    virtual std::unique_ptr<CExprNode> clone() {
-        std::unique_ptr<CExprNode> newExpr = std::make_unique<CExprNode>(objType);
-        newExpr->location = location;
-        if (exprType != nullptr) {
-            newExpr->exprType = exprType->clone();
-        }
-        newExpr->isLValue = isLValue;
-        return newExpr;
-    }
-
-    virtual std::string toString(int indent) {
-        std::string result = std::string(indent * 2, ' ') + std::format("CEXPR {} {}", (int)objType, isLValue);
-        if (exprType) result += "\n" + exprType->toString(indent + 1);
-        return result;
-    }
-};
-
 class CExprLiteral : public CExprNode {
     public:
     Literal literal; // literal
@@ -387,7 +382,10 @@ class CExprLiteral : public CExprNode {
 
     virtual std::unique_ptr<CExprNode> clone() {
         std::unique_ptr<CExprLiteral> newExpr = std::make_unique<CExprLiteral>();
+        newExpr->objType = objType;
         newExpr->location = location;
+        newExpr->exprType = exprType->clone();
+        newExpr->isLValue = isLValue;
         newExpr->literal = literal;
         for (auto& element : elements) {
             newExpr->elements.push_back(element->clone());
@@ -414,7 +412,10 @@ class CExprUse : public CExprNode {
 
     virtual std::unique_ptr<CExprNode> clone() { // pointer cloning is not supported
         std::unique_ptr<CExprUse> newExpr = std::make_unique<CExprUse>();
+        newExpr->objType = objType;
         newExpr->location = location;
+        newExpr->exprType = exprType->clone();
+        newExpr->isLValue = isLValue;
         if (var != nullptr) {
             newExpr->var = var;
         }
@@ -441,7 +442,10 @@ class CExprCall : public CExprNode {
 
     virtual std::unique_ptr<CExprNode> clone() { // pointer cloning is not supported
         std::unique_ptr<CExprCall> newExpr = std::make_unique<CExprCall>();
+        newExpr->objType = objType;
         newExpr->location = location;
+        newExpr->exprType = exprType->clone();
+        newExpr->isLValue = isLValue;
         if (func != nullptr) {
             newExpr->func = func;
         }
@@ -472,7 +476,10 @@ class CExprOp : public CExprNode {
 
     virtual std::unique_ptr<CExprNode> clone() {
         std::unique_ptr<CExprOp> newExpr = std::make_unique<CExprOp>();
+        newExpr->objType = objType;
         newExpr->location = location;
+        newExpr->exprType = exprType->clone();
+        newExpr->isLValue = isLValue;
         if (left != nullptr) {
             newExpr->left = left->clone();
         }
@@ -493,7 +500,6 @@ class CExprOp : public CExprNode {
 };
 
 // compile tree statement node
-
 class CStatRaw : public CStatNode {
     public:
     std::string code; // raw code
@@ -502,7 +508,14 @@ class CStatRaw : public CStatNode {
 
     virtual std::unique_ptr<CStatNode> clone() {
         std::unique_ptr<CStatRaw> newStat = std::make_unique<CStatRaw>();
+        newStat->objType = objType;
         newStat->location = location;
+        newStat->uid = uid;
+        if (statType != nullptr) {
+            newStat->statType = statType->clone();
+        }
+        newStat->isReturnable = isReturnable;
+        
         newStat->code = code;
         return newStat;
     }
@@ -522,6 +535,11 @@ class CStatCtrl : public CStatNode {
     virtual std::unique_ptr<CStatNode> clone() { // pointer cloning is not supported
         std::unique_ptr<CStatCtrl> newStat = std::make_unique<CStatCtrl>();
         newStat->location = location;
+        newStat->uid = uid;
+        if (statType != nullptr) {
+            newStat->statType = statType->clone();
+        }
+        newStat->isReturnable = isReturnable;
         if (expr != nullptr) {
             newStat->expr = expr->clone();
         }
@@ -547,6 +565,11 @@ class CStatExpr : public CStatNode {
     virtual std::unique_ptr<CStatNode> clone() {
         std::unique_ptr<CStatExpr> newStat = std::make_unique<CStatExpr>();
         newStat->location = location;
+        newStat->uid = uid;
+        if (statType != nullptr) {
+            newStat->statType = statType->clone();
+        }
+        newStat->isReturnable = isReturnable;
         if (expr != nullptr) {
             newStat->expr = expr->clone();
         }
@@ -570,6 +593,11 @@ class CStatAssign : public CStatNode {
     virtual std::unique_ptr<CStatNode> clone() {
         std::unique_ptr<CStatAssign> newStat = std::make_unique<CStatAssign>();
         newStat->location = location;
+        newStat->uid = uid;
+        if (statType != nullptr) {
+            newStat->statType = statType->clone();
+        }
+        newStat->isReturnable = isReturnable;
         if (left != nullptr) {
             newStat->left = left->clone();
         }
@@ -597,6 +625,11 @@ class CStatScope : public CStatNode {
     virtual std::unique_ptr<CStatNode> clone() {
         std::unique_ptr<CStatScope> newStat = std::make_unique<CStatScope>();
         newStat->location = location;
+        newStat->uid = uid;
+        if (statType != nullptr) {
+            newStat->statType = statType->clone();
+        }
+        newStat->isReturnable = isReturnable;
         for (auto& decl : decls) {
             newStat->decls.push_back(decl->clone());
         }
@@ -625,6 +658,11 @@ class CStatIf : public CStatNode {
     virtual std::unique_ptr<CStatNode> clone() {
         std::unique_ptr<CStatIf> newStat = std::make_unique<CStatIf>();
         newStat->location = location;
+        newStat->uid = uid;
+        if (statType != nullptr) {
+            newStat->statType = statType->clone();
+        }
+        newStat->isReturnable = isReturnable;
         if (cond != nullptr) {
             newStat->cond = cond->clone();
         }
@@ -658,6 +696,11 @@ class CStatWhile : public CStatNode {
     virtual std::unique_ptr<CStatNode> clone() {
         std::unique_ptr<CStatWhile> newStat = std::make_unique<CStatWhile>();
         newStat->location = location;
+        newStat->uid = uid;
+        if (statType != nullptr) {
+            newStat->statType = statType->clone();
+        }
+        newStat->isReturnable = isReturnable;
         if (cond != nullptr) {
             newStat->cond = cond->clone();
         }
@@ -690,6 +733,11 @@ class CStatSwitch : public CStatNode {
     virtual std::unique_ptr<CStatNode> clone() {
         std::unique_ptr<CStatSwitch> newStat = std::make_unique<CStatSwitch>();
         newStat->location = location;
+        newStat->uid = uid;
+        if (statType != nullptr) {
+            newStat->statType = statType->clone();
+        }
+        newStat->isReturnable = isReturnable;
         if (cond != nullptr) {
             newStat->cond = cond->clone();
         }
@@ -724,17 +772,18 @@ class CStatSwitch : public CStatNode {
 // chunk of ctree nodes
 class CModule {
     public:
-    std::string path; // for debug
+    std::string path; // debug path
+    std::string uname; // debug unique name
     int appendIdx; // for linking index
     std::vector<std::unique_ptr<CDeclNode>> decls;
     std::vector<std::unique_ptr<CStatNode>> stats;
     std::unordered_map<std::string, CDeclNode*> nameMap; // map for name mangling
 
-    CModule(): path(""), appendIdx(-1), decls(), stats(), nameMap() {}
-    CModule(const std::string& p, int i): path(p), appendIdx(i), decls(), stats(), nameMap() {}
+    CModule(): path(""), uname(""), appendIdx(-1), decls(), stats(), nameMap() {}
+    CModule(const std::string& p, const std::string& u, int i): path(p), uname(u), appendIdx(i), decls(), stats(), nameMap() {}
 
     std::string toString() {
-        std::string result = std::format("CMODULE {} {}", path, appendIdx);
+        std::string result = std::format("CMODULE {} {} {}", path, uname, appendIdx);
         for (auto& decl : decls) result += "\n" + decl->toString(1);
         for (auto& stat : stats) result += "\n" + stat->toString(1);
         return result;
@@ -744,12 +793,11 @@ class CModule {
 // compile tree generator
 class IncludeInfo {
     public:
-    std::string name;
     std::string path;
-    std::vector<int> tmpSizes;
-    std::vector<int> tmpAligns;
+    std::string uname;
+    std::vector<std::unique_ptr<CTypeNode>> args;
 
-    IncludeInfo(): name(""), path(""), tmpSizes(), tmpAligns() {}
+    IncludeInfo(): path(""), uname(""), args() {}
 };
 
 class ScopeInfo {
@@ -765,17 +813,19 @@ class CTreeGen {
     public:
     CompileMessage prt;
     int arch; // target architecture in bytes
+    std::vector<std::unique_ptr<CModule>> modules;
 
     // global convertion context
     int64_t uidCount;
-    std::vector<std::unique_ptr<CModule>> modules;
-    std::unordered_map<std::string, int> idxMap; // append index map
+    std::unordered_map<std::string, int> idxMap;
 
     // local convertion context
-    std::vector<IncludeInfo> includes; // include info
-    std::vector<ScopeInfo> scopes; // scope info
+    std::vector<IncludeInfo> includes;
+    std::vector<ScopeInfo> scopes;
 
     CTreeGen(): prt(3), arch(8), uidCount(0), modules(), idxMap(), includes(), scopes() {}
+
+    private:
 };
 
 #endif
