@@ -1,3 +1,4 @@
+#include <exception>
 #include <format>
 #include "astGen.h"
 #include "astCalc.h"
@@ -6,6 +7,13 @@
 int ASTCalc::findSource(const std::string& path, std::vector<int>& tmpSizes, std::vector<int>& tmpAligns) {
     for (int i = 0; i < srcTrees.size(); i++) {
         if (srcTrees[i]->path == path && srcSizes[i] == tmpSizes && srcAligns[i] == tmpAligns) return i;
+    }
+    return -1;
+}
+
+int ASTCalc::findSource(const std::string& uname) {
+    for (int i = 0; i < srcTrees.size(); i++) {
+        if (srcTrees[i]->uniqueName == uname) return i;
     }
     return -1;
 }
@@ -174,7 +182,11 @@ std::string ASTCalc::complete(std::unique_ptr<SrcFile> src, std::vector<int>& tm
         for (auto node : incNodes) {
             if (node == nullptr) continue;
             for (auto& arg : node->args) {
-                isModified = isModified | completeType(*src, *arg);
+                try {
+                    isModified = isModified | completeType(*src, *arg);
+                } catch (std::exception& e) {
+                    return e.what();
+                }
             }
         }
 
@@ -195,8 +207,9 @@ std::string ASTCalc::complete(std::unique_ptr<SrcFile> src, std::vector<int>& tm
                     tmpSizes.push_back(arg->typeSize);
                     tmpAligns.push_back(arg->typeAlign);
                 }
-                if (findSource(incNodes[i]->path, tmpSizes, tmpAligns) == -1) { // include only if not imported
-                    int idx = astGen->findSource(incNodes[i]->path);
+                int idx = findSource(incNodes[i]->path, tmpSizes, tmpAligns);
+                if (idx == -1) { // include only if not imported
+                    idx = astGen->findSource(incNodes[i]->path);
                     if (idx == -1) {
                         return std::format("E0807 include {} not found at {}", incNodes[i]->name, getLocString(incNodes[i]->location)); // E0807
                     }
@@ -205,7 +218,9 @@ std::string ASTCalc::complete(std::unique_ptr<SrcFile> src, std::vector<int>& tm
                     if (!err.empty()) {
                         return err;
                     }
+                    idx = srcTrees.size() - 1;
                 }
+                incNodes[i]->tgtNm = srcTrees[idx]->uniqueName;
                 incNodes[i] = nullptr;
                 isModified = true;
             }
@@ -214,7 +229,11 @@ std::string ASTCalc::complete(std::unique_ptr<SrcFile> src, std::vector<int>& tm
         // complete struct sizes
         for (auto& structNode : structNodes) {
             if (structNode->structSize > 0) continue;
-            isModified = isModified | completeStruct(*src, *structNode);
+            try {
+                isModified = isModified | completeStruct(*src, *structNode);
+            } catch (std::exception& e) {
+                return e.what();
+            }
         }
     }
     prt.Log(std::format("pass4 finished for source {}", src->uniqueName), 2);

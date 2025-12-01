@@ -1261,17 +1261,23 @@ std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& cu
 
             case TokenType::OP_LBRACKET: // index, slice
                 {
+                    bool isIndex = true;
                     std::unique_ptr<ASTNode> left = nullptr;
                     std::unique_ptr<ASTNode> right = nullptr;
-                    left = parsePrattExpr(tp, current, src, 0);
+                    if (tp.seek().objType != TokenType::OP_COLON) {
+                        left = parsePrattExpr(tp, current, src, 0);
+                    }
                     if (tp.seek().objType == TokenType::OP_COLON) { // slice
                         tp.pop();
-                        right = parsePrattExpr(tp, current, src, 0);
+                        isIndex = false;
+                        if (tp.seek().objType != TokenType::OP_RBRACKET) {
+                            right = parsePrattExpr(tp, current, src, 0);
+                        }
                     }
                     if (tp.pop().objType != TokenType::OP_RBRACKET) {
                         throw std::runtime_error(std::format("E0519 expected ']' at {}", getLocString(opTkn.location))); // E0519
                     }
-                    if (right == nullptr) { // index
+                    if (isIndex) { // index
                         std::unique_ptr<OperationNode> indexNode = std::make_unique<OperationNode>(OperationType::B_INDEX);
                         indexNode->location = opTkn.location;
                         indexNode->operand0 = std::move(lhs);
@@ -1693,6 +1699,7 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
                 }
                 if (tp.match({TokenType::LIT_STRING, TokenType::IDENTIFIER})) {
                     result->path = tp.pop().text;
+                    result->tgtNm = result->path;
                     result->name = tp.pop().text;
                 } else {
                     throw std::runtime_error(std::format("E0636 expected module filepath at {}", getLocString(tkn.location))); // E0636

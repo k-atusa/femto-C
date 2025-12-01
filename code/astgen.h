@@ -179,16 +179,18 @@ class TypeNode: public ASTNode {
 class IncludeNode: public ASTNode {
     public:
     std::string path; // normal or template source file path
+    std::string tgtNm; // include target unique name
     std::string& name; // import name
     std::vector<std::unique_ptr<TypeNode>> args; // template type arguments
 
-    IncludeNode(): ASTNode(ASTNodeType::INCLUDE), path(""), name(text), args() {}
+    IncludeNode(): ASTNode(ASTNodeType::INCLUDE), path(""), tgtNm(text), name(text), args() {}
 
     virtual std::unique_ptr<ASTNode> Clone(ScopeNode* parent) {
         std::unique_ptr<IncludeNode> newNode = std::make_unique<IncludeNode>();
         newNode->location = location;
         newNode->text = text;
         newNode->path = path;
+        newNode->tgtNm = tgtNm;
         for (auto& arg : args) {
             newNode->args.push_back(arg->clone());
         }

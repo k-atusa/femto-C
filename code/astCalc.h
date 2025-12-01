@@ -17,6 +17,7 @@ class ASTCalc {
     ASTCalc(ASTGen& ast): prt(ast.prt), arch(ast.arch), astGen(&ast), srcTrees(), srcSizes(), srcAligns() {}
 
     int findSource(const std::string& path, std::vector<int>& tmpSizes, std::vector<int>& tmpAligns); // find source file index, -1 if not found
+    int findSource(const std::string& uname); // find source file index by unique name, -1 if not found
     std::string complete(std::unique_ptr<SrcFile> src, std::vector<int>& tmpSizes, std::vector<int>& tmpAligns); // return error message or empty string if ok
 
     private:
@@ -25,4 +26,4 @@ class ASTCalc {
     bool completeStruct(SrcFile& src, DeclStructNode& tgt); // complete struct size, return true if modified
 };
 
-#endif
+#endif // ASTCALC_H
