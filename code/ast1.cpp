@@ -759,6 +759,14 @@ Literal A1Gen::foldNode(A1Expr& tgt, A1StatScope& current, A1Module& mod) {
                     }
                 }
             }
+        } else if (opNode->subType == A1ExprOpType::T_COND) { // try to fold ternary operator
+            if (folded0.objType == LiteralType::BOOL) {
+                if (std::get<int64_t>(folded0.value) != 0) {
+                    return foldNode(*opNode->operand1, current, mod);
+                } else {
+                    return foldNode(*opNode->operand2, current, mod);
+                }
+            }
         }
     }
     return Literal();
@@ -961,6 +969,7 @@ std::unique_ptr<A1DeclFunc> A1Gen::parseFunc(TokenProvider& tp, A1StatScope& cur
     if (tp.seek().objType != TokenType::OP_RPAREN) {
         while (tp.canPop(1)) {
             std::unique_ptr<A1Type> paramType = mod.parseType(tp, current, arch);
+            completeType(current, mod, *paramType); // to resolve typedef
             if (paramType->typeSize == 0) {
                 throw std::runtime_error(std::format("E0421 parameter type cannot be void at {}", getLocString(paramType->location))); // E0421
             }
@@ -1781,7 +1790,7 @@ std::unique_ptr<A1StatDecl> A1Gen::parseTopLevel(TokenProvider& tp, A1StatScope&
                     }
                 }
                 if (tp.match({TokenType::LIT_STRING, TokenType::IDENTIFIER})) {
-                    incNode->tgtPath = tp.pop().text;
+                    incNode->tgtPath = absPath(tp.pop().text, getWorkingDir(mod.path));
                     incNode->name = tp.pop().text;
                 } else {
                     throw std::runtime_error(std::format("E0638 expected module filepath at {}", getLocString(tkn.location))); // E0638
