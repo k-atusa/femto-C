@@ -1,9 +1,10 @@
+#include <cstddef>
 #include <stdexcept>
 #include <format>
 #include "tokenizer.h"
 
 bool isDoubleOpStart(char c) {
-    return c == '<' || c == '>' || c == '=' || c == '!' || c == '&' || c == '|';
+    return c == '<' || c == '>' || c == '=' || c == '!' || c == '&' || c == '|' || c == '+' || c == '-' || c == '*' || c == '/' || c == '%';
 }
 
 TokenType isDoubleOp(char c1, char c2) {
@@ -15,6 +16,11 @@ TokenType isDoubleOp(char c1, char c2) {
     if (c1 == '|' && c2 == '|') return TokenType::OP_LOGIC_OR;
     if (c1 == '<' && c2 == '<') return TokenType::OP_BIT_LSHIFT;
     if (c1 == '>' && c2 == '>') return TokenType::OP_BIT_RSHIFT;
+    if (c1 == '+' && c2 == '=') return TokenType::OP_ASSIGN_ADD;
+    if (c1 == '-' && c2 == '=') return TokenType::OP_ASSIGN_SUB;
+    if (c1 == '*' && c2 == '=') return TokenType::OP_ASSIGN_MUL;
+    if (c1 == '/' && c2 == '=') return TokenType::OP_ASSIGN_DIV;
+    if (c1 == '%' && c2 == '=') return TokenType::OP_ASSIGN_REMAIN;
     return TokenType::NONE;
 }
 
@@ -33,6 +39,7 @@ TokenType isSingleOp(char c) {
         case '~': return TokenType::OP_BIT_NOT;
         case '^': return TokenType::OP_BIT_XOR;
         case '=': return TokenType::OP_ASSIGN;
+        case '?': return TokenType::OP_QMARK;
         case '.': return TokenType::OP_DOT;
         case ',': return TokenType::OP_COMMA;
         case ':': return TokenType::OP_COLON;
@@ -48,16 +55,20 @@ TokenType isSingleOp(char c) {
 }
 
 TokenType isKeyword(const std::string& word) {
+    if (word == "auto") return TokenType::KEY_AUTO;
+    if (word == "int") return TokenType::KEY_INT;
     if (word == "i8") return TokenType::KEY_I8;
     if (word == "i16") return TokenType::KEY_I16;
     if (word == "i32") return TokenType::KEY_I32;
     if (word == "i64") return TokenType::KEY_I64;
+    if (word == "uint") return TokenType::KEY_UINT;
     if (word == "u8") return TokenType::KEY_U8;
     if (word == "u16") return TokenType::KEY_U16;
     if (word == "u32") return TokenType::KEY_U32;
     if (word == "u64") return TokenType::KEY_U64;
     if (word == "f32") return TokenType::KEY_F32;
     if (word == "f64") return TokenType::KEY_F64;
+    if (word == "bool") return TokenType::KEY_BOOL;
     if (word == "void") return TokenType::KEY_VOID;
     if (word == "null") return TokenType::KEY_NULL;
     if (word == "true") return TokenType::KEY_TRUE;
@@ -84,12 +95,15 @@ TokenType isKeyword(const std::string& word) {
 
 TokenType isCplrOrd(const std::string& word) {
     if (word == "#include") return TokenType::ORDER_INCLUDE;
+    if (word == "#typedef") return TokenType::ORDER_TYPEDEF;
     if (word == "#template") return TokenType::ORDER_TEMPLATE;
     if (word == "#defer") return TokenType::ORDER_DEFER;
     if (word == "#define") return TokenType::ORDER_DEFINE;
     if (word == "#va_arg") return TokenType::ORDER_VA_ARG;
     if (word == "#raw_c") return TokenType::ORDER_RAW_C;
     if (word == "#raw_ir") return TokenType::ORDER_RAW_IR;
+    if (word == "#const") return TokenType::ORDER_CONST;
+    if (word == "#volatile") return TokenType::ORDER_VOLATILE;
     if (word == "#extern") return TokenType::ORDER_EXTERN;
     if (word == "#export") return TokenType::ORDER_EXPORT;
     return TokenType::NONE;
@@ -97,20 +111,43 @@ TokenType isCplrOrd(const std::string& word) {
 
 TokenType isNumber(const std::string& text) {
     bool isHex = false;
+    bool isOct = false;
+    bool isBin = false;
     bool isFloat = false;
     for (size_t i = 0; i < text.size(); i++) {
         char c = text[i];
-        if ((c == 'x' || c == 'X') && i == 1 && text[0] == '0') {
-            isHex = true;
-        } else if (c == '.' && !isHex && !isFloat) {
-            isFloat = true;
-        } else if (!(('0' <= c && c <= '9') || (isHex && (('a' <= c && c <= 'f') || ('A' <= c && c <= 'F'))))) {
-            return TokenType::NONE;
+        if (!isHex && !isOct && !isBin && !isFloat) {
+            if (text[0] == '0') {
+                if (c == 'x' || c == 'X') {
+                    isHex = true;
+                    continue;
+                } else if (c == 'o' || c == 'O') {
+                    isOct = true;
+                    continue;
+                } else if (c == 'b' || c == 'B') {
+                    isBin = true;
+                    continue;
+                }
+            } else if (c == '.') {
+                isFloat = true;
+                continue;
+            }
+        }
+        if (isHex) {
+            if (!(('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F'))) return TokenType::NONE;
+        } else if (isOct) {
+            if (!('0' <= c && c <= '7')) return TokenType::NONE;
+        } else if (isBin) {
+            if (!('0' <= c && c <= '1')) return TokenType::NONE;
+        } else {
+            if (!('0' <= c && c <= '9')) return TokenType::NONE;
         }
     }
-    if (isFloat) return TokenType::LIT_FLOAT;
-    if (isHex && text.size() < 3) return TokenType::NONE;
+    if (text.size() < 3 && (isHex || isOct || isBin || isFloat)) return TokenType::NONE;
     if (isHex) return TokenType::LIT_INT_HEX;
+    if (isOct) return TokenType::LIT_INT_OCT;
+    if (isBin) return TokenType::LIT_INT_BIN;
+    if (isFloat) return TokenType::LIT_FLOAT;
     return TokenType::LIT_INT;
 }
 
@@ -311,7 +348,14 @@ std::unique_ptr<std::vector<Token>> tokenize(const std::string& source, const st
                         } else if (num_type == TokenType::LIT_INT_HEX) {
                             tkn.objType = TokenType::LIT_INT;
                             tkn.value = Literal(static_cast<int64_t>(std::stoull(num_str, nullptr, 16)));
+                        } else if (num_type == TokenType::LIT_INT_BIN) {
+                            tkn.objType = TokenType::LIT_INT;
+                            tkn.value = Literal(static_cast<int64_t>(std::stoull(num_str, nullptr, 2)));
+                        } else if (num_type == TokenType::LIT_INT_OCT) {
+                            tkn.objType = TokenType::LIT_INT;
+                            tkn.value = Literal(static_cast<int64_t>(std::stoull(num_str, nullptr, 8)));
                         } else if (num_type == TokenType::LIT_FLOAT) {
+                            tkn.objType = TokenType::LIT_FLOAT;
                             tkn.value = Literal(std::stod(num_str));
                         }
                     } catch (std::exception& e) {
@@ -332,14 +376,15 @@ std::unique_ptr<std::vector<Token>> tokenize(const std::string& source, const st
                     if (buffer.empty()) { // empty char error
                         throw std::runtime_error(std::format("E0105 empty char literal at {}:{}", filename, line)); // E0105
                     }
-                    if (buffer.size() > 1) { // multi char error
-                        throw std::runtime_error(std::format("E0106 char literal too long at {}:{}", filename, line)); // E0106
+                    int uni = byteToUni(buffer);
+                    if (uni < 0) { // invalid char error
+                        throw std::runtime_error(std::format("E0106 invalid char literal at {}:{}", filename, line)); // E0106
                     }
                     Token tkn;
-                    tkn.objType = TokenType::LIT_CHAR;
+                    tkn.objType = TokenType::LIT_INT;
                     tkn.location = Location(source_id, line);
                     tkn.text = std::string(buffer.begin(), buffer.end());
-                    tkn.value = Literal(buffer[0]);
+                    tkn.value = Literal((int64_t)uni);
                     result->push_back(tkn);
                     status = TokenizeStatus::DEFAULT;
                 } else { // normal char

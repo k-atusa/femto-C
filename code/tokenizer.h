@@ -20,12 +20,15 @@ enum class TokenizeStatus {
 
 enum class TokenType {
     NONE,
-    // Literals and identifiers
+    // Literals
+    LIT_INT_BIN, // for tokenizer only
+    LIT_INT_OCT, // for tokenizer only
     LIT_INT_HEX, // for tokenizer only
+    LIT_INT_CHAR, // for tokenizer only
     LIT_INT,
     LIT_FLOAT,
-    LIT_CHAR,
     LIT_STRING,
+    // identifier
     IDENTIFIER,
     // + - * / %
     OP_PLUS,
@@ -50,8 +53,8 @@ enum class TokenType {
     OP_BIT_XOR,
     OP_BIT_LSHIFT,
     OP_BIT_RSHIFT,
-    // = . , : ; ( ) { } [ ]
-    OP_ASSIGN,
+    // ? . , : ; ( ) { } [ ]
+    OP_QMARK,
     OP_DOT,
     OP_COMMA,
     OP_COLON,
@@ -62,17 +65,28 @@ enum class TokenType {
     OP_RBRACE,
     OP_LBRACKET,
     OP_RBRACKET,
+    // = += -= *= /= %=
+    OP_ASSIGN,
+    OP_ASSIGN_ADD,
+    OP_ASSIGN_SUB,
+    OP_ASSIGN_MUL,
+    OP_ASSIGN_DIV,
+    OP_ASSIGN_REMAIN,
     // Keywords
+    KEY_AUTO,
+    KEY_INT,
     KEY_I8,
     KEY_I16,
     KEY_I32,
     KEY_I64,
+    KEY_UINT,
     KEY_U8,
     KEY_U16,
     KEY_U32,
     KEY_U64,
     KEY_F32,
     KEY_F64,
+    KEY_BOOL,
     KEY_VOID,
     KEY_NULL,
     KEY_TRUE,
@@ -97,12 +111,15 @@ enum class TokenType {
     IFUNC_LEN,
     // compiler order
     ORDER_INCLUDE,
+    ORDER_TYPEDEF,
     ORDER_TEMPLATE,
     ORDER_DEFER,
     ORDER_DEFINE,
     ORDER_VA_ARG,
     ORDER_RAW_C,
     ORDER_RAW_IR,
+    ORDER_CONST,
+    ORDER_VOLATILE,
     ORDER_EXTERN,
     ORDER_EXPORT,
     // for token match
@@ -149,10 +166,10 @@ class TokenProvider {
 };
 
 // token type checker
-bool isSInt(TokenType type) { return type == TokenType::KEY_I8 || type == TokenType::KEY_I16 || type == TokenType::KEY_I32 || type == TokenType::KEY_I64; }
-bool isUInt(TokenType type) { return type == TokenType::KEY_U8 || type == TokenType::KEY_U16 || type == TokenType::KEY_U32 || type == TokenType::KEY_U64; }
+bool isSInt(TokenType type) { return type == TokenType::KEY_INT || type == TokenType::KEY_I8 || type == TokenType::KEY_I16 || type == TokenType::KEY_I32 || type == TokenType::KEY_I64; }
+bool isUInt(TokenType type) { return type == TokenType::KEY_UINT || type == TokenType::KEY_U8 || type == TokenType::KEY_U16 || type == TokenType::KEY_U32 || type == TokenType::KEY_U64; }
 bool isInt(TokenType type) { return isSInt(type) || isUInt(type); }
 bool isFloat(TokenType type) { return type == TokenType::KEY_F32 || type == TokenType::KEY_F64; }
-bool isPrimitive(TokenType type) { return isInt(type) || isFloat(type) || type == TokenType::KEY_VOID; }
+bool isPrimitive(TokenType type) { return isInt(type) || isFloat(type) || type == TokenType::KEY_VOID || type == TokenType::KEY_BOOL; }
 
 #endif // TOKENIZER_H

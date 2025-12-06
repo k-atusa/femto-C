@@ -76,15 +76,53 @@ std::string absPath(const std::string& path, const std::string& baseDir) {
 // Literal to string
 std::string Literal::toString() {
     switch (objType) {
+        case LiteralType::NPTR:
+            return "NULL";
+        case LiteralType::BOOL:
+            return std::get<int64_t>(value) ? "true" : "false";
         case LiteralType::INT:
-            return std::to_string(intValue);
+            return std::to_string(std::get<int64_t>(value));
         case LiteralType::FLOAT:
-            return std::to_string(floatValue);
-        case LiteralType::CHAR:
-            return "'" + std::string(1, charValue) + "'";
+            return std::to_string(std::get<double>(value));
         case LiteralType::STRING:
-            return "\"" + stringValue + "\"";
+            return std::get<std::string>(value);
         default:
             return "";
     }
+}
+
+// convert unicode point to bytes
+std::vector<char> uniToByte(int uni) {
+    std::vector<char> bytes;
+    if (uni <= 0x7F) {
+        bytes.push_back(uni);
+    } else if (uni <= 0x7FF) {
+        bytes.push_back(0xC0 | (uni >> 6));
+        bytes.push_back(0x80 | (uni & 0x3F));
+    } else if (uni <= 0xFFFF) {
+        bytes.push_back(0xE0 | (uni >> 12));
+        bytes.push_back(0x80 | ((uni >> 6) & 0x3F));
+        bytes.push_back(0x80 | (uni & 0x3F));
+    } else if (uni <= 0x10FFFF) {
+        bytes.push_back(0xF0 | (uni >> 18));
+        bytes.push_back(0x80 | ((uni >> 12) & 0x3F));
+        bytes.push_back(0x80 | ((uni >> 6) & 0x3F));
+        bytes.push_back(0x80 | (uni & 0x3F));
+    }
+    return bytes;   
+}
+
+// convert bytes to unicode point
+int byteToUni(std::vector<char> bytes) {
+    int uni = -1;
+    if (bytes.size() == 1) {
+        uni = bytes[0];
+    } else if (bytes.size() == 2) {
+        uni = (bytes[0] & 0x1F) << 6 | (bytes[1] & 0x3F);
+    } else if (bytes.size() == 3) {
+        uni = (bytes[0] & 0x0F) << 12 | (bytes[1] & 0x3F) << 6 | (bytes[2] & 0x3F);
+    } else if (bytes.size() == 4) {
+        uni = (bytes[0] & 0x07) << 18 | (bytes[1] & 0x3F) << 12 | (bytes[2] & 0x3F) << 6 | (bytes[3] & 0x3F);
+    }
+    return uni;
 }

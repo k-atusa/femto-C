@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <variant>
 #include <iostream>
 #include <fstream>
 #include <stdexcept>
@@ -50,26 +51,30 @@ struct Location {
 // indicates literal value
 enum class LiteralType {
     NONE,
+    NPTR,
+    BOOL,
     INT,
     FLOAT,
-    CHAR,
     STRING
 };
 
 struct Literal {
-    LiteralType objType;
-    int64_t intValue;
-    double floatValue;
-    char charValue;
-    std::string stringValue;
+    using LiteralVariant = std::variant<int64_t, double, std::string>;
 
-    Literal(): objType(LiteralType::NONE) {}
-    Literal(int64_t v): objType(LiteralType::INT), intValue(v), floatValue(0.0), charValue(0), stringValue("") {}
-    Literal(double v): objType(LiteralType::FLOAT), intValue(0), floatValue(v), charValue(0), stringValue("") {}
-    Literal(char v): objType(LiteralType::CHAR), intValue(v), floatValue(0.0), charValue(v), stringValue("") {}
-    Literal(const std::string& v): objType(LiteralType::STRING), intValue(0), floatValue(0.0), charValue(0), stringValue(v) {}
+    LiteralType objType;
+    LiteralVariant value;
+
+    Literal(): objType(LiteralType::NONE), value(LiteralVariant()) {}
+    Literal(void* n): objType(LiteralType::NPTR), value((int64_t)0) {}
+    Literal(bool b): objType(LiteralType::BOOL), value(b ? (int64_t)1 : (int64_t)0) {}
+    Literal(int64_t i): objType(LiteralType::INT), value(i) {}
+    Literal(double d): objType(LiteralType::FLOAT), value(d) {}
+    Literal(const std::string& s): objType(LiteralType::STRING), value(s) {}
 
     std::string toString();
 };
+
+std::vector<char> uniToByte(int uni); // convert unicode point to bytes
+int byteToUni(std::vector<char> bytes); // convert bytes to unicode point
 
 #endif // BASE_FUNC_H

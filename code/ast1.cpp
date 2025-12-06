@@ -1,5 +1,7 @@
 #include <algorithm>
-#include "astgen.h"
+#include <cstdint>
+#include "baseFunc.h"
+#include "ast1.h"
 
 // get pratt operator precedence, -1 if not an operator
 int getPrattPrecedence(TokenType tknType, bool isUnary) {
@@ -17,24 +19,26 @@ int getPrattPrecedence(TokenType tknType, bool isUnary) {
             case TokenType::OP_DOT: case TokenType::OP_LPAREN: case TokenType::OP_LBRACKET:
                 return 20;
             case TokenType::OP_MUL: case TokenType::OP_DIV: case TokenType::OP_REMAIN:
-                return 10;
+                return 11;
             case TokenType::OP_PLUS: case TokenType::OP_MINUS:
-                return 9;
+                return 10;
             case TokenType::OP_BIT_LSHIFT: case TokenType::OP_BIT_RSHIFT:
-                return 8;
+                return 9;
             case TokenType::OP_LT: case TokenType::OP_LT_EQ: case TokenType::OP_GT: case TokenType::OP_GT_EQ:
-                return 7;
+                return 8;
             case TokenType::OP_EQ: case TokenType::OP_NOT_EQ:
-                return 6;
+                return 7;
             case TokenType::OP_BIT_AND:
-                return 5;
+                return 6;
             case TokenType::OP_BIT_XOR:
-                return 4;
+                return 5;
             case TokenType::OP_BIT_OR:
-                return 3;
+                return 4;
             case TokenType::OP_LOGIC_AND:
-                return 2;
+                return 3;
             case TokenType::OP_LOGIC_OR:
+                return 2;
+            case TokenType::OP_QMARK:
                 return 1;
             default:
                 return -1;
@@ -43,118 +47,158 @@ int getPrattPrecedence(TokenType tknType, bool isUnary) {
 }
 
 // get pratt operator type
-OperationType getBinaryOpType(TokenType tknType) {
+A1ExprOpType getBinaryOpType(TokenType tknType) {
     switch (tknType) {
         case TokenType::OP_MUL:
-            return OperationType::B_MUL;
+            return A1ExprOpType::B_MUL;
         case TokenType::OP_DIV:
-            return OperationType::B_DIV;
+            return A1ExprOpType::B_DIV;
         case TokenType::OP_REMAIN:
-            return OperationType::B_MOD;
+            return A1ExprOpType::B_MOD;
         case TokenType::OP_PLUS:
-            return OperationType::B_ADD;
+            return A1ExprOpType::B_ADD;
         case TokenType::OP_MINUS:
-            return OperationType::B_SUB;
+            return A1ExprOpType::B_SUB;
         case TokenType::OP_BIT_LSHIFT:
-            return OperationType::B_SHL;
+            return A1ExprOpType::B_SHL;
         case TokenType::OP_BIT_RSHIFT:
-            return OperationType::B_SHR;
+            return A1ExprOpType::B_SHR;
         case TokenType::OP_LT:
-            return OperationType::B_LT;
+            return A1ExprOpType::B_LT;
         case TokenType::OP_GT:
-            return OperationType::B_GT;
+            return A1ExprOpType::B_GT;
         case TokenType::OP_LT_EQ:
-            return OperationType::B_LE;
+            return A1ExprOpType::B_LE;
         case TokenType::OP_GT_EQ:
-            return OperationType::B_GE;
+            return A1ExprOpType::B_GE;
         case TokenType::OP_EQ:
-            return OperationType::B_EQ;
+            return A1ExprOpType::B_EQ;
         case TokenType::OP_NOT_EQ:
-            return OperationType::B_NE;
+            return A1ExprOpType::B_NE;
         case TokenType::OP_BIT_AND:
-            return OperationType::B_BIT_AND;
+            return A1ExprOpType::B_BIT_AND;
         case TokenType::OP_BIT_XOR:
-            return OperationType::B_BIT_XOR;
+            return A1ExprOpType::B_BIT_XOR;
         case TokenType::OP_BIT_OR:
-            return OperationType::B_BIT_OR;
+            return A1ExprOpType::B_BIT_OR;
         case TokenType::OP_LOGIC_AND:
-            return OperationType::B_LOGIC_AND;
+            return A1ExprOpType::B_LOGIC_AND;
         case TokenType::OP_LOGIC_OR:
-            return OperationType::B_LOGIC_OR;
+            return A1ExprOpType::B_LOGIC_OR;
+        case TokenType::OP_QMARK:
+            return A1ExprOpType::T_COND;
         default:
-            return OperationType::NONE;
+            return A1ExprOpType::NONE;
     }
 }
 
-DeclVarNode* ScopeNode::findVarByName(const std::string& name) {
-    for (auto& node : body) { // all variable declarations should be decl_var
-        if (node->objType == ASTNodeType::DECL_VAR && node->text == name) {
-            return static_cast<DeclVarNode*>(node.get());
+// get operand number
+int getOperandNum(A1ExprOpType op) {
+    switch (op) {
+        case A1ExprOpType::NONE:
+            return 0;
+        case A1ExprOpType::T_SLICE: case A1ExprOpType::T_COND:
+            return 3;
+        case A1ExprOpType::U_PLUS: case A1ExprOpType::U_MINUS: case A1ExprOpType::U_LOGIC_NOT: case A1ExprOpType::U_BIT_NOT:
+        case A1ExprOpType::U_REF: case A1ExprOpType::U_DEREF: case A1ExprOpType::U_SIZEOF: case A1ExprOpType::U_LEN:
+            return 1;
+        default:
+            return 2;
+    }
+}
+
+// get assign type
+A1StatAssignType getAssignType(Token& tkn) {
+    switch (tkn.objType) {
+        case TokenType::OP_ASSIGN:
+            return A1StatAssignType::ASSIGN;
+        case TokenType::OP_ASSIGN_ADD:
+            return A1StatAssignType::ASSIGN_ADD;
+        case TokenType::OP_ASSIGN_SUB:
+            return A1StatAssignType::ASSIGN_SUB;
+        case TokenType::OP_ASSIGN_MUL:
+            return A1StatAssignType::ASSIGN_MUL;
+        case TokenType::OP_ASSIGN_DIV:
+            return A1StatAssignType::ASSIGN_DIV;
+        case TokenType::OP_ASSIGN_REMAIN:
+            return A1StatAssignType::ASSIGN_REMAIN;
+        default:
+            return A1StatAssignType::NONE;
+    }
+}
+
+// A1StatScope functions
+A1Decl* A1StatScope::findDeclaration(const std::string& name) {
+    for (auto& node : body) {
+        if (node->objType == A1StatType::DECL) {
+            A1Decl* d = static_cast<A1StatDecl*>(node.get())->decl.get();
+            if (d->name == name) return d;
         }
     }
     if (parent) { // find in parent
-        return parent->findVarByName(name);
+        return parent->findDeclaration(name);
     }
     return nullptr;
 }
 
-Literal ScopeNode::findDefinedLiteral(const std::string& name) {
-    DeclVarNode* varNode = findVarByName(name);
-    if (varNode == nullptr || !varNode->isDefine) {
+Literal A1StatScope::findLiteral(const std::string& name) {
+    A1Decl* dNode = findDeclaration(name);
+    if (dNode == nullptr || dNode->objType != A1DeclType::VAR) {
         return Literal();
     }
-    AtomicExprNode* litNode = static_cast<AtomicExprNode*>(varNode->varExpr.get());
-    if (litNode->objType == ASTNodeType::LITERAL) {
-        return litNode->literal;
-    } else if (litNode->objType == ASTNodeType::LITERAL_KEY) {
-        return Literal(litNode->word == "true" ? (int64_t)1 : (int64_t)0);
-    } else {
+    A1DeclVar* vNode = static_cast<A1DeclVar*>(dNode);
+    if (!vNode->isDefine || vNode->init == nullptr || vNode->init->objType != A1ExprType::LITERAL) {
         return Literal();
     }
+    A1ExprLiteral* lNode = static_cast<A1ExprLiteral*>(vNode->init.get());
+    return lNode->value;
 }
 
-// SrcFile functions
-ASTNode* SrcFile::findNodeByName(ASTNodeType tp, const std::string& name, bool checkExported) {
-    ASTNode* result = nullptr;
-    for (auto& node : code->body) {
-        if (node->objType == tp && node->text == name) {
-            result = node.get();
-        }
+// A1Module functions
+A1Decl* A1Module::findDeclaration(const std::string& name, bool checkExported) {
+    A1Decl* dNode = code->findDeclaration(name);
+    if (dNode == nullptr || !checkExported) {
+        return dNode;
     }
-    if (result == nullptr || !checkExported) {
-        return result;
-    }
-    switch (tp) {
-        case ASTNodeType::INCLUDE: case ASTNodeType::DECL_TEMPLATE:
-            return nullptr; // include and template are not exported
-        case ASTNodeType::DECL_VAR: case ASTNodeType::DECL_STRUCT: case ASTNodeType::DECL_ENUM:
-            if ('A' <= result->text[0] && result->text[0] <= 'Z') {
-                return result;
+    switch (dNode->objType) {
+        case A1DeclType::INCLUDE: case A1DeclType::TEMPLATE: case A1DeclType::TYPEDEF:
+            return nullptr; // include, template, typedef are not exported
+        case A1DeclType::VAR: case A1DeclType::STRUCT: case A1DeclType::ENUM:
+            if ('A' <= dNode->name[0] && dNode->name[0] <= 'Z') {
+                return dNode;
             } else {
                 return nullptr;
             }
-        case ASTNodeType::DECL_FUNC:
+        case A1DeclType::FUNC:
             {
-                DeclFuncNode* funcNode = static_cast<DeclFuncNode*>(result);
-                if (funcNode->structNm.empty()) { // global function
-                    if ('A' <= result->text[0] && result->text[0] <= 'Z') {
-                        return result;
+                A1DeclFunc* fNode = static_cast<A1DeclFunc*>(dNode);
+                if (fNode->structNm.empty()) { // global function
+                    if ('A' <= fNode->funcNm[0] && fNode->funcNm[0] <= 'Z') {
+                        return fNode;
                     } else {
                         return nullptr;
                     }
                 } else { // method
-                    if ('A' <= funcNode->structNm[0] && funcNode->structNm[0] <= 'Z' && 'A' <= funcNode->funcNm[0] && funcNode->funcNm[0] <= 'Z') {
-                        return result;
+                    if ('A' <= fNode->structNm[0] && fNode->structNm[0] <= 'Z' && 'A' <= fNode->funcNm[0] && fNode->funcNm[0] <= 'Z') {
+                        return fNode;
                     } else {
                         return nullptr;
                     }
                 }
             }
     }
-    return result;
+    return nullptr; // others are not exported
 }
 
-Literal SrcFile::findConstByName(const std::string& name, bool checkExported) {
+A1Decl* A1Module::findDeclaration(const std::string& name, A1DeclType type, bool checkExported) {
+    A1Decl* dNode = findDeclaration(name, checkExported);
+    if (dNode == nullptr || dNode->objType != type) {
+        return nullptr;
+    }
+    return dNode;
+}
+
+Literal A1Module::findLiteral(const std::string& name, bool checkExported) {
     if (name.contains('.')) { // enum member
         size_t pos = name.find('.');
         std::string enumName = name.substr(0, pos);
@@ -162,13 +206,13 @@ Literal SrcFile::findConstByName(const std::string& name, bool checkExported) {
         if (checkExported && (enumName[0] < 'A' || 'Z' < enumName[0] || memberName[0] < 'A' || 'Z' < memberName[0])) {
             return Literal();
         }
-        DeclEnumNode* enumNode = static_cast<DeclEnumNode*>(findNodeByName(ASTNodeType::DECL_ENUM, enumName, false));
-        if (enumNode == nullptr) {
+        A1DeclEnum* eNode = static_cast<A1DeclEnum*>(findDeclaration(enumName, A1DeclType::ENUM, checkExported));
+        if (eNode == nullptr) {
             return Literal();
         }
-        for (size_t i = 0; i < enumNode->memNames.size(); i++) {
-            if (enumNode->memNames[i] == memberName) {
-                return Literal(enumNode->memValues[i]);
+        for (size_t i = 0; i < eNode->memNames.size(); i++) {
+            if (eNode->memNames[i] == memberName) {
+                return Literal(eNode->memValues[i]);
             }
         }
         return Literal();
@@ -176,50 +220,39 @@ Literal SrcFile::findConstByName(const std::string& name, bool checkExported) {
         if (checkExported && (name[0] < 'A' || 'Z' < name[0])) {
             return Literal();
         }
-        return code->findDefinedLiteral(name);
+        return code->findLiteral(name);
     }
 }
 
-std::string SrcFile::isNameUsable(const std::string& name, Location loc) {
-    // toplevel names used: include, template, var, func, struct, enum
-    if (findNodeByName(ASTNodeType::INCLUDE, name, false) != nullptr) {
-        return std::format("E0201 name {} already used by include at {}:{}", name, path, loc.line); // E0201
-    } else if (findNodeByName(ASTNodeType::DECL_TEMPLATE, name, false) != nullptr) {
-        return std::format("E0202 name {} already used by template at {}:{}", name, path, loc.line); // E0202
-    } else if (findNodeByName(ASTNodeType::DECL_VAR, name, false) != nullptr) {
-        return std::format("E0203 name {} already used by variable at {}:{}", name, path, loc.line); // E0203
-    } else if (findNodeByName(ASTNodeType::DECL_FUNC, name, false) != nullptr) {
-        return std::format("E0204 name {} already used by function at {}:{}", name, path, loc.line); // E0204
-    } else if (findNodeByName(ASTNodeType::DECL_STRUCT, name, false) != nullptr) {
-        return std::format("E0205 name {} already used by struct at {}:{}", name, path, loc.line); // E0205
-    } else if (findNodeByName(ASTNodeType::DECL_ENUM, name, false) != nullptr) {
-        return std::format("E0206 name {} already used by enum at {}:{}", name, path, loc.line); // E0206
-    } else {
-        return "";
+std::string A1Module::isNameUsable(const std::string& name, Location loc) {
+    // toplevel names used: include, typedef, template, var, func, struct, enum
+    if (findDeclaration(name, false) != nullptr) {
+        return std::format("E0201 global name {} already used at {}:{}", name, path, loc.line); // E0201
     }
+    return "";
 }
 
-std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& current, int arch) {
+std::unique_ptr<A1Type> A1Module::parseType(TokenProvider& tp, A1StatScope& current, int arch) {
     // parse base type
-    std::unique_ptr<TypeNode> result;
+    std::unique_ptr<A1Type> result;
     if (tp.match({TokenType::IDENTIFIER, TokenType::OP_DOT, TokenType::IDENTIFIER})) { // foreign type
         Token& includeTkn = tp.pop();
         tp.pop();
         Token& nameTkn = tp.pop();
-        if (findNodeByName(ASTNodeType::INCLUDE, includeTkn.text, false) == nullptr) {
-            throw std::runtime_error(std::format("E0207 include name {} not found at {}:{}", includeTkn.text, path, includeTkn.location.line)); // E0207
+        if (findDeclaration(includeTkn.text, A1DeclType::INCLUDE, false) == nullptr) {
+            throw std::runtime_error(std::format("E0202 include name {} not found at {}:{}", includeTkn.text, path, includeTkn.location.line)); // E0202
         }
-        result = std::make_unique<TypeNode>(includeTkn.text, nameTkn.text);
+        result = std::make_unique<A1Type>(includeTkn.text, nameTkn.text);
         result->location = includeTkn.location;
 
-    } else if (tp.match({TokenType::IDENTIFIER})) { // tmp, struct, enum
+    } else if (tp.match({TokenType::IDENTIFIER})) { // typedef, template, struct, enum
         Token& nameTkn = tp.pop();
-        result = std::make_unique<TypeNode>(TypeNodeType::NAME, nameTkn.text);
+        result = std::make_unique<A1Type>(A1TypeType::NAME, nameTkn.text);
         result->location = nameTkn.location;
 
     } else if (tp.canPop(1)) { // primitive
         Token& baseTkn = tp.pop();
-        result = std::make_unique<TypeNode>(TypeNodeType::PRIMITIVE, baseTkn.text);
+        result = std::make_unique<A1Type>(A1TypeType::PRIMITIVE, baseTkn.text);
         result->location = baseTkn.location;
         switch (baseTkn.objType) {
             case TokenType::KEY_I8: case TokenType::KEY_U8:
@@ -238,16 +271,24 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
                 result->typeSize = 8;
                 result->typeAlign = 8;
                 break;
+            case TokenType::KEY_INT: case TokenType::KEY_UINT:
+                result->typeSize = arch;
+                result->typeAlign = arch;
+                break;
+            case TokenType::KEY_BOOL:
+                result->typeSize = 1;
+                result->typeAlign = 1;
+                break;
             case TokenType::KEY_VOID:
                 result->typeSize = 0;
                 result->typeAlign = 1;
                 break;
             default:
-                throw std::runtime_error(std::format("E0208 invalid type start {} at {}:{}", baseTkn.text, path, baseTkn.location.line)); // E0208
+                throw std::runtime_error(std::format("E0203 invalid type start {} at {}:{}", baseTkn.text, path, baseTkn.location.line)); // E0203
         }
 
     } else {
-        throw std::runtime_error("E0209 unexpected EOF while parsing type"); // E0209
+        throw std::runtime_error("E0204 unexpected EOF while parsing type"); // E0204
     }
 
     // parse type modifiers
@@ -256,7 +297,7 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
         switch (tkn.objType) {
             case TokenType::OP_MUL: // pointer
                 {
-                    std::unique_ptr<TypeNode> ptrType = std::make_unique<TypeNode>(TypeNodeType::POINTER, "*");
+                    std::unique_ptr<A1Type> ptrType = std::make_unique<A1Type>(A1TypeType::POINTER, "*");
                     ptrType->location = result->location;
                     ptrType->typeSize = arch;
                     ptrType->typeAlign = arch;
@@ -267,17 +308,17 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
 
             case TokenType::OP_LBRACKET:
                 if (result->typeSize == 0) {
-                    throw std::runtime_error(std::format("E0210 cannot create array/slice of void type at {}:{}", path, tkn.location.line)); // E0210
+                    throw std::runtime_error(std::format("E0205 cannot create array/slice of void type at {}:{}", path, tkn.location.line)); // E0205
                 }
                 if (tp.match({TokenType::OP_RBRACKET})) { // slice
                     tp.pop();
-                    std::unique_ptr<TypeNode> sliceType = std::make_unique<TypeNode>(TypeNodeType::SLICE, "[]");
+                    std::unique_ptr<A1Type> sliceType = std::make_unique<A1Type>(A1TypeType::SLICE, "[]");
                     sliceType->location = result->location;
                     sliceType->typeSize = arch * 2; // ptr + length
                     sliceType->typeAlign = arch;
-                    if (result->subType == TypeNodeType::ARRAY || result->subType == TypeNodeType::SLICE) { // nested array
-                        TypeNode* curr = result.get();
-                        while (curr->direct && (curr->direct->subType == TypeNodeType::ARRAY || curr->direct->subType == TypeNodeType::SLICE)) {
+                    if (result->objType == A1TypeType::ARRAY || result->objType == A1TypeType::SLICE) { // nested array
+                        A1Type* curr = result.get();
+                        while (curr->direct && (curr->direct->objType == A1TypeType::ARRAY || curr->direct->objType == A1TypeType::SLICE)) {
                             curr = curr->direct.get();
                         }
                         sliceType->direct = std::move(curr->direct);
@@ -289,17 +330,17 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
 
                 } else if (tp.match({TokenType::LIT_INT, TokenType::OP_RBRACKET})) { // array
                     Token& lenTkn = tp.pop();
-                    int64_t len = lenTkn.value.intValue;
+                    int64_t len = std::get<int64_t>(lenTkn.value.value);
                     if (len <= 0) {
-                        throw std::runtime_error(std::format("E0211 invalid array length {} at {}:{}", len, path, lenTkn.location.line)); // E0211
+                        throw std::runtime_error(std::format("E0206 invalid array length {} at {}:{}", len, path, lenTkn.location.line)); // E0206
                     }
                     tp.pop();
-                    std::unique_ptr<TypeNode> arrType = std::make_unique<TypeNode>(TypeNodeType::ARRAY, std::format("[{}]", len));
+                    std::unique_ptr<A1Type> arrType = std::make_unique<A1Type>(A1TypeType::ARRAY, std::format("[{}]", len));
                     arrType->location = result->location;
-                    arrType->length = len;
-                    if (result->subType == TypeNodeType::ARRAY || result->subType == TypeNodeType::SLICE) { // nested array
-                        TypeNode* curr = result.get();
-                        while (curr->direct && (curr->direct->subType == TypeNodeType::ARRAY || curr->direct->subType == TypeNodeType::SLICE)) {
+                    arrType->arrLen = len;
+                    if (result->objType == A1TypeType::ARRAY || result->objType == A1TypeType::SLICE) { // nested array
+                        A1Type* curr = result.get();
+                        while (curr->direct && (curr->direct->objType == A1TypeType::ARRAY || curr->direct->objType == A1TypeType::SLICE)) {
                             curr = curr->direct.get();
                         }
                         arrType->direct = std::move(curr->direct);
@@ -311,21 +352,21 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
 
                 } else if (tp.match({TokenType::IDENTIFIER, TokenType::OP_RBRACKET})) { // array with defined size
                     Token& lenTkn = tp.pop();
-                    Literal lenLit = current.findDefinedLiteral(lenTkn.text);
+                    Literal lenLit = current.findLiteral(lenTkn.text);
                     if (lenLit.objType == LiteralType::NONE) {
-                        throw std::runtime_error(std::format("E0212 name {} not found at {}:{}", lenTkn.text, path, lenTkn.location.line)); // E0212
+                        throw std::runtime_error(std::format("E0207 name {} not found at {}:{}", lenTkn.text, path, lenTkn.location.line)); // E0207
                     }
-                    if (lenLit.objType != LiteralType::INT || lenLit.intValue <= 0) {
-                        throw std::runtime_error(std::format("E0213 name {} cannot be used as array length at {}:{}", lenTkn.text, path, lenTkn.location.line)); // E0213
+                    if (lenLit.objType != LiteralType::INT || std::get<int64_t>(lenLit.value) <= 0) {
+                        throw std::runtime_error(std::format("E0208 name {} cannot be used as array length at {}:{}", lenTkn.text, path, lenTkn.location.line)); // E0208
                     }
-                    int64_t len = lenLit.intValue;
+                    int64_t len = std::get<int64_t>(lenLit.value);
                     tp.pop();
-                    std::unique_ptr<TypeNode> arrType = std::make_unique<TypeNode>(TypeNodeType::ARRAY, std::format("[{}]", len));
+                    std::unique_ptr<A1Type> arrType = std::make_unique<A1Type>(A1TypeType::ARRAY, std::format("[{}]", len));
                     arrType->location = result->location;
-                    arrType->length = len;
-                    if (result->subType == TypeNodeType::ARRAY || result->subType == TypeNodeType::SLICE) { // nested array
-                        TypeNode* curr = result.get();
-                        while (curr->direct && (curr->direct->subType == TypeNodeType::ARRAY || curr->direct->subType == TypeNodeType::SLICE)) {
+                    arrType->arrLen = len;
+                    if (result->objType == A1TypeType::ARRAY || result->objType == A1TypeType::SLICE) { // nested array
+                        A1Type* curr = result.get();
+                        while (curr->direct && (curr->direct->objType == A1TypeType::ARRAY || curr->direct->objType == A1TypeType::SLICE)) {
                             curr = curr->direct.get();
                         }
                         arrType->direct = std::move(curr->direct);
@@ -336,13 +377,13 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
                     }
 
                 } else {
-                    throw std::runtime_error(std::format("E0214 expected ']' at {}:{}", path, tkn.location.line)); // E0214
+                    throw std::runtime_error(std::format("E0209 expected ']' at {}:{}", path, tkn.location.line)); // E0209
                 }
                 break;
 
             case TokenType::OP_LPAREN: // function
                 {
-                    std::unique_ptr<TypeNode> funcType = std::make_unique<TypeNode>(TypeNodeType::FUNCTION, "()");
+                    std::unique_ptr<A1Type> funcType = std::make_unique<A1Type>(A1TypeType::FUNCTION, "()");
                     funcType->location = result->location;
                     funcType->typeSize = arch;
                     funcType->typeAlign = arch;
@@ -350,7 +391,7 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
                     result = std::move(funcType);
                     if (tp.seek().objType != TokenType::OP_RPAREN) {
                         while (tp.canPop(1)) {
-                            std::unique_ptr<TypeNode> argType = parseType(tp, current, arch);
+                            std::unique_ptr<A1Type> argType = parseType(tp, current, arch);
                             result->indirect.push_back(std::move(argType));
                             if (tp.seek().objType == TokenType::OP_COMMA) {
                                 tp.pop();
@@ -376,16 +417,16 @@ std::unique_ptr<TypeNode> SrcFile::parseType(TokenProvider& tp, ScopeNode& curre
 }
 
 // ASTGen basic helper functions
-int ASTGen::findSource(const std::string& path) {
-    for (size_t i = 0; i < srcFiles.size(); i++) {
-        if (srcFiles[i]->path == path) {
+int A1Gen::findModule(const std::string& path) {
+    for (size_t i = 0; i < modules.size(); i++) {
+        if (modules[i]->path == path) {
             return static_cast<int>(i);
         }
     }
     return -1;
 }
 
-bool ASTGen::isTypeStart(TokenProvider& tp, SrcFile& src) {
+bool A1Gen::isTypeStart(TokenProvider& tp, A1Module& mod) {
     if (isPrimitive(tp.seek().objType)) { // primitive type
         return true;
     }
@@ -396,18 +437,18 @@ bool ASTGen::isTypeStart(TokenProvider& tp, SrcFile& src) {
         Token& nameTkn = tp.pop();
         Token& nextTkn = tp.pop();
         tp.pos -= 4;
-        IncludeNode* includeNode = static_cast<IncludeNode*>(src.findNodeByName(ASTNodeType::INCLUDE, includeTkn.text, false));
+        A1DeclInclude* includeNode = static_cast<A1DeclInclude*>(mod.findDeclaration(includeTkn.text, A1DeclType::INCLUDE, false));
         if (includeNode == nullptr) {
             return false;
         }
-        int index = findSource(includeNode->path);
+        int index = findModule(includeNode->tgtPath);
         if (index == -1) {
-            throw std::runtime_error(std::format("E0301 included module {} not found at {}", includeNode->path, getLocString(includeTkn.location))); // E0301
+            throw std::runtime_error(std::format("E0301 included module {} not found at {}", includeNode->tgtPath, getLocString(includeTkn.location))); // E0301
         }
-        if (srcFiles[index]->findNodeByName(ASTNodeType::DECL_STRUCT, nameTkn.text, true) != nullptr && nextTkn.objType != TokenType::OP_DOT) {
+        if (modules[index]->findDeclaration(nameTkn.text, A1DeclType::STRUCT, true) != nullptr && nextTkn.objType != TokenType::OP_DOT) {
             return true; // struct.member is not a type
         }
-        if (srcFiles[index]->findNodeByName(ASTNodeType::DECL_ENUM, nameTkn.text, true) != nullptr && nextTkn.objType != TokenType::OP_DOT) {
+        if (modules[index]->findDeclaration(nameTkn.text, A1DeclType::ENUM, true) != nullptr && nextTkn.objType != TokenType::OP_DOT) {
             return true; // enum.member is not a type
         }
 
@@ -415,347 +456,306 @@ bool ASTGen::isTypeStart(TokenProvider& tp, SrcFile& src) {
         Token& nameTkn = tp.pop();
         Token& nextTkn = tp.pop();
         tp.pos -= 2;
-        if (src.findNodeByName(ASTNodeType::DECL_TEMPLATE, nameTkn.text, false) != nullptr) {
+        if (mod.findDeclaration(nameTkn.text, A1DeclType::TEMPLATE, false) != nullptr) {
             return true; // template
         }
-        if (src.findNodeByName(ASTNodeType::DECL_STRUCT, nameTkn.text, false) != nullptr && nextTkn.objType != TokenType::OP_DOT) {
+        if (mod.findDeclaration(nameTkn.text, A1DeclType::STRUCT, false) != nullptr && nextTkn.objType != TokenType::OP_DOT) {
             return true; // struct.member is not a type
         }
-        if (src.findNodeByName(ASTNodeType::DECL_ENUM, nameTkn.text, false) != nullptr && nextTkn.objType != TokenType::OP_DOT) {
+        if (mod.findDeclaration(nameTkn.text, A1DeclType::ENUM, false) != nullptr && nextTkn.objType != TokenType::OP_DOT) {
             return true; // enum.member is not a type
         }
     }
     return false;
 }
 
-// ASTNode functions
-Literal ASTGen::foldNode(ASTNode& tgt, ScopeNode& current, SrcFile& src) {
-    if (tgt.objType == ASTNodeType::LITERAL) { // literal
-        return static_cast<AtomicExprNode*>(&tgt)->literal;
-    } else if (tgt.objType == ASTNodeType::NAME) { // check if defined literal
-        return current.findDefinedLiteral(tgt.text);
-    } else if (tgt.objType == ASTNodeType::OPERATION) { // fold operation
-        OperationNode* opNode = static_cast<OperationNode*>(&tgt);
+// fold node to literal, NONE if not foldable
+Literal A1Gen::foldNode(A1Expr& tgt, A1StatScope& current, A1Module& mod) {
+    if (tgt.objType == A1ExprType::LITERAL) { // literal
+        return static_cast<A1ExprLiteral*>(&tgt)->value;
+    } else if (tgt.objType == A1ExprType::NAME) { // check if defined literal
+        return current.findLiteral(static_cast<A1ExprName*>(&tgt)->name);
+    } else if (tgt.objType == A1ExprType::OPERATION) { // fold operation
+        A1ExprOperation* opNode = static_cast<A1ExprOperation*>(&tgt);
 
         // fold operands first
         Literal folded0 = Literal();
         Literal folded1 = Literal();
         Literal folded2 = Literal();
         if (opNode->operand0) {
-            folded0 = foldNode(*opNode->operand0, current, src);
+            folded0 = foldNode(*opNode->operand0, current, mod);
             if (folded0.objType != LiteralType::NONE) {
                 Location loc = opNode->operand0->location;
-                opNode->operand0 = std::make_unique<AtomicExprNode>(folded0);
+                opNode->operand0 = std::make_unique<A1ExprLiteral>(folded0);
                 opNode->operand0->location = loc;
             }
         }
         if (opNode->operand1) {
-            folded1 = foldNode(*opNode->operand1, current, src);
+            folded1 = foldNode(*opNode->operand1, current, mod);
             if (folded1.objType != LiteralType::NONE) {
                 Location loc = opNode->operand1->location;
-                opNode->operand1 = std::make_unique<AtomicExprNode>(folded1);
+                opNode->operand1 = std::make_unique<A1ExprLiteral>(folded1);
                 opNode->operand1->location = loc;
             }
         }
         if (opNode->operand2) {
-            folded2 = foldNode(*opNode->operand2, current, src);
+            folded2 = foldNode(*opNode->operand2, current, mod);
             if (folded2.objType != LiteralType::NONE) {
                 Location loc = opNode->operand2->location;
-                opNode->operand2 = std::make_unique<AtomicExprNode>(folded2);
+                opNode->operand2 = std::make_unique<A1ExprLiteral>(folded2);
                 opNode->operand2->location = loc;
-            }
-        }
-
-        // convert literal_key to int for logic operations
-        if (opNode->subType == OperationType::U_LOGIC_NOT) {
-            if (opNode->operand0->objType == ASTNodeType::LITERAL_KEY) {
-                folded0 = Literal(opNode->operand0->text == "true" ? (int64_t)1 : (int64_t)0);
-                Location loc = opNode->operand0->location;
-                opNode->operand0 = std::make_unique<AtomicExprNode>(folded0);
-                opNode->operand0->location = loc;
-            }
-        } else if (opNode->subType == OperationType::B_EQ || opNode->subType == OperationType::B_NE
-                || opNode->subType == OperationType::B_LOGIC_AND || opNode->subType == OperationType::B_LOGIC_OR) {
-            if (opNode->operand0->objType == ASTNodeType::LITERAL_KEY) {
-                folded0 = Literal(opNode->operand0->text == "true" ? (int64_t)1 : (int64_t)0);
-                Location loc = opNode->operand0->location;
-                opNode->operand0 = std::make_unique<AtomicExprNode>(folded0);
-                opNode->operand0->location = loc;
-            }
-            if (opNode->operand1->objType == ASTNodeType::LITERAL_KEY) {
-                folded1 = Literal(opNode->operand1->text == "true" ? (int64_t)1 : (int64_t)0);
-                Location loc = opNode->operand1->location;
-                opNode->operand1 = std::make_unique<AtomicExprNode>(folded1);
-                opNode->operand1->location = loc;
             }
         }
 
         int opnum = getOperandNum(opNode->subType);
         if (opnum == 1) { // try to fold unary
             switch (opNode->subType) {
-                case OperationType::U_PLUS:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL) {
-                        if (folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR || folded0.objType == LiteralType::FLOAT) {
+                case A1ExprOpType::U_PLUS:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT || folded0.objType == LiteralType::FLOAT) {
                             return folded0;
                         }
                     }
                     break;
 
-                case OperationType::U_MINUS:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL) {
-                        if (folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) {
-                            return Literal(-folded0.intValue);
+                case A1ExprOpType::U_MINUS:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT || folded0.objType == LiteralType::FLOAT) {
+                            return Literal(-std::get<int64_t>(folded0.value));
                         } else if (folded0.objType == LiteralType::FLOAT) {
-                            return Literal(-folded0.floatValue);
+                            return Literal(-std::get<double>(folded0.value));
                         }
                     }
                     break;
 
-                case OperationType::U_LOGIC_NOT:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL) {
-                        if (folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) {
-                            return Literal(folded0.intValue == 0 ? (int64_t)1 : (int64_t)0);
+                case A1ExprOpType::U_LOGIC_NOT:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::BOOL) {
+                            return Literal(std::get<int64_t>(folded0.value) == 0);
                         }
                     }
                     break;
 
-                case OperationType::U_BIT_NOT:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL) {
-                        if (folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) {
-                            return Literal(~folded0.intValue);
+                case A1ExprOpType::U_BIT_NOT:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT) {
+                            return Literal(~std::get<int64_t>(folded0.value));
                         }
                     }
                     break;
 
-                case OperationType::U_SIZEOF:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL) {
+                case A1ExprOpType::U_SIZEOF:
+                    if (opNode->operand0 && opNode->operand0->objType == A1ExprType::LITERAL) {
                         if (folded0.objType == LiteralType::INT || folded0.objType == LiteralType::FLOAT) {
                             return Literal((int64_t)8);
-                        } else if (folded0.objType == LiteralType::CHAR) {
-                            return Literal((int64_t)1);
                         } else if (folded0.objType == LiteralType::STRING) {
                             return Literal((int64_t)arch * 2);
                         }
-                    } else if (opNode->operand0->objType == ASTNodeType::TYPE) {
-                        TypeNode* tp = static_cast<TypeNode*>(opNode->operand0.get());
-                        if (tp->typeSize > 0) {
-                            return Literal((int64_t)tp->typeSize);
+                    } else if (opNode->typeOperand) {
+                        if (opNode->typeOperand->typeSize > 0) {
+                            return Literal((int64_t)opNode->typeOperand->typeSize);
                         }
                     }
                     break;
             }
 
-        } else if (opnum == 2 && opNode->subType != OperationType::B_DOT) { // try to fold binary
+        } else if (opnum == 2 && opNode->subType != A1ExprOpType::B_DOT) { // try to fold binary
             switch (opNode->subType) {
-                case OperationType::B_MUL:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue * folded1.intValue);
+                case A1ExprOpType::B_MUL:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            return Literal(std::get<int64_t>(folded0.value) * std::get<int64_t>(folded1.value));
                         } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
-                            return Literal(folded0.floatValue * folded1.floatValue);
+                            return Literal(std::get<double>(folded0.value) * std::get<double>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_DIV:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            if (folded1.intValue == 0) throw std::runtime_error(std::format("E0302 division by zero at {}", getLocString(opNode->location))); // E0302
-                            if (folded0.intValue == INT64_MIN && folded1.intValue == -1) throw std::runtime_error(std::format("E03xx division overflow at {}", getLocString(opNode->location))); // E03xx
-                            return Literal(folded0.intValue / folded1.intValue);
+                case A1ExprOpType::B_DIV:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            if (std::get<int64_t>(folded1.value) == 0) throw std::runtime_error(std::format("E0302 division by zero at {}", getLocString(opNode->location))); // E0302
+                            if (std::get<int64_t>(folded0.value) == INT64_MIN && std::get<int64_t>(folded1.value) == -1) throw std::runtime_error(std::format("E03xx division overflow at {}", getLocString(opNode->location))); // E03xx
+                            return Literal(std::get<int64_t>(folded0.value) / std::get<int64_t>(folded1.value));
                         } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
-                            if (folded1.floatValue == 0.0) throw std::runtime_error(std::format("E0303 division by zero at {}", getLocString(opNode->location))); // E0303
-                            return Literal(folded0.floatValue / folded1.floatValue);
+                            if (std::get<double>(folded1.value) == 0.0) throw std::runtime_error(std::format("E0303 division by zero at {}", getLocString(opNode->location))); // E0303
+                            return Literal(std::get<double>(folded0.value) / std::get<double>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_MOD:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            if (folded1.intValue == 0) throw std::runtime_error(std::format("E0304 division by zero at {}", getLocString(opNode->location))); // E0304
-                            if (folded0.intValue == INT64_MIN && folded1.intValue == -1) throw std::runtime_error(std::format("E0305 division overflow at {}", getLocString(opNode->location))); // E0305
-                            return Literal(folded0.intValue % folded1.intValue);
+                case A1ExprOpType::B_MOD:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            if (std::get<int64_t>(folded1.value) == 0) throw std::runtime_error(std::format("E0304 division by zero at {}", getLocString(opNode->location))); // E0304
+                            if (std::get<int64_t>(folded0.value) == INT64_MIN && std::get<int64_t>(folded1.value) == -1) throw std::runtime_error(std::format("E0305 division overflow at {}", getLocString(opNode->location))); // E0305
+                            return Literal(std::get<int64_t>(folded0.value) % std::get<int64_t>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_ADD:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue + folded1.intValue);
+                case A1ExprOpType::B_ADD:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            return Literal(std::get<int64_t>(folded0.value) + std::get<int64_t>(folded1.value));
                         } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
-                            return Literal(folded0.floatValue + folded1.floatValue);
+                            return Literal(std::get<double>(folded0.value) + std::get<double>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_SUB:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue - folded1.intValue);
+                case A1ExprOpType::B_SUB:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            return Literal(std::get<int64_t>(folded0.value) - std::get<int64_t>(folded1.value));
                         } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
-                            return Literal(folded0.floatValue - folded1.floatValue);
+                            return Literal(std::get<double>(folded0.value) - std::get<double>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_SHL:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            if (folded1.intValue < 0 || folded1.intValue > 63) throw std::runtime_error(std::format("E0306 shift amount out of range at {}", getLocString(opNode->location))); // E0306
-                            return Literal(folded0.intValue << folded1.intValue);
+                case A1ExprOpType::B_SHL:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            if (std::get<int64_t>(folded1.value) < 0 || std::get<int64_t>(folded1.value) > 63) throw std::runtime_error(std::format("E0306 shift amount out of range at {}", getLocString(opNode->location))); // E0306
+                            return Literal(std::get<int64_t>(folded0.value) << std::get<int64_t>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_SHR:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            if (folded1.intValue < 0 || folded1.intValue > 63) throw std::runtime_error(std::format("E0307 shift amount out of range at {}", getLocString(opNode->location))); // E0307
-                            return Literal(folded0.intValue >> folded1.intValue);
+                case A1ExprOpType::B_SHR:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            if (std::get<int64_t>(folded1.value) < 0 || std::get<int64_t>(folded1.value) > 63) throw std::runtime_error(std::format("E0307 shift amount out of range at {}", getLocString(opNode->location))); // E0307
+                            return Literal(std::get<int64_t>(folded0.value) >> std::get<int64_t>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_LT:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue < folded1.intValue ? (int64_t)1 : (int64_t)0);
+                case A1ExprOpType::B_LT:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            return Literal(std::get<int64_t>(folded0.value) < std::get<int64_t>(folded1.value));
                         } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
-                            return Literal(folded0.floatValue < folded1.floatValue ? (int64_t)1 : (int64_t)0);
+                            return Literal(std::get<double>(folded0.value) < std::get<double>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_LE:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue <= folded1.intValue ? (int64_t)1 : (int64_t)0);
+                case A1ExprOpType::B_LE:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            return Literal(std::get<int64_t>(folded0.value) <= std::get<int64_t>(folded1.value));
                         } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
-                            return Literal(folded0.floatValue <= folded1.floatValue ? (int64_t)1 : (int64_t)0);
+                            return Literal(std::get<double>(folded0.value) <= std::get<double>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_GT:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue > folded1.intValue ? (int64_t)1 : (int64_t)0);
+                case A1ExprOpType::B_GT:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            return Literal(std::get<int64_t>(folded0.value) > std::get<int64_t>(folded1.value));
                         } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
-                            return Literal(folded0.floatValue > folded1.floatValue ? (int64_t)1 : (int64_t)0);
+                            return Literal(std::get<double>(folded0.value) > std::get<double>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_GE:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue >= folded1.intValue ? (int64_t)1 : (int64_t)0);
+                case A1ExprOpType::B_GE:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            return Literal(std::get<int64_t>(folded0.value) >= std::get<int64_t>(folded1.value));
                         } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
-                            return Literal(folded0.floatValue >= folded1.floatValue ? (int64_t)1 : (int64_t)0);
+                            return Literal(std::get<double>(folded0.value) >= std::get<double>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_EQ:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue == folded1.intValue ? (int64_t)1 : (int64_t)0);
+                case A1ExprOpType::B_EQ:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            return Literal(std::get<int64_t>(folded0.value) == std::get<int64_t>(folded1.value));
                         } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
-                            return Literal(folded0.floatValue == folded1.floatValue ? (int64_t)1 : (int64_t)0);
+                            return Literal(std::get<double>(folded0.value) == std::get<double>(folded1.value));
+                        } else if (folded0.objType == LiteralType::BOOL && folded1.objType == LiteralType::BOOL) {
+                            return Literal(std::get<int64_t>(folded0.value) == std::get<int64_t>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_NE:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue == folded1.intValue ? (int64_t)0 : (int64_t)1);
+                case A1ExprOpType::B_NE:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            return Literal(std::get<int64_t>(folded0.value) != std::get<int64_t>(folded1.value));
                         } else if (folded0.objType == LiteralType::FLOAT && folded1.objType == LiteralType::FLOAT) {
-                            return Literal(folded0.floatValue == folded1.floatValue ? (int64_t)0 : (int64_t)1);
+                            return Literal(std::get<double>(folded0.value) != std::get<double>(folded1.value));
+                        } else if (folded0.objType == LiteralType::BOOL && folded1.objType == LiteralType::BOOL) {
+                            return Literal(std::get<int64_t>(folded0.value) != std::get<int64_t>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_BIT_AND:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue & folded1.intValue);
+                case A1ExprOpType::B_BIT_AND:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            return Literal(std::get<int64_t>(folded0.value) & std::get<int64_t>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_BIT_XOR:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue ^ folded1.intValue);
+                case A1ExprOpType::B_BIT_XOR:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            return Literal(std::get<int64_t>(folded0.value) ^ std::get<int64_t>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_BIT_OR:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue | folded1.intValue);
+                case A1ExprOpType::B_BIT_OR:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::INT && folded1.objType == LiteralType::INT) {
+                            return Literal(std::get<int64_t>(folded0.value) | std::get<int64_t>(folded1.value));
                         }
                     }
                     break;
 
-                case OperationType::B_LOGIC_AND:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue != 0 && folded1.intValue != 0 ? (int64_t)1 : (int64_t)0);
+                case A1ExprOpType::B_LOGIC_AND:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::BOOL && folded1.objType == LiteralType::BOOL) {
+                            return Literal(std::get<int64_t>(folded0.value) != 0 && std::get<int64_t>(folded1.value) != 0);
                         }
                     }
                     break;
 
-                case OperationType::B_LOGIC_OR:
-                    if (opNode->operand0->objType == ASTNodeType::LITERAL && opNode->operand1->objType == ASTNodeType::LITERAL) {
-                        if ((folded0.objType == LiteralType::INT || folded0.objType == LiteralType::CHAR) &&
-                                (folded1.objType == LiteralType::INT || folded1.objType == LiteralType::CHAR)) {
-                            return Literal(folded0.intValue != 0 || folded1.intValue != 0 ? (int64_t)1 : (int64_t)0);
+                case A1ExprOpType::B_LOGIC_OR:
+                    if (opNode->operand0->objType == A1ExprType::LITERAL && opNode->operand1->objType == A1ExprType::LITERAL) {
+                        if (folded0.objType == LiteralType::BOOL && folded1.objType == LiteralType::BOOL) {
+                            return Literal(std::get<int64_t>(folded0.value) != 0 || std::get<int64_t>(folded1.value) != 0);
                         }
                     }
                     break;
             }
 
-        } else if (opNode->subType == OperationType::B_DOT) { // enum value or include name
-            if (opNode->operand0->objType == ASTNodeType::NAME) {
-                std::string name0 = opNode->operand0->text;
-                ASTNode* search = src.findNodeByName(ASTNodeType::DECL_ENUM, name0, false);
-                if (search != nullptr && opNode->operand1->objType == ASTNodeType::NAME) { // enum value
-                    std::string name1 = opNode->operand1->text;
-                    return src.findConstByName(name0 + "." + name1, false);
+        } else if (opNode->subType == A1ExprOpType::B_DOT) { // enum value or include name
+            if (opNode->operand0->objType == A1ExprType::NAME) {
+                std::string name0 = static_cast<A1ExprName*>(opNode->operand0.get())->name;
+                A1Decl* search = mod.findDeclaration(name0, A1DeclType::ENUM, false);
+                if (search != nullptr && opNode->operand1->objType == A1ExprType::NAME) { // enum value
+                    std::string name1 = static_cast<A1ExprName*>(opNode->operand1.get())->name;
+                    return mod.findLiteral(name0 + "." + name1, false);
                 }
-                search = src.findNodeByName(ASTNodeType::INCLUDE, name0, false);
+                search = mod.findDeclaration(name0, A1DeclType::INCLUDE, false);
                 int pos = -1;
                 if (search != nullptr) {
-                    pos = findSource(((IncludeNode*)search)->path);
+                    pos = findModule(((A1DeclInclude*)search)->tgtPath);
                 }
-                if (pos != -1 && opNode->operand1->objType == ASTNodeType::NAME) { // foreign defined literal
-                    return srcFiles[pos]->findConstByName(opNode->operand1->text, true);
-                } else if (pos != -1 && opNode->operand1->objType == ASTNodeType::OPERATION) { // foreign enum value
-                    OperationNode* subOpNode = (OperationNode*)opNode->operand1.get();
-                    if (subOpNode->subType == OperationType::B_DOT && subOpNode->operand0->objType == ASTNodeType::NAME && subOpNode->operand1->objType == ASTNodeType::NAME) {
-                        return srcFiles[pos]->findConstByName(subOpNode->operand0->text + "." + subOpNode->operand1->text, true);
+                if (pos != -1 && opNode->operand1->objType == A1ExprType::NAME) { // foreign defined literal
+                    return modules[pos]->findLiteral(static_cast<A1ExprName*>(opNode->operand1.get())->name, true);
+                } else if (pos != -1 && opNode->operand1->objType == A1ExprType::OPERATION) { // foreign enum value
+                    A1ExprOperation* subOpNode = (A1ExprOperation*)opNode->operand1.get();
+                    if (subOpNode->subType == A1ExprOpType::B_DOT && subOpNode->operand0->objType == A1ExprType::NAME && subOpNode->operand1->objType == A1ExprType::NAME) {
+                        return modules[pos]->findLiteral(static_cast<A1ExprName*>(subOpNode->operand0.get())->name + "." + static_cast<A1ExprName*>(subOpNode->operand1.get())->name, true);
                     }
                 }
             }
@@ -765,14 +765,14 @@ Literal ASTGen::foldNode(ASTNode& tgt, ScopeNode& current, SrcFile& src) {
 }
 
 // parse raw code
-std::unique_ptr<RawCodeNode> ASTGen::parseRawCode(TokenProvider& tp) {
+std::unique_ptr<A1StatRaw> A1Gen::parseRawCode(TokenProvider& tp) {
     Token& orderTkn = tp.pop();
-    std::unique_ptr<RawCodeNode> rawCodeNode = std::make_unique<RawCodeNode>();
+    std::unique_ptr<A1StatRaw> rawCodeNode = std::make_unique<A1StatRaw>();
     rawCodeNode->location = orderTkn.location;
     if (orderTkn.objType == TokenType::ORDER_RAW_C) {
-        rawCodeNode->objType = ASTNodeType::RAW_C;
+        rawCodeNode->objType = A1StatType::RAW_C;
     } else if (orderTkn.objType == TokenType::ORDER_RAW_IR) {
-        rawCodeNode->objType = ASTNodeType::RAW_IR;
+        rawCodeNode->objType = A1StatType::RAW_IR;
     } else {
         throw std::runtime_error(std::format("E0401 expected 'raw_c' at {}", getLocString(orderTkn.location))); // E0401
     }
@@ -785,17 +785,17 @@ std::unique_ptr<RawCodeNode> ASTGen::parseRawCode(TokenProvider& tp) {
 }
 
 // parse Struct declaration, after struct keyword
-std::unique_ptr<DeclStructNode> ASTGen::parseStruct(TokenProvider& tp, ScopeNode& current, SrcFile& src, bool isExported) {
+std::unique_ptr<A1DeclStruct> A1Gen::parseStruct(TokenProvider& tp, A1StatScope& current, A1Module& mod, bool isExported) {
     // check name validity, create struct node
     Token& idTkn = tp.pop();
     if (idTkn.objType != TokenType::IDENTIFIER) {
         throw std::runtime_error(std::format("E0403 expected identifier at {}", getLocString(idTkn.location))); // E0403
     }
-    std::string nmValidity = src.isNameUsable(idTkn.text, idTkn.location);
+    std::string nmValidity = mod.isNameUsable(idTkn.text, idTkn.location);
     if (!nmValidity.empty()) {
         throw std::runtime_error(nmValidity);
     }
-    std::unique_ptr<DeclStructNode> structNode = std::make_unique<DeclStructNode>();
+    std::unique_ptr<A1DeclStruct> structNode = std::make_unique<A1DeclStruct>();
     structNode->name = idTkn.text;
     structNode->location = idTkn.location;
     if (tp.pop().objType != TokenType::OP_LBRACE) {
@@ -804,7 +804,7 @@ std::unique_ptr<DeclStructNode> ASTGen::parseStruct(TokenProvider& tp, ScopeNode
 
     // parse members
     while (tp.canPop(1)) {
-        std::unique_ptr<TypeNode> fieldType = src.parseType(tp, current, arch);
+        std::unique_ptr<A1Type> fieldType = mod.parseType(tp, current, arch);
         if (fieldType->typeSize == 0) {
             throw std::runtime_error(std::format("E0405 member type cannot be void at {}", getLocString(fieldType->location))); // E0405
         }
@@ -838,22 +838,22 @@ std::unique_ptr<DeclStructNode> ASTGen::parseStruct(TokenProvider& tp, ScopeNode
         throw std::runtime_error(std::format("E0409 expected '}}' at {}", getLocString(tp.seek().location))); // E0409
     }
     structNode->isExported = isExported;
-    prt.Log(std::format("ASTGen struct {} at {}", structNode->name, getLocString(structNode->location)), 1);
+    prt.Log(std::format("AST1 struct {} at {}", structNode->name, getLocString(structNode->location)), 1);
     return structNode;
 }
 
 // parse Enum declaration, after enum keyword
-std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& current, SrcFile& src, bool isExported) {
+std::unique_ptr<A1DeclEnum> A1Gen::parseEnum(TokenProvider& tp, A1StatScope& current, A1Module& mod, bool isExported) {
     // check name validity, create enum node
     Token& idTkn = tp.pop();
     if (idTkn.objType != TokenType::IDENTIFIER) {
         throw std::runtime_error(std::format("E0410 expected identifier at {}", getLocString(idTkn.location))); // E0410
     }
-    std::string nmValidity = src.isNameUsable(idTkn.text, idTkn.location);
+    std::string nmValidity = mod.isNameUsable(idTkn.text, idTkn.location);
     if (!nmValidity.empty()) {
         throw std::runtime_error(nmValidity);
     }
-    std::unique_ptr<DeclEnumNode> enumNode = std::make_unique<DeclEnumNode>();
+    std::unique_ptr<A1DeclEnum> enumNode = std::make_unique<A1DeclEnum>();
     enumNode->name = idTkn.text;
     enumNode->location = idTkn.location;
     if (tp.pop().objType != TokenType::OP_LBRACE) {
@@ -879,15 +879,15 @@ std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& cu
         // init with value
         if (tp.seek().objType == TokenType::OP_EQ) {
             tp.pop();
-            std::unique_ptr<ASTNode> value = parseExpr(tp, current, src);
-            if (value->objType != ASTNodeType::LITERAL) {
+            std::unique_ptr<A1Expr> value = parseExpr(tp, current, mod);
+            if (value->objType != A1ExprType::LITERAL) {
                 throw std::runtime_error(std::format("E0414 expected int constexpr at {}", getLocString(value->location))); // E0414
             }
-            Literal lit = static_cast<AtomicExprNode*>(value.get())->literal;
-            if (lit.objType != LiteralType::INT && lit.objType != LiteralType::CHAR) {
+            Literal lit = static_cast<A1ExprLiteral*>(value.get())->value;
+            if (lit.objType != LiteralType::INT) {
                 throw std::runtime_error(std::format("E0415 expected int constexpr at {}", getLocString(value->location))); // E0415
             }
-            prevValue = lit.intValue - 1;
+            prevValue = std::get<int64_t>(lit.value) - 1;
         }
 
         // push member
@@ -922,17 +922,17 @@ std::unique_ptr<DeclEnumNode> ASTGen::parseEnum(TokenProvider& tp, ScopeNode& cu
         enumNode->enumSize = 8;
     }
     enumNode->isExported = isExported;
-    prt.Log(std::format("ASTGen enum {} at {}", enumNode->name, getLocString(enumNode->location)), 1);
+    prt.Log(std::format("AST1 enum {} at {}", enumNode->name, getLocString(enumNode->location)), 1);
     return enumNode;
 }
 
 // parse function declaration
-std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<TypeNode> retType, bool isVaArg, bool isExported) {
+std::unique_ptr<A1DeclFunc> A1Gen::parseFunc(TokenProvider& tp, A1StatScope& current, A1Module& mod, std::unique_ptr<A1Type> retType, bool isVaArg, bool isExported) {
     // check name validity, create function node
-    std::unique_ptr<DeclFuncNode> funcNode = std::make_unique<DeclFuncNode>();
+    std::unique_ptr<A1DeclFunc> funcNode = std::make_unique<A1DeclFunc>();
     funcNode->location = retType->location;
     funcNode->retType = std::move(retType);
-    funcNode->body = std::make_unique<ScopeNode>(&current);
+    funcNode->body = std::make_unique<A1StatScope>(&current);
     if (tp.match({TokenType::IDENTIFIER, TokenType::OP_DOT, TokenType::IDENTIFIER})) { // method
         Token& structTkn = tp.pop();
         tp.pop();
@@ -940,7 +940,7 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
         funcNode->name = structTkn.text + "." + methodTkn.text;
         funcNode->structNm = structTkn.text;
         funcNode->funcNm = methodTkn.text;
-        if (src.findNodeByName(ASTNodeType::DECL_STRUCT, structTkn.text, false) == nullptr) {
+        if (mod.findDeclaration(structTkn.text, A1DeclType::STRUCT, false) == nullptr) {
             throw std::runtime_error(std::format("E0418 struct {} is not defined at {}", structTkn.text, getLocString(structTkn.location))); // E0418
         }
     } else if (tp.match({TokenType::IDENTIFIER})) { // function
@@ -949,7 +949,7 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
     } else {
         throw std::runtime_error(std::format("E0419 expected identifier at {}", getLocString(funcNode->location))); // E0419
     }
-    std::string nmValidity = src.isNameUsable(funcNode->name, funcNode->location);
+    std::string nmValidity = mod.isNameUsable(funcNode->name, funcNode->location);
     if (!nmValidity.empty()) {
         throw std::runtime_error(nmValidity);
     }
@@ -960,7 +960,7 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
     }
     if (tp.seek().objType != TokenType::OP_RPAREN) {
         while (tp.canPop(1)) {
-            std::unique_ptr<TypeNode> paramType = src.parseType(tp, current, arch);
+            std::unique_ptr<A1Type> paramType = mod.parseType(tp, current, arch);
             if (paramType->typeSize == 0) {
                 throw std::runtime_error(std::format("E0421 parameter type cannot be void at {}", getLocString(paramType->location))); // E0421
             }
@@ -976,11 +976,13 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
 
             // push parameter
             funcNode->paramNames.push_back(paramNameTkn.text);
-            funcNode->paramTypes.push_back(paramType->clone());
-            std::unique_ptr<DeclVarNode> pvar = std::make_unique<DeclVarNode>(std::move(paramType), paramNameTkn.text);
+            funcNode->paramTypes.push_back(paramType->Clone());
+            std::unique_ptr<A1DeclVar> pvar = std::make_unique<A1DeclVar>(std::move(paramType), paramNameTkn.text);
             pvar->location = paramNameTkn.location;
             pvar->isParam = true;
-            funcNode->body->body.push_back(std::move(pvar));
+            std::unique_ptr<A1StatDecl> pvarStat = std::make_unique<A1StatDecl>();
+            pvarStat->decl = std::move(pvar);
+            funcNode->body->body.push_back(std::move(pvarStat));
             Token& sepTkn = tp.seek();
             if (sepTkn.objType == TokenType::OP_RPAREN) {
                 break;
@@ -996,13 +998,13 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
     }
 
     // parse function body, check function
-    funcNode->body->body.push_back(parseScope(tp, *funcNode->body, src));
+    funcNode->body->body.push_back(parseScope(tp, *funcNode->body, mod));
     funcNode->isVaArg = isVaArg;
     funcNode->isExported = isExported;
     if (!funcNode->structNm.empty()) { // check method
         if (funcNode->paramTypes.size() == 0
-                || funcNode->paramTypes[0]->subType != TypeNodeType::POINTER
-                || funcNode->paramTypes[0]->direct->subType != TypeNodeType::NAME
+                || funcNode->paramTypes[0]->objType != A1TypeType::POINTER
+                || funcNode->paramTypes[0]->direct->objType != A1TypeType::NAME
                 || funcNode->paramTypes[0]->direct->name != funcNode->structNm) {
             throw std::runtime_error(std::format("E0426 first parameter must be {}* at {}", funcNode->structNm, getLocString(funcNode->location))); // E0426
         }
@@ -1011,35 +1013,58 @@ std::unique_ptr<DeclFuncNode> ASTGen::parseFunc(TokenProvider& tp, ScopeNode& cu
         if (funcNode->paramTypes.size() < 2) {
             throw std::runtime_error(std::format("E0427 last two parameters must be (void**, int) at {}", getLocString(funcNode->location))); // E0427
         }
-        TypeNode* arg0 = funcNode->paramTypes[funcNode->paramTypes.size() - 2].get();
-        TypeNode* arg1 = funcNode->paramTypes[funcNode->paramTypes.size() - 1].get();
+        A1Type* arg0 = funcNode->paramTypes[funcNode->paramTypes.size() - 2].get();
+        A1Type* arg1 = funcNode->paramTypes[funcNode->paramTypes.size() - 1].get();
         bool flag0 = false;
         bool flag1 = false;
-        if (arg0->subType == TypeNodeType::POINTER
-                && arg0->direct->subType == TypeNodeType::POINTER
-                && arg0->direct->direct->subType == TypeNodeType::PRIMITIVE
+        if (arg0->objType == A1TypeType::POINTER
+                && arg0->direct->objType == A1TypeType::POINTER
+                && arg0->direct->direct->objType == A1TypeType::PRIMITIVE
                 && arg0->direct->direct->name == "void") {
             flag0 = true;
         }
-        if (arg1->subType == TypeNodeType::PRIMITIVE && arg1->typeSize > 0) {
+        if (arg1->objType == A1TypeType::PRIMITIVE && arg1->name == "int") {
             flag1 = true;
         }
         if (!flag0 || !flag1) {
             throw std::runtime_error(std::format("E0428 last two parameters must be (void**, int) at {}", getLocString(funcNode->location))); // E0428
         }
     }
-    prt.Log(std::format("ASTGen func {} at {}", funcNode->name, getLocString(funcNode->location)), 1);
+    prt.Log(std::format("AST1 func {} at {}", funcNode->name, getLocString(funcNode->location)), 1);
     return funcNode;
 }
 
+// parse typedef, after #typedef
+std::unique_ptr<A1DeclName> A1Gen::parseTypedef(TokenProvider& tp, A1StatScope& current, A1Module& mod) {
+    Token& nmTkn = tp.pop();
+    if (nmTkn.objType != TokenType::IDENTIFIER) {
+        throw std::runtime_error(std::format("E0429 expected identifier at {}", getLocString(nmTkn.location))); // E0429
+    }
+    std::unique_ptr<A1DeclName> decl = std::make_unique<A1DeclName>(A1DeclType::TYPEDEF);
+    decl->location = nmTkn.location;
+    decl->name = nmTkn.text;
+    decl->type = mod.parseType(tp, current, arch);
+    if (tp.pop().objType != TokenType::OP_SEMICOLON) {
+        throw std::runtime_error(std::format("E0430 expected ';' at {}", getLocString(decl->location))); // E0430
+    }
+    
+    // check name duplication inside scope (must check global scope for toplevels)
+    for (auto& stat : current.body) {
+        if (stat->objType == A1StatType::DECL && static_cast<A1StatDecl*>(stat.get())->decl->name == decl->name) {
+            throw std::runtime_error(std::format("E0431 variable name {} already exists at {}", decl->name, getLocString(decl->location))); // E0431
+        }
+    }
+    return decl;
+}
+
 // parse atomic expression
-std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
+std::unique_ptr<A1Expr> A1Gen::parseAtomicExpr(TokenProvider& tp, A1StatScope& current, A1Module& mod) {
     Token& tkn = tp.pop();
-    std::unique_ptr<ASTNode> result;
+    std::unique_ptr<A1Expr> result;
     switch (tkn.objType) {
-        case TokenType::LIT_INT: case TokenType::LIT_FLOAT: case TokenType::LIT_CHAR: case TokenType::LIT_STRING: // literal
+        case TokenType::LIT_INT: case TokenType::LIT_FLOAT: case TokenType::LIT_STRING: // literal
             {
-                std::unique_ptr<AtomicExprNode> litNode = std::make_unique<AtomicExprNode>(tkn.value);
+                std::unique_ptr<A1ExprLiteral> litNode = std::make_unique<A1ExprLiteral>(tkn.value);
                 litNode->location = tkn.location;
                 result = std::move(litNode);
             }
@@ -1047,25 +1072,22 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
 
         case TokenType::KEY_NULL: case TokenType::KEY_TRUE: case TokenType::KEY_FALSE: // keyword literals
             {
-                std::unique_ptr<AtomicExprNode> litNode = std::make_unique<AtomicExprNode>();
-                litNode->objType = ASTNodeType::LITERAL_KEY;
-                litNode->location = tkn.location;
+                std::unique_ptr<A1ExprLiteral> litNode;
                 if (tkn.objType == TokenType::KEY_NULL) {
-                    litNode->literal = Literal((int64_t)0);
-                    litNode->word = "null";
+                    litNode = std::make_unique<A1ExprLiteral>(Literal(nullptr));
                 } else if (tkn.objType == TokenType::KEY_TRUE) {
-                    litNode->literal = Literal((int64_t)1);
-                    litNode->word = "true";
+                    litNode = std::make_unique<A1ExprLiteral>(Literal(true));
                 } else if (tkn.objType == TokenType::KEY_FALSE) {
-                    litNode->literal = Literal((int64_t)0);
-                    litNode->word = "false";
+                    litNode = std::make_unique<A1ExprLiteral>(Literal(false));
                 }
+                litNode->location = tkn.location;
                 result = std::move(litNode);
             }
+            break;
 
         case TokenType::IDENTIFIER: // variable name
             {
-                std::unique_ptr<AtomicExprNode> nameNode = std::make_unique<AtomicExprNode>(tkn.text);
+                std::unique_ptr<A1ExprName> nameNode = std::make_unique<A1ExprName>(tkn.text);
                 nameNode->location = tkn.location;
                 result = std::move(nameNode);
             }
@@ -1073,20 +1095,19 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
 
         case TokenType::OP_LPAREN: // parenthesis expression
             {
-                result = parsePrattExpr(tp, current, src, 0);
+                result = parsePrattExpr(tp, current, mod, 0);
                 if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E0501 expected ')' at {}", getLocString(tkn.location))); // E0501
                 }
             }
             break;
 
-        case TokenType::OP_LBRACE: // literal array
+        case TokenType::OP_LBRACE: // literal array, struct
             {
-                std::unique_ptr<AtomicExprNode> arrNode = std::make_unique<AtomicExprNode>();
-                arrNode->objType = ASTNodeType::LITERAL_ARRAY;
+                std::unique_ptr<A1ExprLiteralData> arrNode = std::make_unique<A1ExprLiteralData>();
                 arrNode->location = tkn.location;
                 while (tp.canPop(1)) {
-                    arrNode->elements.push_back(parseExpr(tp, current, src));
+                    arrNode->elements.push_back(parseExpr(tp, current, mod));
                     if (tp.seek().objType == TokenType::OP_COMMA) {
                         tp.pop();
                         if (tp.seek().objType == TokenType::OP_RBRACE) {
@@ -1107,22 +1128,22 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
 
         case TokenType::OP_PLUS: case TokenType::OP_MINUS: case TokenType::OP_LOGIC_NOT: case TokenType::OP_BIT_NOT: case TokenType::OP_MUL: case TokenType::OP_BIT_AND: // unary operators
             {
-                std::unique_ptr<OperationNode> unaryNode = std::make_unique<OperationNode>();
+                std::unique_ptr<A1ExprOperation> unaryNode = std::make_unique<A1ExprOperation>();
                 unaryNode->location = tkn.location;
                 if (tkn.objType == TokenType::OP_PLUS) {
-                    unaryNode->subType = OperationType::U_PLUS;
+                    unaryNode->subType = A1ExprOpType::U_PLUS;
                 } else if (tkn.objType == TokenType::OP_MINUS) {
-                    unaryNode->subType = OperationType::U_MINUS;
+                    unaryNode->subType = A1ExprOpType::U_MINUS;
                 } else if (tkn.objType == TokenType::OP_LOGIC_NOT) {
-                    unaryNode->subType = OperationType::U_LOGIC_NOT;
+                    unaryNode->subType = A1ExprOpType::U_LOGIC_NOT;
                 } else if (tkn.objType == TokenType::OP_BIT_NOT) {
-                    unaryNode->subType = OperationType::U_BIT_NOT;
+                    unaryNode->subType = A1ExprOpType::U_BIT_NOT;
                 } else if (tkn.objType == TokenType::OP_MUL) {
-                    unaryNode->subType = OperationType::U_DEREF;
+                    unaryNode->subType = A1ExprOpType::U_DEREF;
                 } else if (tkn.objType == TokenType::OP_BIT_AND) {
-                    unaryNode->subType = OperationType::U_REF;
+                    unaryNode->subType = A1ExprOpType::U_REF;
                 }
-                unaryNode->operand0 = parsePrattExpr(tp, current, src, getPrattPrecedence(TokenType::OP_PLUS, true));
+                unaryNode->operand0 = parsePrattExpr(tp, current, mod, getPrattPrecedence(TokenType::OP_PLUS, true));
                 result = std::move(unaryNode);
             }
             break;
@@ -1132,13 +1153,13 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
                 if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E0504 expected '(' at {}", getLocString(tkn.location))); // E0504
                 }
-                std::unique_ptr<OperationNode> makeNode = std::make_unique<OperationNode>(OperationType::B_MAKE);
+                std::unique_ptr<A1ExprOperation> makeNode = std::make_unique<A1ExprOperation>(A1ExprOpType::B_MAKE);
                 makeNode->location = tkn.location;
-                makeNode->operand0 = parsePrattExpr(tp, current, src, 0);
+                makeNode->operand0 = parsePrattExpr(tp, current, mod, 0);
                 if (tp.pop().objType != TokenType::OP_COMMA) {
                     throw std::runtime_error(std::format("E0505 expected ',' at {}", getLocString(tkn.location))); // E0505
                 }
-                makeNode->operand1 = parsePrattExpr(tp, current, src, 0);
+                makeNode->operand1 = parsePrattExpr(tp, current, mod, 0);
                 if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E0506 expected ')' at {}", getLocString(tkn.location))); // E0506
                 }
@@ -1151,9 +1172,9 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
                 if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E0507 expected '(' at {}", getLocString(tkn.location))); // E0507
                 }
-                std::unique_ptr<OperationNode> lenNode = std::make_unique<OperationNode>(OperationType::U_LEN);
+                std::unique_ptr<A1ExprOperation> lenNode = std::make_unique<A1ExprOperation>(A1ExprOpType::U_LEN);
                 lenNode->location = tkn.location;
-                lenNode->operand0 = parsePrattExpr(tp, current, src, 0);
+                lenNode->operand0 = parsePrattExpr(tp, current, mod, 0);
                 if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E0508 expected ')' at {}", getLocString(tkn.location))); // E0508
                 }
@@ -1166,16 +1187,16 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
                 if (tp.pop().objType != TokenType::OP_LT) {
                     throw std::runtime_error(std::format("E0509 expected '<' at {}", getLocString(tkn.location))); // E0509
                 }
-                std::unique_ptr<OperationNode> castNode = std::make_unique<OperationNode>(OperationType::B_CAST);
+                std::unique_ptr<A1ExprOperation> castNode = std::make_unique<A1ExprOperation>(A1ExprOpType::B_CAST);
                 castNode->location = tkn.location;
-                castNode->operand0 = src.parseType(tp, current, arch);
+                castNode->typeOperand = mod.parseType(tp, current, arch);
                 if (tp.pop().objType != TokenType::OP_GT) {
                     throw std::runtime_error(std::format("E0510 expected '>' at {}", getLocString(tkn.location))); // E0510
                 }
                 if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E0511 expected '(' at {}", getLocString(tkn.location))); // E0511
                 }
-                castNode->operand1 = parsePrattExpr(tp, current, src, 0);
+                castNode->operand1 = parsePrattExpr(tp, current, mod, 0);
                 if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E0512 expected ')' at {}", getLocString(tkn.location))); // E0512
                 }
@@ -1188,12 +1209,12 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
                 if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E0513 expected '(' at {}", getLocString(tkn.location))); // E0513
                 }
-                std::unique_ptr<OperationNode> sizeofNode = std::make_unique<OperationNode>(OperationType::U_SIZEOF);
+                std::unique_ptr<A1ExprOperation> sizeofNode = std::make_unique<A1ExprOperation>(A1ExprOpType::U_SIZEOF);
                 sizeofNode->location = tkn.location;
-                if (isTypeStart(tp, src)) {
-                    sizeofNode->operand0 = src.parseType(tp, current, arch);
+                if (isTypeStart(tp, mod)) {
+                    sizeofNode->typeOperand = mod.parseType(tp, current, arch);
                 } else {
-                    sizeofNode->operand0 = parsePrattExpr(tp, current, src, 0);
+                    sizeofNode->operand0 = parsePrattExpr(tp, current, mod, 0);
                 }
                 if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E0514 expected ')' at {}", getLocString(tkn.location))); // E0514
@@ -1209,8 +1230,8 @@ std::unique_ptr<ASTNode> ASTGen::parseAtomicExpr(TokenProvider& tp, ScopeNode& c
 }
 
 // parse pratt expression
-std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src, int level) {
-    std::unique_ptr<ASTNode> lhs = parseAtomicExpr(tp, current, src); // LHS is start of expression
+std::unique_ptr<A1Expr> A1Gen::parsePrattExpr(TokenProvider& tp, A1StatScope& current, A1Module& mod, int level) {
+    std::unique_ptr<A1Expr> lhs = parseAtomicExpr(tp, current, mod); // LHS is start of expression
     while (tp.canPop(1)) {
         int mylvl = getPrattPrecedence(tp.seek().objType, false);
         if (mylvl < level) {
@@ -1225,10 +1246,10 @@ std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& cu
                     if (memberTkn.objType != TokenType::IDENTIFIER) {
                         throw std::runtime_error(std::format("E0516 expected identifier after '.' at {}", getLocString(opTkn.location))); // E0516
                     }
-                    std::unique_ptr<OperationNode> memberNode = std::make_unique<OperationNode>(OperationType::B_DOT);
+                    std::unique_ptr<A1ExprOperation> memberNode = std::make_unique<A1ExprOperation>(A1ExprOpType::B_DOT);
                     memberNode->location = opTkn.location;
                     memberNode->operand0 = std::move(lhs);
-                    memberNode->operand1 = std::make_unique<AtomicExprNode>(memberTkn.text);
+                    memberNode->operand1 = std::make_unique<A1ExprName>(memberTkn.text);
                     memberNode->operand1->location = memberTkn.location;
                     lhs = std::move(memberNode);
                 }
@@ -1236,12 +1257,12 @@ std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& cu
 
             case TokenType::OP_LPAREN: // function call
                 {
-                    std::unique_ptr<FuncCallNode> callNode = std::make_unique<FuncCallNode>();
+                    std::unique_ptr<A1ExprFuncCall> callNode = std::make_unique<A1ExprFuncCall>();
                     callNode->location = opTkn.location;
-                    callNode->funcExpr = std::move(lhs);
+                    callNode->func = std::move(lhs);
                     if (tp.seek().objType != TokenType::OP_RPAREN) {
                         while (tp.canPop(1)) {
-                            std::unique_ptr<ASTNode> argExpr = parsePrattExpr(tp, current, src, 0);
+                            std::unique_ptr<A1Expr> argExpr = parsePrattExpr(tp, current, mod, 0);
                             callNode->args.push_back(std::move(argExpr));
                             if (tp.seek().objType == TokenType::OP_COMMA) {
                                 tp.pop();
@@ -1262,29 +1283,31 @@ std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& cu
             case TokenType::OP_LBRACKET: // index, slice
                 {
                     bool isIndex = true;
-                    std::unique_ptr<ASTNode> left = nullptr;
-                    std::unique_ptr<ASTNode> right = nullptr;
+                    std::unique_ptr<A1Expr> left = std::make_unique<A1Expr>();
+                    left->location = opTkn.location;
+                    std::unique_ptr<A1Expr> right = std::make_unique<A1Expr>();
+                    right->location = opTkn.location;
                     if (tp.seek().objType != TokenType::OP_COLON) {
-                        left = parsePrattExpr(tp, current, src, 0);
+                        left = parsePrattExpr(tp, current, mod, 0);
                     }
                     if (tp.seek().objType == TokenType::OP_COLON) { // slice
                         tp.pop();
                         isIndex = false;
                         if (tp.seek().objType != TokenType::OP_RBRACKET) {
-                            right = parsePrattExpr(tp, current, src, 0);
+                            right = parsePrattExpr(tp, current, mod, 0);
                         }
                     }
                     if (tp.pop().objType != TokenType::OP_RBRACKET) {
                         throw std::runtime_error(std::format("E0519 expected ']' at {}", getLocString(opTkn.location))); // E0519
                     }
                     if (isIndex) { // index
-                        std::unique_ptr<OperationNode> indexNode = std::make_unique<OperationNode>(OperationType::B_INDEX);
+                        std::unique_ptr<A1ExprOperation> indexNode = std::make_unique<A1ExprOperation>(A1ExprOpType::B_INDEX);
                         indexNode->location = opTkn.location;
                         indexNode->operand0 = std::move(lhs);
                         indexNode->operand1 = std::move(left);
                         lhs = std::move(indexNode);
                     } else { // slice
-                        std::unique_ptr<OperationNode> sliceNode = std::make_unique<OperationNode>(OperationType::T_SLICE);
+                        std::unique_ptr<A1ExprOperation> sliceNode = std::make_unique<A1ExprOperation>(A1ExprOpType::T_SLICE);
                         sliceNode->location = opTkn.location;
                         sliceNode->operand0 = std::move(lhs);
                         sliceNode->operand1 = std::move(left);
@@ -1293,16 +1316,30 @@ std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& cu
                     }
                 }
                 break;
+            
+            case TokenType::OP_QMARK: // ternary operator
+                {
+                    std::unique_ptr<A1ExprOperation> ternOpNode = std::make_unique<A1ExprOperation>(A1ExprOpType::T_COND);
+                    ternOpNode->location = opTkn.location;
+                    ternOpNode->operand0 = std::move(lhs);
+                    ternOpNode->operand1 = parsePrattExpr(tp, current, mod, 0);
+                    if (tp.pop().objType != TokenType::OP_COLON) {
+                        throw std::runtime_error(std::format("E0520 expected ':' at {}", getLocString(opTkn.location))); // E0520
+                    }
+                    ternOpNode->operand2 = parsePrattExpr(tp, current, mod, 0);
+                    lhs = std::move(ternOpNode);
+                }
+                break;
 
             default: // binary operator
                 {
-                    std::unique_ptr<OperationNode> binOpNode = std::make_unique<OperationNode>(getBinaryOpType(opTkn.objType));
+                    std::unique_ptr<A1ExprOperation> binOpNode = std::make_unique<A1ExprOperation>(getBinaryOpType(opTkn.objType));
                     binOpNode->location = opTkn.location;
-                    if (binOpNode->subType == OperationType::NONE) {
-                        throw std::runtime_error(std::format("E0520 invalid binary operator {} at {}", opTkn.text, getLocString(opTkn.location))); // E0520
+                    if (binOpNode->subType == A1ExprOpType::NONE) {
+                        throw std::runtime_error(std::format("E0521 invalid binary operator {} at {}", opTkn.text, getLocString(opTkn.location))); // E0521
                     }
                     binOpNode->operand0 = std::move(lhs);
-                    binOpNode->operand1 = parsePrattExpr(tp, current, src, mylvl + 1);
+                    binOpNode->operand1 = parsePrattExpr(tp, current, mod, mylvl + 1);
                     lhs = std::move(binOpNode);
                 }
         }
@@ -1311,19 +1348,19 @@ std::unique_ptr<ASTNode> ASTGen::parsePrattExpr(TokenProvider& tp, ScopeNode& cu
 }
 
 // parse expression, fold if possible
-std::unique_ptr<ASTNode> ASTGen::parseExpr(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
-    std::unique_ptr<ASTNode> expr = parsePrattExpr(tp, current, src, 0);
-    Literal lit = foldNode(*expr, current, src);
+std::unique_ptr<A1Expr> A1Gen::parseExpr(TokenProvider& tp, A1StatScope& current, A1Module& mod) {
+    std::unique_ptr<A1Expr> expr = parsePrattExpr(tp, current, mod, 0);
+    Literal lit = foldNode(*expr, current, mod);
     if (lit.objType != LiteralType::NONE) {
         Location loc = expr->location;
-        expr = std::make_unique<AtomicExprNode>(lit);
+        expr = std::make_unique<A1ExprLiteral>(lit);
         expr->location = loc;
     }
     return expr;
 }
 
 // parse variable declaration, after type declaration
-std::unique_ptr<DeclVarNode> ASTGen::parseVarDecl(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<TypeNode> varType, bool isDefine, bool isExtern, bool isExported) {
+std::unique_ptr<A1DeclVar> A1Gen::parseVarDecl(TokenProvider& tp, A1StatScope& current, A1Module& mod, std::unique_ptr<A1Type> varType, bool isDefine, bool isConst, bool isVolatile, bool isExtern, bool isExported) {
     // check type validity, create variable declaration node
     if (varType->typeSize == 0) {
         throw std::runtime_error(std::format("E0601 variable cannot be void type at {}", getLocString(varType->location))); // E0601
@@ -1332,12 +1369,12 @@ std::unique_ptr<DeclVarNode> ASTGen::parseVarDecl(TokenProvider& tp, ScopeNode& 
     if (nameTkn.objType != TokenType::IDENTIFIER) {
         throw std::runtime_error(std::format("E0602 expected identifier at {}", getLocString(nameTkn.location))); // E0602
     }
-    std::unique_ptr<DeclVarNode> varDecl = std::make_unique<DeclVarNode>(std::move(varType), nameTkn.text);
+    std::unique_ptr<A1DeclVar> varDecl = std::make_unique<A1DeclVar>(std::move(varType), nameTkn.text);
     varDecl->location = nameTkn.location;
 
-    // check name duplication
+    // check name duplication inside scope (must check global scope for toplevels)
     for (auto& stat : current.body) {
-        if (stat->objType == ASTNodeType::DECL_VAR && stat->text == nameTkn.text) {
+        if (stat->objType == A1StatType::DECL && static_cast<A1StatDecl*>(stat.get())->decl->name == nameTkn.text) {
             throw std::runtime_error(std::format("E0603 variable name {} already exists at {}", nameTkn.text, getLocString(nameTkn.location))); // E0603
         }
     }
@@ -1345,7 +1382,7 @@ std::unique_ptr<DeclVarNode> ASTGen::parseVarDecl(TokenProvider& tp, ScopeNode& 
     // parse variable initialization
     Token& opTkn = tp.pop();
     if (opTkn.objType == TokenType::OP_ASSIGN) {
-        varDecl->varExpr = parseExpr(tp, current, src);
+        varDecl->init = parseExpr(tp, current, mod);
         opTkn = tp.pop();
     }
     if (opTkn.objType != TokenType::OP_SEMICOLON) {
@@ -1354,30 +1391,33 @@ std::unique_ptr<DeclVarNode> ASTGen::parseVarDecl(TokenProvider& tp, ScopeNode& 
 
     // check variable declaration
     varDecl->isDefine = isDefine;
+    varDecl->isConst = isConst;
+    varDecl->isVolatile = isVolatile;
     varDecl->isExtern = isExtern;
     varDecl->isExported = isExported;
-    if (isDefine) { // define variable should be initialized with literal
-        if (varDecl->varExpr == nullptr
-                || (varDecl->varExpr->objType != ASTNodeType::LITERAL && varDecl->varExpr->objType != ASTNodeType::LITERAL_KEY)) {
+    if (isDefine || isConst) { // define or const should be initialized with literal
+        if (varDecl->init == nullptr
+                || (varDecl->init->objType != A1ExprType::LITERAL)) {
             throw std::runtime_error(std::format("E0605 variable should be initialized with constexpr at {}", getLocString(nameTkn.location))); // E0605
         }
     }
-    if (isExtern && varDecl->varExpr != nullptr) { // extern variable should not be initialized
+    if (isExtern && varDecl->init != nullptr) { // extern variable should not be initialized
         throw std::runtime_error(std::format("E0606 extern variable should not be initialized at {}", getLocString(nameTkn.location))); // E0606
     }
     if (isExtern && isExported) { // cannot be both extern and exported
         throw std::runtime_error(std::format("E0607 cannot be both extern and exported at {}", getLocString(nameTkn.location))); // E0607
     }
-    prt.Log(std::format("ASTGen var decl {} at {}", varDecl->name, getLocString(varDecl->location)), 1);
+    prt.Log(std::format("AST1 var decl {} at {}", varDecl->name, getLocString(varDecl->location)), 1);
     return varDecl;
 }
 
 // parse variable assignment, after lvalue =
-std::unique_ptr<AssignNode> ASTGen::parseVarAssign(TokenProvider& tp, ScopeNode& current, SrcFile& src, std::unique_ptr<ASTNode> lvalue, TokenType endExpect) {
-    std::unique_ptr<AssignNode> varAssign = std::make_unique<AssignNode>();
+std::unique_ptr<A1StatAssign> A1Gen::parseVarAssign(TokenProvider& tp, A1StatScope& current, A1Module& mod, std::unique_ptr<A1Expr> lvalue, A1StatAssignType assignType, TokenType endExpect) {
+    std::unique_ptr<A1StatAssign> varAssign = std::make_unique<A1StatAssign>();
     varAssign->location = lvalue->location;
-    varAssign->lvalue = std::move(lvalue);
-    varAssign->rvalue = parseExpr(tp, current, src);
+    varAssign->subType = assignType;
+    varAssign->left = std::move(lvalue);
+    varAssign->right = parseExpr(tp, current, mod);
     if (tp.pop().objType != endExpect) {
         throw std::runtime_error(std::format("E0608 invalid statement ending at {}", getLocString(varAssign->location))); // E0608
     }
@@ -1385,29 +1425,30 @@ std::unique_ptr<AssignNode> ASTGen::parseVarAssign(TokenProvider& tp, ScopeNode&
 }
 
 // parse general statement
-std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
+std::unique_ptr<A1Stat> A1Gen::parseStatement(TokenProvider& tp, A1StatScope& current, A1Module& mod) {
     bool isDefine = false;
+    bool isConst = false;
+    bool isVolatile = false;
     bool isExtern = false;
-    bool isVaArg = false;
     while (tp.canPop(1)) {
         Token& tkn = tp.seek();
         switch (tkn.objType) {
             case TokenType::KEY_IF: // if statement
             {
                 tp.pop();
-                std::unique_ptr<IfNode> ifNode = std::make_unique<IfNode>();
+                std::unique_ptr<A1StatIf> ifNode = std::make_unique<A1StatIf>();
                 ifNode->location = tkn.location;
                 if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E0609 expected '(' at {}", getLocString(ifNode->location))); // E0609
                 }
-                ifNode->cond = parseExpr(tp, current, src);
+                ifNode->cond = parseExpr(tp, current, mod);
                 if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E0610 expected ')' at {}", getLocString(ifNode->location))); // E0610
                 }
-                ifNode->ifBody = parseStatement(tp, current, src);
+                ifNode->thenBody = parseStatement(tp, current, mod);
                 if (tp.seek().objType == TokenType::KEY_ELSE) { // else statement
                     tp.pop();
-                    ifNode->elseBody = parseStatement(tp, current, src);
+                    ifNode->elseBody = parseStatement(tp, current, mod);
                 }
                 return ifNode;
             }
@@ -1415,16 +1456,16 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             case TokenType::KEY_WHILE: // while statement
             {
                 tp.pop();
-                std::unique_ptr<WhileNode> whileNode = std::make_unique<WhileNode>();
+                std::unique_ptr<A1StatWhile> whileNode = std::make_unique<A1StatWhile>();
                 whileNode->location = tkn.location;
                 if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E0611 expected '(' at {}", getLocString(whileNode->location))); // E0611
                 }
-                whileNode->cond = parseExpr(tp, current, src);
+                whileNode->cond = parseExpr(tp, current, mod);
                 if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E0612 expected ')' at {}", getLocString(whileNode->location))); // E0612
                 }
-                whileNode->body = parseStatement(tp, current, src);
+                whileNode->body = parseStatement(tp, current, mod);
                 return whileNode;
             }
 
@@ -1432,24 +1473,26 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             {
                 // init statement will be at another outside scope
                 tp.pop();
-                std::unique_ptr<ScopeNode> forScope = std::make_unique<ScopeNode>(&current);
+                std::unique_ptr<A1StatScope> forScope = std::make_unique<A1StatScope>(&current);
                 forScope->location = tkn.location;
-                std::unique_ptr<ForNode> forNode = std::make_unique<ForNode>();
+                std::unique_ptr<A1StatFor> forNode = std::make_unique<A1StatFor>();
                 forNode->location = tkn.location;
                 if (tp.pop().objType != TokenType::OP_LPAREN) {
-                    throw std::runtime_error(std::format("E0613 expected '(' at {}", getLocString(forNode->location))); // E0613
+                    throw std::runtime_error(std::format("E0613 expected '(' at {}", getLocString(forScope->location))); // E0613
                 }
-                std::unique_ptr<ASTNode> initNode = parseStatement(tp, current, src);
-                if (initNode->objType != ASTNodeType::DECL_VAR && initNode->objType != ASTNodeType::ASSIGN && initNode->objType != ASTNodeType::EMPTY) {
+
+                // parse init
+                std::unique_ptr<A1Stat> initNode = parseStatement(tp, *forScope, mod);
+                if (initNode->objType != A1StatType::DECL && initNode->objType != A1StatType::ASSIGN && initNode->objType != A1StatType::NONE) {
                     throw std::runtime_error(std::format("E0614 invalid for_init statement at {}", getLocString(initNode->location))); // E0614
                 }
                 forScope->body.push_back(std::move(initNode));
 
                 // parse cond and step
                 if (tp.seek().objType == TokenType::OP_SEMICOLON) {
-                    forNode->cond = std::make_unique<AtomicExprNode>(Literal((int64_t)1));
+                    forNode->cond = std::make_unique<A1ExprLiteral>(Literal(true));
                 } else {
-                    forNode->cond = parseExpr(tp, *forScope, src);
+                    forNode->cond = parseExpr(tp, *forScope, mod);
                 }
                 if (tp.pop().objType != TokenType::OP_SEMICOLON) {
                     throw std::runtime_error(std::format("E0615 expected ';' at {}", getLocString(forNode->location))); // E0615
@@ -1457,18 +1500,24 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 if (tp.seek().objType == TokenType::OP_RPAREN) {
                     tp.pop();
                 } else {
-                    std::unique_ptr<ASTNode> left = parseExpr(tp, *forScope, src);
+                    std::unique_ptr<A1Expr> left = parseExpr(tp, *forScope, mod);
                     Token& opTkn = tp.pop();
-                    if (opTkn.objType == TokenType::OP_ASSIGN) {
-                        left = parseVarAssign(tp, *forScope, src, std::move(left), TokenType::OP_RPAREN);
-                    } else if (opTkn.objType != TokenType::OP_RPAREN) {
-                        throw std::runtime_error(std::format("E0616 expected ')' at {}", getLocString(forNode->location))); // E0616
+                    A1StatAssignType assignType = getAssignType(opTkn);
+                    if (opTkn.objType != TokenType::OP_RPAREN) {
+                        if (assignType == A1StatAssignType::NONE) {
+                            throw std::runtime_error(std::format("E0616 expected ')' at {}", getLocString(forNode->location))); // E0616
+                        }
+                        forNode->step = parseVarAssign(tp, *forScope, mod, std::move(left), assignType, TokenType::OP_RPAREN);
+                    } else {
+                        std::unique_ptr<A1StatExpr> stepNode = std::make_unique<A1StatExpr>();
+                        stepNode->location = tkn.location;
+                        stepNode->expr = parseExpr(tp, *forScope, mod);
+                        forNode->step = std::move(stepNode);
                     }
-                    forNode->step = std::move(left);
                 }
 
                 // parse body
-                forNode->body = parseStatement(tp, *forScope, src);
+                forNode->body = parseStatement(tp, *forScope, mod);
                 forScope->body.push_back(std::move(forNode));
                 return forScope;
             }
@@ -1477,12 +1526,12 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             {
                 // parse switch_expr, make switch node
                 tp.pop();
-                std::unique_ptr<SwitchNode> switchNode = std::make_unique<SwitchNode>();
+                std::unique_ptr<A1StatSwitch> switchNode = std::make_unique<A1StatSwitch>();
                 switchNode->location = tkn.location;
                 if (tp.pop().objType != TokenType::OP_LPAREN) {
                     throw std::runtime_error(std::format("E0617 expected '(' at {}", getLocString(switchNode->location))); // E0617
                 }
-                switchNode->cond = parseExpr(tp, current, src);
+                switchNode->cond = parseExpr(tp, current, mod);
                 if (tp.pop().objType != TokenType::OP_RPAREN) {
                     throw std::runtime_error(std::format("E0618 expected ')' at {}", getLocString(switchNode->location))); // E0618
                 }
@@ -1501,24 +1550,25 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                         if (defaultFound) {
                             throw std::runtime_error(std::format("E0620 case should be before default at {}", getLocString(caseTkn.location))); // E0620
                         }
-                        std::unique_ptr<ASTNode> value = parseExpr(tp, current, src);
-                        if (value->objType != ASTNodeType::LITERAL) {
+                        std::unique_ptr<A1Expr> value = parseExpr(tp, current, mod);
+                        if (value->objType != A1ExprType::LITERAL) {
                             throw std::runtime_error(std::format("E0621 case_expr must be int constexpr at {}", getLocString(value->location))); // E0621
                         }
-                        Literal lit = static_cast<AtomicExprNode*>(value.get())->literal;
-                        if (lit.objType != LiteralType::INT && lit.objType != LiteralType::CHAR) {
+                        Literal lit = static_cast<A1ExprLiteral*>(value.get())->value;
+                        if (lit.objType != LiteralType::INT) {
                             throw std::runtime_error(std::format("E0622 case_expr must be int constexpr at {}", getLocString(value->location))); // E0622
                         }
+                        int64_t caseValue = std::get<int64_t>(lit.value);
                         if (tp.pop().objType != TokenType::OP_COLON) {
                             throw std::runtime_error(std::format("E0623 expected ':' at {}", getLocString(caseTkn.location))); // E0623
                         }
                         for (auto& cond : switchNode->caseConds) {
-                            if (cond == lit.intValue) {
-                                throw std::runtime_error(std::format("E0624 case value {} already exists at {}", lit.intValue, getLocString(caseTkn.location))); // E0624
+                            if (cond == caseValue) {
+                                throw std::runtime_error(std::format("E0624 case value {} already exists at {}", caseValue, getLocString(caseTkn.location))); // E0624
                             }
                         }
-                        switchNode->caseConds.push_back(lit.intValue);
-                        switchNode->caseBodies.push_back(std::vector<std::unique_ptr<ASTNode>>());
+                        switchNode->caseConds.push_back(caseValue);
+                        switchNode->caseBodies.push_back(std::vector<std::unique_ptr<A1Stat>>());
 
                     } else if (caseTkn.objType == TokenType::KEY_DEFAULT) { // default statement
                         tp.pop();
@@ -1536,10 +1586,10 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                         break;
 
                     } else if (pushCase) { // push to case body
-                        switchNode->caseBodies.back().push_back(parseStatement(tp, current, src));
+                        switchNode->caseBodies.back().push_back(parseStatement(tp, current, mod));
 
                     } else if (!pushCase && defaultFound) { // push to default body
-                        switchNode->defaultBody.push_back(parseStatement(tp, current, src));
+                        switchNode->defaultBody.push_back(parseStatement(tp, current, mod));
 
                     } else { // statement before case
                         throw std::runtime_error(std::format("E0627 statement before case at {}", getLocString(caseTkn.location))); // E0627
@@ -1551,7 +1601,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             case TokenType::KEY_BREAK:
             {
                 tp.pop();
-                std::unique_ptr<ASTNode> result = std::make_unique<ShortStatNode>(ASTNodeType::BREAK);
+                std::unique_ptr<A1StatCtrl> result = std::make_unique<A1StatCtrl>(A1StatType::BREAK);
                 result->location = tkn.location;
                 return result;
             }
@@ -1559,7 +1609,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             case TokenType::KEY_CONTINUE:
             {
                 tp.pop();
-                std::unique_ptr<ASTNode> result = std::make_unique<ShortStatNode>(ASTNodeType::CONTINUE);
+                std::unique_ptr<A1StatCtrl> result = std::make_unique<A1StatCtrl>(A1StatType::CONTINUE);
                 result->location = tkn.location;
                 return result;
             }
@@ -1567,7 +1617,7 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             case TokenType::KEY_FALL:
             {
                 tp.pop();
-                std::unique_ptr<ASTNode> result = std::make_unique<ShortStatNode>(ASTNodeType::FALL);
+                std::unique_ptr<A1StatCtrl> result = std::make_unique<A1StatCtrl>(A1StatType::FALL);
                 result->location = tkn.location;
                 return result;
             }
@@ -1575,13 +1625,13 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             case TokenType::KEY_RETURN: // return statement
             {
                 tp.pop();
-                std::unique_ptr<ShortStatNode> result = std::make_unique<ShortStatNode>(ASTNodeType::RETURN);
+                std::unique_ptr<A1StatCtrl> result = std::make_unique<A1StatCtrl>(A1StatType::RETURN);
                 result->location = tkn.location;
                 if (tp.seek().objType == TokenType::OP_SEMICOLON) {
-                    result->statExpr = std::make_unique<ShortStatNode>(ASTNodeType::EMPTY);
-                    result->statExpr->location = tkn.location;
+                    result->body = std::make_unique<A1Expr>();
+                    result->body->location = tkn.location;
                 } else {
-                    result->statExpr = parseExpr(tp, current, src);
+                    result->body = parseExpr(tp, current, mod);
                 }
                 if (tp.pop().objType != TokenType::OP_SEMICOLON) {
                     throw std::runtime_error(std::format("E0628 expected ';' at {}", getLocString(result->location))); // E0628
@@ -1592,9 +1642,9 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             case TokenType::ORDER_DEFER: // defer statement
             {
                 tp.pop();
-                std::unique_ptr<ShortStatNode> result = std::make_unique<ShortStatNode>(ASTNodeType::DEFER);
+                std::unique_ptr<A1StatCtrl> result = std::make_unique<A1StatCtrl>(A1StatType::DEFER);
                 result->location = tkn.location;
-                result->statExpr = parseExpr(tp, current, src);
+                result->body = parseExpr(tp, current, mod);
                 if (tp.pop().objType != TokenType::OP_SEMICOLON) {
                     throw std::runtime_error(std::format("E0629 expected ';' at {}", getLocString(result->location))); // E0629
                 }
@@ -1602,12 +1652,12 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
             }
 
             case TokenType::OP_LBRACE: // scope
-                return parseScope(tp, current, src);
+                return parseScope(tp, current, mod);
 
             case TokenType::OP_SEMICOLON: // empty statement
             {
                 tp.pop();
-                std::unique_ptr<ShortStatNode> result = std::make_unique<ShortStatNode>(ASTNodeType::EMPTY);
+                std::unique_ptr<A1Stat> result = std::make_unique<A1Stat>();
                 result->location = tkn.location;
                 return result;
             }
@@ -1620,58 +1670,91 @@ std::unique_ptr<ASTNode> ASTGen::parseStatement(TokenProvider& tp, ScopeNode& cu
                 tp.pop();
                 break;
 
+            case TokenType::ORDER_CONST:
+                if (isConst) {
+                    throw std::runtime_error(std::format("E0631 duplicated const at {}", getLocString(tkn.location))); // E0631
+                }
+                isConst = true;
+                tp.pop();
+                break;
+
+            case TokenType::ORDER_VOLATILE:
+                if (isVolatile) {
+                    throw std::runtime_error(std::format("E0632 duplicated volatile at {}", getLocString(tkn.location))); // E0632
+                }
+                isVolatile = true;
+                tp.pop();
+                break;
+
             case TokenType::ORDER_EXTERN:
                 if (isExtern) {
-                    throw std::runtime_error(std::format("E0631 duplicated extern at {}", getLocString(tkn.location))); // E0631
+                    throw std::runtime_error(std::format("E0633 duplicated extern at {}", getLocString(tkn.location))); // E0633
                 }
                 isExtern = true;
                 tp.pop();
                 break;
 
+            case TokenType::ORDER_TYPEDEF:
+            {
+                tp.pop();
+                std::unique_ptr<A1StatDecl> result = std::make_unique<A1StatDecl>();
+                result->location = tkn.location;
+                result->decl = parseTypedef(tp, current, mod);
+                return result;
+            }
+
             case TokenType::ORDER_RAW_C: case TokenType::ORDER_RAW_IR:
                 return parseRawCode(tp);
 
             default:
-                if (isTypeStart(tp, src)) { // var declaration
-                    return parseVarDecl(tp, current, src, src.parseType(tp, current, arch), isDefine, isExtern, false);
+                if (isTypeStart(tp, mod)) { // var declaration
+                    std::unique_ptr<A1StatDecl> result = std::make_unique<A1StatDecl>();
+                    result->location = tkn.location;
+                    result->decl = parseVarDecl(tp, current, mod, mod.parseType(tp, current, arch), isDefine, isConst, isVolatile, isExtern, false);
+                    return result;
                 } else {
-                    std::unique_ptr<ASTNode> left = parseExpr(tp, current, src);
+                    std::unique_ptr<A1Expr> left = parseExpr(tp, current, mod);
                     Token& opTkn = tp.pop();
-                    if (opTkn.objType == TokenType::OP_ASSIGN) { // assign statement
-                        return parseVarAssign(tp, current, src, std::move(left), TokenType::OP_SEMICOLON);
-                    } else if (opTkn.objType == TokenType::OP_SEMICOLON) { // expression statement
-                        return left;
+                    A1StatAssignType assignType = getAssignType(opTkn);
+                    if (opTkn.objType == TokenType::OP_SEMICOLON) { // expression statement
+                        std::unique_ptr<A1StatExpr> result = std::make_unique<A1StatExpr>();
+                        result->location = tkn.location;
+                        result->expr = std::move(left);
+                        return result;
+                    } else if (assignType != A1StatAssignType::NONE) { // assign statement
+                        return parseVarAssign(tp, current, mod, std::move(left), assignType, TokenType::OP_SEMICOLON);
                     } else {
-                        throw std::runtime_error(std::format("E0632 expected ';' at {}", getLocString(opTkn.location))); // E0632
+                        throw std::runtime_error(std::format("E0634 expected ';' at {}", getLocString(opTkn.location))); // E0634
                     }
                 }
         }
     }
-    throw std::runtime_error(std::format("E0633 unexpected EOF while parsing statement at {}", getLocString(current.location))); // E0633
+    throw std::runtime_error(std::format("E0635 unexpected EOF while parsing statement at {}", getLocString(current.location))); // E0635
 }
 
 // parse scope
-std::unique_ptr<ScopeNode> ASTGen::parseScope(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
+std::unique_ptr<A1StatScope> A1Gen::parseScope(TokenProvider& tp, A1StatScope& current, A1Module& mod) {
     if (tp.pop().objType != TokenType::OP_LBRACE) {
-        throw std::runtime_error(std::format("E0634 expected '{{' at {}", getLocString(current.location))); // E0634
+        throw std::runtime_error(std::format("E0636 expected '{{' at {}", getLocString(current.location))); // E0636
     }
-    std::unique_ptr<ScopeNode> scope = std::make_unique<ScopeNode>();
+    std::unique_ptr<A1StatScope> scope = std::make_unique<A1StatScope>(&current);
     scope->location = current.location;
-    scope->parent = &current;
     while (tp.canPop(1)) {
         Token& tkn = tp.seek();
         if (tkn.objType == TokenType::OP_RBRACE) {
             tp.pop();
             break;
         }
-        scope->body.push_back(parseStatement(tp, *scope, src));
+        scope->body.push_back(parseStatement(tp, *scope, mod));
     }
     return scope;
 }
 
 // parse toplevel declaration
-std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
+std::unique_ptr<A1StatDecl> A1Gen::parseTopLevel(TokenProvider& tp, A1StatScope& current, A1Module& mod) {
     bool isDefine = false;
+    bool isConst = false;
+    bool isVolatile = false;
     bool isExtern = false;
     bool isExported = false;
     bool isVaArg = false;
@@ -1681,11 +1764,11 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
             case TokenType::ORDER_INCLUDE:
             {
                 tp.pop();
-                std::unique_ptr<IncludeNode> result = std::make_unique<IncludeNode>();
-                result->location = tkn.location;
+                std::unique_ptr<A1DeclInclude> incNode = std::make_unique<A1DeclInclude>();
+                incNode->location = tkn.location;
                 if (tp.seek().objType == TokenType::OP_LT) { // template arguments
                     while (tp.canPop(1)) {
-                        result->args.push_back(src.parseType(tp, current, arch));
+                        incNode->argTypes.push_back(mod.parseType(tp, current, arch));
                         Token& opTkn = tp.seek();
                         if (opTkn.objType == TokenType::OP_COMMA) {
                             tp.pop();
@@ -1693,18 +1776,33 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
                             tp.pop();
                             break;
                         } else {
-                            throw std::runtime_error(std::format("E0635 expected '>' at {}", getLocString(opTkn.location))); // E0635
+                            throw std::runtime_error(std::format("E0637 expected '>' at {}", getLocString(opTkn.location))); // E0637
                         }
                     }
                 }
                 if (tp.match({TokenType::LIT_STRING, TokenType::IDENTIFIER})) {
-                    result->path = tp.pop().text;
-                    result->tgtNm = result->path;
-                    result->name = tp.pop().text;
+                    incNode->tgtPath = tp.pop().text;
+                    incNode->name = tp.pop().text;
                 } else {
-                    throw std::runtime_error(std::format("E0636 expected module filepath at {}", getLocString(tkn.location))); // E0636
+                    throw std::runtime_error(std::format("E0638 expected module filepath at {}", getLocString(tkn.location))); // E0638
                 }
-                std::string nmValidity = src.isNameUsable(result->name, tkn.location);
+                std::string nmValidity = mod.isNameUsable(incNode->name, tkn.location);
+                if (!nmValidity.empty()) {
+                    throw std::runtime_error(nmValidity);
+                }
+                std::unique_ptr<A1StatDecl> result = std::make_unique<A1StatDecl>();
+                result->location = tkn.location;
+                result->decl = std::move(incNode);
+                return result;
+            }
+
+            case TokenType::ORDER_TYPEDEF:
+            {
+                tp.pop();
+                std::unique_ptr<A1StatDecl> result = std::make_unique<A1StatDecl>();
+                result->location = tkn.location;
+                result->decl = parseTypedef(tp, current, mod);
+                std::string nmValidity = mod.isNameUsable(result->decl->name, result->location);
                 if (!nmValidity.empty()) {
                     throw std::runtime_error(nmValidity);
                 }
@@ -1714,43 +1812,71 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
             case TokenType::ORDER_TEMPLATE:
             {
                 tp.pop();
-                src.isTemplate = true;
-                std::unique_ptr<DeclTemplateNode> result = std::make_unique<DeclTemplateNode>();
-                result->location = tkn.location;
+                mod.isTemplate = true;
+                std::unique_ptr<A1DeclName> dNode = std::make_unique<A1DeclName>(A1DeclType::TEMPLATE);
+                dNode->location = tkn.location;
                 Token& tmpTkn = tp.pop();
                 if (tmpTkn.objType != TokenType::IDENTIFIER) {
-                    throw std::runtime_error(std::format("E0637 expected typename at {}", getLocString(tmpTkn.location))); // E0637
+                    throw std::runtime_error(std::format("E0639 expected typename at {}", getLocString(tmpTkn.location))); // E0639
                 }
-                std::string nmValidity = src.isNameUsable(tmpTkn.text, tmpTkn.location);
+                std::string nmValidity = mod.isNameUsable(tmpTkn.text, tmpTkn.location);
                 if (!nmValidity.empty()) {
                     throw std::runtime_error(nmValidity);
                 }
-                result->name = tmpTkn.text;
+                dNode->name = tmpTkn.text;
+                std::unique_ptr<A1StatDecl> result = std::make_unique<A1StatDecl>();
+                result->location = tkn.location;
+                result->decl = std::move(dNode);
                 return result;
             }
 
             case TokenType::ORDER_RAW_C: case TokenType::ORDER_RAW_IR:
-                return parseRawCode(tp);
+            {
+                std::unique_ptr<A1StatRaw> raw = parseRawCode(tp);
+                std::unique_ptr<A1DeclRaw> rNode = std::make_unique<A1DeclRaw>(raw->objType == A1StatType::RAW_C ? A1DeclType::RAW_C : A1DeclType::RAW_IR);
+                rNode->location = tkn.location;
+                rNode->code = std::move(raw->code);
+                std::unique_ptr<A1StatDecl> result = std::make_unique<A1StatDecl>();
+                result->location = tkn.location;
+                result->decl = std::move(rNode);
+                return result;
+            }
 
             case TokenType::OP_SEMICOLON:
             {
                 tp.pop();
-                std::unique_ptr<ShortStatNode> result = std::make_unique<ShortStatNode>(ASTNodeType::EMPTY);
+                std::unique_ptr<A1StatDecl> result = std::make_unique<A1StatDecl>();
                 result->location = tkn.location;
                 return result;
             }
 
             case TokenType::ORDER_DEFINE:
                 if (isDefine) {
-                    throw std::runtime_error(std::format("E0638 duplicate define at {}", getLocString(tkn.location))); // E0638
+                    throw std::runtime_error(std::format("E0640 duplicate define at {}", getLocString(tkn.location))); // E0640
                 }
                 tp.pop();
                 isDefine = true;
                 break;
 
+            case TokenType::ORDER_CONST:
+                if (isConst) {
+                    throw std::runtime_error(std::format("E0641 duplicate const at {}", getLocString(tkn.location))); // E0641
+                }
+                tp.pop();
+                isConst = true;
+                break;
+
+            case TokenType::ORDER_VOLATILE:
+                if (isVolatile) {
+                    throw std::runtime_error(std::format("E0642 duplicate volatile at {}", getLocString(tkn.location))); // E0642
+                }
+                tp.pop();
+                isVolatile = true;
+                break;
+
             case TokenType::ORDER_EXTERN:
                 if (isExtern) {
-                    throw std::runtime_error(std::format("E0639 duplicate extern at {}", getLocString(tkn.location))); // E0639
+                    throw std::runtime_error(std::format("E0643 duplicate extern at {}", getLocString(tkn.location))); // E0643
                 }
                 tp.pop();
                 isExtern = true;
@@ -1758,7 +1884,7 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
 
             case TokenType::ORDER_EXPORT:
                 if (isExported) {
-                    throw std::runtime_error(std::format("E0640 duplicate export at {}", getLocString(tkn.location))); // E0640
+                    throw std::runtime_error(std::format("E0644 duplicate export at {}", getLocString(tkn.location))); // E0644
                 }
                 tp.pop();
                 isExported = true;
@@ -1766,116 +1892,150 @@ std::unique_ptr<ASTNode> ASTGen::parseTopLevel(TokenProvider& tp, ScopeNode& cur
 
             case TokenType::ORDER_VA_ARG:
                 if (isVaArg) {
-                    throw std::runtime_error(std::format("E0641 duplicate va_arg at {}", getLocString(tkn.location))); // E0641
+                    throw std::runtime_error(std::format("E0645 duplicate va_arg at {}", getLocString(tkn.location))); // E0645
                 }
                 tp.pop();
                 isVaArg = true;
                 break;
 
             case TokenType::KEY_STRUCT:
+            {
                 tp.pop();
-                return parseStruct(tp, current, src, isExported);
+                std::unique_ptr<A1StatDecl> result = std::make_unique<A1StatDecl>();
+                result->location = tkn.location;
+                result->decl = parseStruct(tp, current, mod, isExported);
+                return result;
+            }
 
             case TokenType::KEY_ENUM:
+            {
                 tp.pop();
-                return parseEnum(tp, current, src, isExported);
+                std::unique_ptr<A1StatDecl> result = std::make_unique<A1StatDecl>();
+                result->location = tkn.location;
+                result->decl = parseEnum(tp, current, mod, isExported);
+                return result;
+            }
 
             default:
             {
-                std::unique_ptr<TypeNode> vtype = src.parseType(tp, current, arch);
+                std::unique_ptr<A1StatDecl> result = std::make_unique<A1StatDecl>();
+                result->location = tkn.location;
+                std::unique_ptr<A1Type> vtype = mod.parseType(tp, current, arch);
                 if (tp.match({TokenType::IDENTIFIER, TokenType::OP_SEMICOLON}) || tp.match({TokenType::IDENTIFIER, TokenType::OP_ASSIGN})) { // var declaration
-                    std::unique_ptr<DeclVarNode> varDecl = parseVarDecl(tp, current, src, std::move(vtype), isDefine, isExtern, isExported);
-                    if (varDecl->varExpr != nullptr && varDecl->varExpr->objType != ASTNodeType::LITERAL && varDecl->varExpr->objType != ASTNodeType::LITERAL_KEY) {
-                        throw std::runtime_error(std::format("E0642 variable should be initialized with constexpr at {}", getLocString(vtype->location))); // E0642
+                    std::unique_ptr<A1DeclVar> varDecl = parseVarDecl(tp, current, mod, std::move(vtype), isDefine, isConst, isVolatile, isExtern, isExported);
+                    if (varDecl->init != nullptr && varDecl->init->objType != A1ExprType::LITERAL) {
+                        throw std::runtime_error(std::format("E0646 variable should be initialized with constexpr at {}", getLocString(vtype->location))); // E0646
                     }
-                    std::string nmValidity = src.isNameUsable(varDecl->name, varDecl->location);
+                    std::string nmValidity = mod.isNameUsable(varDecl->name, varDecl->location);
                     if (!nmValidity.empty()) {
                         throw std::runtime_error(nmValidity);
                     }
-                    return varDecl;
+                    result->decl = std::move(varDecl);
+                    return result;
                 } else { // function declaration
-                    return parseFunc(tp, current, src, std::move(vtype), isVaArg, isExported);
+                    result->decl = parseFunc(tp, current, mod, std::move(vtype), isVaArg, isExported);
+                    return result;
                 }
             }
         }
     }
-    throw std::runtime_error(std::format("E0643 unexpected EOF while parsing toplevel at {}", getLocString(current.location))); // E0643
+    throw std::runtime_error(std::format("E0647 unexpected EOF while parsing toplevel at {}", getLocString(current.location))); // E0647
 }
 
 // calculate type size, return true if modified
-bool ASTGen::completeType(SrcFile& src, TypeNode& tgt) {
+bool A1Gen::completeType(A1StatScope& current, A1Module& mod, A1Type& tgt) {
     bool modified = false;
     if (tgt.direct != nullptr) {
-        modified = modified | completeType(src, *tgt.direct);
+        modified = modified | completeType(current, mod, *tgt.direct);
     }
     for (auto& indirect : tgt.indirect) {
-        modified = modified | completeType(src, *indirect);
+        modified = modified | completeType(current, mod, *indirect);
     }
     if (tgt.typeSize != -1) {
         return modified;
     }
-    switch (tgt.subType) {
-        case TypeNodeType::ARRAY:
+    switch (tgt.objType) {
+        case A1TypeType::ARRAY:
             if (tgt.direct->typeSize == 0) {
                 throw std::runtime_error(std::format("E0701 cannot create array/slice of void type at {}", getLocString(tgt.location))); // E0701
             }
             if (tgt.direct->typeSize != -1) {
-                tgt.typeSize = tgt.direct->typeSize * tgt.length;
+                tgt.typeSize = tgt.direct->typeSize * tgt.arrLen;
                 tgt.typeAlign = tgt.direct->typeAlign;
                 modified = true;
             }
             break;
 
-        case TypeNodeType::NAME:
+        case A1TypeType::NAME:
             {
-                DeclStructNode* structNode = static_cast<DeclStructNode*>(src.findNodeByName(ASTNodeType::DECL_STRUCT, tgt.name, false));
+                A1DeclStruct* structNode = static_cast<A1DeclStruct*>(mod.findDeclaration(tgt.name, A1DeclType::STRUCT, false));
                 if (structNode != nullptr && structNode->structSize != -1) {
                     tgt.typeSize = structNode->structSize;
                     tgt.typeAlign = structNode->structAlign;
                     modified = true;
                 }
-                DeclEnumNode* enumNode = static_cast<DeclEnumNode*>(src.findNodeByName(ASTNodeType::DECL_ENUM, tgt.name, false));
+                A1DeclEnum* enumNode = static_cast<A1DeclEnum*>(mod.findDeclaration(tgt.name, A1DeclType::ENUM, false));
                 if (enumNode != nullptr) {
                     tgt.typeSize = enumNode->enumSize;
                     tgt.typeAlign = enumNode->enumSize;
                     modified = true;
                 }
-                DeclTemplateNode* templateNode = static_cast<DeclTemplateNode*>(src.findNodeByName(ASTNodeType::DECL_TEMPLATE, tgt.name, false));
-                if (templateNode != nullptr && templateNode->tmpSize != -1) {
-                    tgt.typeSize = templateNode->tmpSize;
-                    tgt.typeAlign = templateNode->tmpAlign;
+                A1DeclName* templateNode = static_cast<A1DeclName*>(mod.findDeclaration(tgt.name, A1DeclType::TEMPLATE, false));
+                if (templateNode != nullptr && templateNode->typeSize != -1) {
+                    tgt.typeSize = templateNode->typeSize;
+                    tgt.typeAlign = templateNode->typeAlign;
                     modified = true;
                 }
-                if (structNode == nullptr && enumNode == nullptr && templateNode == nullptr) {
+                A1Decl* dNode = current.findDeclaration(tgt.name);
+                if (dNode->objType == A1DeclType::TYPEDEF) { // replace definition
+                    A1Type* tNode = static_cast<A1DeclName*>(dNode)->type.get();
+                    tgt.objType = tNode->objType;
+                    tgt.location = tNode->location;
+                    tgt.name = tNode->name;
+                    tgt.incName = tNode->incName;
+                    if (tNode->direct != nullptr) {
+                        tgt.direct = tNode->direct->Clone();
+                    }
+                    for (auto& ind : tNode->indirect) {
+                        tgt.indirect.push_back(ind->Clone());
+                    }
+                    tgt.arrLen = tNode->arrLen;
+                    tgt.typeSize = tNode->typeSize;
+                    tgt.typeAlign = tNode->typeAlign;
+                    modified = true;
+                } else {
+                    dNode = nullptr;
+                }
+                if (structNode == nullptr && enumNode == nullptr && templateNode == nullptr && dNode == nullptr) {
                     throw std::runtime_error(std::format("E0702 type {} not found at {}", tgt.name, getLocString(tgt.location))); // E0702
                 }
             }
             break;
 
-        case TypeNodeType::FOREIGN:
+        case A1TypeType::FOREIGN:
             {
-                IncludeNode* includeNode = static_cast<IncludeNode*>(src.findNodeByName(ASTNodeType::INCLUDE, tgt.includeName, false));
+                A1DeclInclude* includeNode = static_cast<A1DeclInclude*>(mod.findDeclaration(tgt.incName, A1DeclType::INCLUDE, false));
                 if (includeNode == nullptr) {
-                    throw std::runtime_error(std::format("E0703 include name {} not found at {}", tgt.name, getLocString(tgt.location))); // E0703
+                    throw std::runtime_error(std::format("E0703 include name {} not found at {}", tgt.incName, getLocString(tgt.location))); // E0703
                 }
-                int index = findSource(includeNode->path);
+                int index = findModule(includeNode->tgtPath);
                 if (index == -1) {
-                    throw std::runtime_error(std::format("E0704 included module {} not found at {}", includeNode->path, getLocString(tgt.location))); // E0704
+                    throw std::runtime_error(std::format("E0704 included module {} not found at {}", includeNode->tgtPath, getLocString(tgt.location))); // E0704
                 }
-                DeclStructNode* structNode = static_cast<DeclStructNode*>(srcFiles[index]->findNodeByName(ASTNodeType::DECL_STRUCT, tgt.name, true));
+                A1DeclStruct* structNode = static_cast<A1DeclStruct*>(modules[index]->findDeclaration(tgt.name, A1DeclType::STRUCT, true));
                 if (structNode != nullptr && structNode->structSize != -1) {
                     tgt.typeSize = structNode->structSize;
                     tgt.typeAlign = structNode->structAlign;
                     modified = true;
                 }
-                DeclEnumNode* enumNode = static_cast<DeclEnumNode*>(srcFiles[index]->findNodeByName(ASTNodeType::DECL_ENUM, tgt.name, true));
+                A1DeclEnum* enumNode = static_cast<A1DeclEnum*>(modules[index]->findDeclaration(tgt.name, A1DeclType::ENUM, true));
                 if (enumNode != nullptr) {
                     tgt.typeSize = enumNode->enumSize;
                     tgt.typeAlign = enumNode->enumSize;
                     modified = true;
                 }
                 if (structNode == nullptr && enumNode == nullptr) {
-                    throw std::runtime_error(std::format("E0705 type {}.{} not found at {}", tgt.includeName, tgt.name, getLocString(tgt.location))); // E0705
+                    throw std::runtime_error(std::format("E0705 type {}.{} not found at {}", tgt.incName, tgt.name, getLocString(tgt.location))); // E0705
                 }
             }
             break;
@@ -1884,10 +2044,10 @@ bool ASTGen::completeType(SrcFile& src, TypeNode& tgt) {
 }
 
 // complete struct size, return true if modified
-bool ASTGen::completeStruct(SrcFile& src, DeclStructNode& tgt) {
+bool A1Gen::completeStruct(A1Module& mod, A1DeclStruct& tgt) {
     bool isModified = false;
     for (auto& mem : tgt.memTypes) {
-        isModified = isModified | completeType(src, *mem);
+        isModified = isModified | completeType(*mod.code, mod, *mem);
     }
     for (auto& mem : tgt.memTypes) {
         if (mem->typeSize <= 0) {
@@ -1912,8 +2072,8 @@ bool ASTGen::completeStruct(SrcFile& src, DeclStructNode& tgt) {
 }
 
 // jump variable or function declaration
-void jumpDecl(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
-    src.parseType(tp, current, 1);
+void jumpDecl(TokenProvider& tp, A1StatScope& current, A1Module& mod) {
+    mod.parseType(tp, current, 1);
     if (tp.match({TokenType::IDENTIFIER, TokenType::OP_SEMICOLON}) || tp.match({TokenType::IDENTIFIER, TokenType::OP_ASSIGN})) { // variable
         while (tp.canPop(1)) {
             if (tp.pop().objType == TokenType::OP_SEMICOLON) {
@@ -1943,11 +2103,11 @@ void jumpDecl(TokenProvider& tp, ScopeNode& current, SrcFile& src) {
 }
 
 // final parser, returns error message or empty if ok
-std::string ASTGen::parse(const std::string& path, int nameCut) {
+std::string A1Gen::parse(const std::string& path, int nameCut) {
     // check if already parsed
-    int index = findSource(path);
+    int index = findModule(path);
     if (index != -1) {
-        return std::format("E0706 source {} already parsed", path); // E0706
+        return std::format("E0706 module {} already parsed", path); // E0706
     }
 
     try {
@@ -1967,8 +2127,8 @@ std::string ASTGen::parse(const std::string& path, int nameCut) {
             } else {
                 uname = std::format("{}_{}", name, count);
             }
-            for (auto& src : srcFiles) {
-                if (src->uniqueName == uname) {
+            for (auto& mod : modules) {
+                if (mod->uname == uname) {
                     isIncluded = true;
                     break;
                 }
@@ -1976,17 +2136,17 @@ std::string ASTGen::parse(const std::string& path, int nameCut) {
             if (isIncluded) {
                 count++;
             } else {
-                srcFiles.push_back(std::make_unique<SrcFile>(path, uname));
-                index = static_cast<int>(srcFiles.size() - 1);
+                modules.push_back(std::make_unique<A1Module>(path, uname));
+                index = static_cast<int>(modules.size() - 1);
             }
         }
-        prt.Log(std::format("start parsing source {} as {}", path, srcFiles[index]->uniqueName), 2);
+        prt.Log(std::format("start parsing source {} as {}", path, modules[index]->uname), 2);
 
         // tokenize source
         std::string text = readFile(path);
         std::unique_ptr<std::vector<Token>> tokens = tokenize(text, path, index);
         TokenProvider tp = TokenProvider(*tokens);
-        prt.Log(std::format("tokenized source {}", srcFiles[index]->uniqueName), 2);
+        prt.Log(std::format("tokenized source {}", modules[index]->uname), 2);
 
         // source parsing pass1, parse structs and enums
         std::vector<int> reserved;
@@ -1995,81 +2155,84 @@ std::string ASTGen::parse(const std::string& path, int nameCut) {
             switch (tkn.objType) {
                 case TokenType::ORDER_INCLUDE: // include source, detect import cycle
                 {
-                    std::unique_ptr<ASTNode> node = parseTopLevel(tp, *srcFiles[index]->code, *srcFiles[index]);
-                    if (node->objType != ASTNodeType::INCLUDE) {
+                    std::unique_ptr<A1StatDecl> node = parseTopLevel(tp, *modules[index]->code, *modules[index]);
+                    if (node->decl->objType != A1DeclType::INCLUDE) {
                         return std::format("E0707 invalid include statement at {}", getLocString(tkn.location)); // E0707
                     }
-                    IncludeNode* inc = static_cast<IncludeNode*>(node.get());
-                    int idx = findSource(inc->path);
+                    A1DeclInclude* inc = static_cast<A1DeclInclude*>(node->decl.get());
+                    int idx = findModule(inc->tgtPath);
                     if (idx == -1) { // not found, parse and add
-                        std::string emsg = parse(inc->path);
+                        std::string emsg = parse(inc->tgtPath, nameCut);
                         if (!emsg.empty()) {
                             return emsg;
                         }
-                    } else if (!srcFiles[idx]->isFinished) { // import cycle, return error message
-                        return std::format("E0708 import cycle detected with {} at {}", inc->path, getLocString(tkn.location)); // E0708
+                    } else if (!modules[idx]->isFinished) { // import cycle, return error message
+                        return std::format("E0708 import cycle detected with {} at {}", inc->tgtPath, getLocString(tkn.location)); // E0708
                     } // else: already parsed, skip
                 }
                 break;
 
-                case TokenType::ORDER_TEMPLATE: case TokenType::ORDER_RAW_C: case TokenType::ORDER_RAW_IR: case TokenType::ORDER_DEFINE: // need to be parsed for deciding types
-                    srcFiles[index]->code->body.push_back(parseTopLevel(tp, *srcFiles[index]->code, *srcFiles[index]));
+                case TokenType::ORDER_TYPEDEF:case TokenType::ORDER_TEMPLATE: case TokenType::ORDER_RAW_C: case TokenType::ORDER_RAW_IR: case TokenType::ORDER_DEFINE: // need to be parsed for deciding types
+                    modules[index]->code->body.push_back(parseTopLevel(tp, *modules[index]->code, *modules[index]));
                     break;
 
                 case TokenType::KEY_STRUCT: case TokenType::KEY_ENUM: case TokenType::OP_SEMICOLON: // definitions of structs and enums are parsed now
-                    srcFiles[index]->code->body.push_back(parseTopLevel(tp, *srcFiles[index]->code, *srcFiles[index]));
+                    modules[index]->code->body.push_back(parseTopLevel(tp, *modules[index]->code, *modules[index]));
                     break;
 
                 case TokenType::ORDER_EXPORT:
                     if (tp.match({TokenType::ORDER_EXPORT, TokenType::KEY_STRUCT}) || tp.match({TokenType::ORDER_EXPORT, TokenType::KEY_ENUM})) {
-                        srcFiles[index]->code->body.push_back(parseTopLevel(tp, *srcFiles[index]->code, *srcFiles[index]));
+                        modules[index]->code->body.push_back(parseTopLevel(tp, *modules[index]->code, *modules[index]));
                     } else {
                         reserved.push_back(tp.pos);
                         tp.pop();
                     }
                     break;
 
-                case TokenType::ORDER_EXTERN: case TokenType::ORDER_VA_ARG: // order before variable or function declaration
+                case TokenType::ORDER_CONST: case TokenType::ORDER_VOLATILE: case TokenType::ORDER_EXTERN: case TokenType::ORDER_VA_ARG: // order before variable or function declaration
                     reserved.push_back(tp.pos);
                     tp.pop();
                     break;
 
                 default: // declarations of functions and variables are parsed later
                     reserved.push_back(tp.pos);
-                    jumpDecl(tp, *srcFiles[index]->code, *srcFiles[index]);
+                    jumpDecl(tp, *modules[index]->code, *modules[index]);
                     break;
             }
         }
-        prt.Log(std::format("pass1 finished for source {}", srcFiles[index]->uniqueName), 2);
+        prt.Log(std::format("pass1 finished for source {}", modules[index]->uname), 2);
 
         // source parsing pass2, static calculation of struct size
         bool isModified = true;
         while (isModified) {
             isModified = false;
-            for (auto& node : srcFiles[index]->code->body) {
-                if (node->objType == ASTNodeType::DECL_STRUCT) {
-                    DeclStructNode* decl = static_cast<DeclStructNode*>(node.get());
-                    if (decl->structSize < 0) {
-                        isModified = isModified | completeStruct(*srcFiles[index], *decl);
+            for (auto& node : modules[index]->code->body) {
+                if (node->objType == A1StatType::DECL) {
+                    A1StatDecl* dNode = static_cast<A1StatDecl*>(node.get());
+                    if (dNode->decl->objType == A1DeclType::STRUCT) {
+                        A1DeclStruct* sNode = static_cast<A1DeclStruct*>(dNode->decl.get());
+                        if (sNode->structSize < 0) {
+                            isModified = isModified | completeStruct(*modules[index], *sNode);
+                        }
                     }
                 }
             }
         }
-        prt.Log(std::format("pass2 finished for source {}", srcFiles[index]->uniqueName), 2);
+        prt.Log(std::format("pass2 finished for source {}", modules[index]->uname), 2);
 
         // source parsing pass3, parse functions and variables
         tp.pos = 0;
         for (int i : reserved) {
             if (i >= tp.pos) { // parse only if not already parsed
                 tp.pos = i;
-                srcFiles[index]->code->body.push_back(parseTopLevel(tp, *srcFiles[index]->code, *srcFiles[index]));
+                modules[index]->code->body.push_back(parseTopLevel(tp, *modules[index]->code, *modules[index]));
             }
         }
-        prt.Log(std::format("pass3 finished for source {}", srcFiles[index]->uniqueName), 2);
+        prt.Log(std::format("pass3 finished for source {}", modules[index]->uname), 2);
 
         // finish parsing
-        srcFiles[index]->isFinished = true;
-        prt.Log(std::format("finished parsing source {} as {}", path, srcFiles[index]->uniqueName), 3);
+        modules[index]->isFinished = true;
+        prt.Log(std::format("finished parsing source {} as {}", path, modules[index]->uname), 3);
     } catch (std::exception& e) {
         return e.what();
     }
