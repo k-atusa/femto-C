@@ -111,7 +111,6 @@ enum class TokenType {
     IFUNC_LEN,
     // compiler order
     ORDER_INCLUDE,
-    ORDER_TYPEDEF,
     ORDER_TEMPLATE,
     ORDER_DEFER,
     ORDER_DEFINE,

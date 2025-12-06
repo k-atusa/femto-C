@@ -161,8 +161,8 @@ A1Decl* A1Module::findDeclaration(const std::string& name, bool checkExported) {
         return dNode;
     }
     switch (dNode->objType) {
-        case A1DeclType::INCLUDE: case A1DeclType::TEMPLATE: case A1DeclType::TYPEDEF:
-            return nullptr; // include, template, typedef are not exported
+        case A1DeclType::INCLUDE: case A1DeclType::TEMPLATE:
+            return nullptr; // include, template are not exported
         case A1DeclType::VAR: case A1DeclType::STRUCT: case A1DeclType::ENUM:
             if ('A' <= dNode->name[0] && dNode->name[0] <= 'Z') {
                 return dNode;
@@ -225,7 +225,7 @@ Literal A1Module::findLiteral(const std::string& name, bool checkExported) {
 }
 
 std::string A1Module::isNameUsable(const std::string& name, Location loc) {
-    // toplevel names used: include, typedef, template, var, func, struct, enum
+    // toplevel names used: include, template, var, func, struct, enum
     if (findDeclaration(name, false) != nullptr) {
         return std::format("E0201 global name {} already used at {}:{}", name, path, loc.line); // E0201
     }
@@ -245,13 +245,19 @@ std::unique_ptr<A1Type> A1Module::parseType(TokenProvider& tp, A1StatScope& curr
         result = std::make_unique<A1Type>(includeTkn.text, nameTkn.text);
         result->location = includeTkn.location;
 
-    } else if (tp.match({TokenType::IDENTIFIER})) { // typedef, template, struct, enum
+    } else if (tp.match({TokenType::IDENTIFIER})) { // template, struct, enum
         Token& nameTkn = tp.pop();
         result = std::make_unique<A1Type>(A1TypeType::NAME, nameTkn.text);
         result->location = nameTkn.location;
 
     } else if (tp.canPop(1)) { // primitive
         Token& baseTkn = tp.pop();
+        if (baseTkn.objType == TokenType::KEY_AUTO) { // auto
+            result = std::make_unique<A1Type>(A1TypeType::AUTO, baseTkn.text);
+            result->location = baseTkn.location;
+            return result;
+        }
+
         result = std::make_unique<A1Type>(A1TypeType::PRIMITIVE, baseTkn.text);
         result->location = baseTkn.location;
         switch (baseTkn.objType) {
@@ -969,7 +975,6 @@ std::unique_ptr<A1DeclFunc> A1Gen::parseFunc(TokenProvider& tp, A1StatScope& cur
     if (tp.seek().objType != TokenType::OP_RPAREN) {
         while (tp.canPop(1)) {
             std::unique_ptr<A1Type> paramType = mod.parseType(tp, current, arch);
-            completeType(current, mod, *paramType); // to resolve typedef
             if (paramType->typeSize == 0) {
                 throw std::runtime_error(std::format("E0421 parameter type cannot be void at {}", getLocString(paramType->location))); // E0421
             }
@@ -1041,29 +1046,6 @@ std::unique_ptr<A1DeclFunc> A1Gen::parseFunc(TokenProvider& tp, A1StatScope& cur
     }
     prt.Log(std::format("AST1 func {} at {}", funcNode->name, getLocString(funcNode->location)), 1);
     return funcNode;
-}
-
-// parse typedef, after #typedef
-std::unique_ptr<A1DeclName> A1Gen::parseTypedef(TokenProvider& tp, A1StatScope& current, A1Module& mod) {
-    Token& nmTkn = tp.pop();
-    if (nmTkn.objType != TokenType::IDENTIFIER) {
-        throw std::runtime_error(std::format("E0429 expected identifier at {}", getLocString(nmTkn.location))); // E0429
-    }
-    std::unique_ptr<A1DeclName> decl = std::make_unique<A1DeclName>(A1DeclType::TYPEDEF);
-    decl->location = nmTkn.location;
-    decl->name = nmTkn.text;
-    decl->type = mod.parseType(tp, current, arch);
-    if (tp.pop().objType != TokenType::OP_SEMICOLON) {
-        throw std::runtime_error(std::format("E0430 expected ';' at {}", getLocString(decl->location))); // E0430
-    }
-    
-    // check name duplication inside scope (must check global scope for toplevels)
-    for (auto& stat : current.body) {
-        if (stat->objType == A1StatType::DECL && static_cast<A1StatDecl*>(stat.get())->decl->name == decl->name) {
-            throw std::runtime_error(std::format("E0431 variable name {} already exists at {}", decl->name, getLocString(decl->location))); // E0431
-        }
-    }
-    return decl;
 }
 
 // parse atomic expression
@@ -1703,15 +1685,6 @@ std::unique_ptr<A1Stat> A1Gen::parseStatement(TokenProvider& tp, A1StatScope& cu
                 tp.pop();
                 break;
 
-            case TokenType::ORDER_TYPEDEF:
-            {
-                tp.pop();
-                std::unique_ptr<A1StatDecl> result = std::make_unique<A1StatDecl>();
-                result->location = tkn.location;
-                result->decl = parseTypedef(tp, current, mod);
-                return result;
-            }
-
             case TokenType::ORDER_RAW_C: case TokenType::ORDER_RAW_IR:
                 return parseRawCode(tp);
 
@@ -1805,28 +1778,15 @@ std::unique_ptr<A1StatDecl> A1Gen::parseTopLevel(TokenProvider& tp, A1StatScope&
                 return result;
             }
 
-            case TokenType::ORDER_TYPEDEF:
-            {
-                tp.pop();
-                std::unique_ptr<A1StatDecl> result = std::make_unique<A1StatDecl>();
-                result->location = tkn.location;
-                result->decl = parseTypedef(tp, current, mod);
-                std::string nmValidity = mod.isNameUsable(result->decl->name, result->location);
-                if (!nmValidity.empty()) {
-                    throw std::runtime_error(nmValidity);
-                }
-                return result;
-            }
-
             case TokenType::ORDER_TEMPLATE:
             {
                 tp.pop();
-                mod.isTemplate = true;
-                std::unique_ptr<A1DeclName> dNode = std::make_unique<A1DeclName>(A1DeclType::TEMPLATE);
+                mod.tmpArgsCount++;
+                std::unique_ptr<A1DeclTemplate> dNode = std::make_unique<A1DeclTemplate>();
                 dNode->location = tkn.location;
                 Token& tmpTkn = tp.pop();
                 if (tmpTkn.objType != TokenType::IDENTIFIER) {
-                    throw std::runtime_error(std::format("E0639 expected typename at {}", getLocString(tmpTkn.location))); // E0639
+                    throw std::runtime_error(std::format("E0639 expected identifier at {}", getLocString(tmpTkn.location))); // E0639
                 }
                 std::string nmValidity = mod.isNameUsable(tmpTkn.text, tmpTkn.location);
                 if (!nmValidity.empty()) {
@@ -1952,13 +1912,13 @@ std::unique_ptr<A1StatDecl> A1Gen::parseTopLevel(TokenProvider& tp, A1StatScope&
 }
 
 // calculate type size, return true if modified
-bool A1Gen::completeType(A1StatScope& current, A1Module& mod, A1Type& tgt) {
+bool A1Gen::completeType(A1Module& mod, A1Type& tgt) {
     bool modified = false;
     if (tgt.direct != nullptr) {
-        modified = modified | completeType(current, mod, *tgt.direct);
+        modified = modified | completeType(mod, *tgt.direct);
     }
     for (auto& indirect : tgt.indirect) {
-        modified = modified | completeType(current, mod, *indirect);
+        modified = modified | completeType(mod, *indirect);
     }
     if (tgt.typeSize != -1) {
         return modified;
@@ -1989,33 +1949,8 @@ bool A1Gen::completeType(A1StatScope& current, A1Module& mod, A1Type& tgt) {
                     tgt.typeAlign = enumNode->enumSize;
                     modified = true;
                 }
-                A1DeclName* templateNode = static_cast<A1DeclName*>(mod.findDeclaration(tgt.name, A1DeclType::TEMPLATE, false));
-                if (templateNode != nullptr && templateNode->typeSize != -1) {
-                    tgt.typeSize = templateNode->typeSize;
-                    tgt.typeAlign = templateNode->typeAlign;
-                    modified = true;
-                }
-                A1Decl* dNode = current.findDeclaration(tgt.name);
-                if (dNode->objType == A1DeclType::TYPEDEF) { // replace definition
-                    A1Type* tNode = static_cast<A1DeclName*>(dNode)->type.get();
-                    tgt.objType = tNode->objType;
-                    tgt.location = tNode->location;
-                    tgt.name = tNode->name;
-                    tgt.incName = tNode->incName;
-                    if (tNode->direct != nullptr) {
-                        tgt.direct = tNode->direct->Clone();
-                    }
-                    for (auto& ind : tNode->indirect) {
-                        tgt.indirect.push_back(ind->Clone());
-                    }
-                    tgt.arrLen = tNode->arrLen;
-                    tgt.typeSize = tNode->typeSize;
-                    tgt.typeAlign = tNode->typeAlign;
-                    modified = true;
-                } else {
-                    dNode = nullptr;
-                }
-                if (structNode == nullptr && enumNode == nullptr && templateNode == nullptr && dNode == nullptr) {
+                A1DeclTemplate* templateNode = static_cast<A1DeclTemplate*>(mod.findDeclaration(tgt.name, A1DeclType::TEMPLATE, false));
+                if (structNode == nullptr && enumNode == nullptr && templateNode == nullptr) {
                     throw std::runtime_error(std::format("E0702 type {} not found at {}", tgt.name, getLocString(tgt.location))); // E0702
                 }
             }
@@ -2056,7 +1991,7 @@ bool A1Gen::completeType(A1StatScope& current, A1Module& mod, A1Type& tgt) {
 bool A1Gen::completeStruct(A1Module& mod, A1DeclStruct& tgt) {
     bool isModified = false;
     for (auto& mem : tgt.memTypes) {
-        isModified = isModified | completeType(*mod.code, mod, *mem);
+        isModified = isModified | completeType(mod, *mem);
     }
     for (auto& mem : tgt.memTypes) {
         if (mem->typeSize <= 0) {
@@ -2181,7 +2116,7 @@ std::string A1Gen::parse(const std::string& path, int nameCut) {
                 }
                 break;
 
-                case TokenType::ORDER_TYPEDEF:case TokenType::ORDER_TEMPLATE: case TokenType::ORDER_RAW_C: case TokenType::ORDER_RAW_IR: case TokenType::ORDER_DEFINE: // need to be parsed for deciding types
+                case TokenType::ORDER_TEMPLATE: case TokenType::ORDER_RAW_C: case TokenType::ORDER_RAW_IR: case TokenType::ORDER_DEFINE: // need to be parsed for deciding types
                     modules[index]->code->body.push_back(parseTopLevel(tp, *modules[index]->code, *modules[index]));
                     break;
 

@@ -10,3 +10,14 @@ AST1에서의 위치를 기록
 
 A1스코프노드
 모든 변수는 명시적 변수 선언 노드로 들어감
+
+template 타입은 크기를 아는 절대 참조 타입
+
+A1Ext
+이때부터는 include의 uname 기반으로 검색을 시작함.
+include/struct/typedef
+include : 일반 참조는 바로 인스턴스화.
+템플릿 참조는 크기를 알면 표준화한 타입으로 인스턴스화.
+struct : 반복 크기 계산
+typedef : struct 범위 안은 모두 치환
+template -> typedef로 치환

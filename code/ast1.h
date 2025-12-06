@@ -19,7 +19,8 @@ enum class A1TypeType {
     SLICE,
     FUNCTION,
     NAME, // for struct, enum, template
-    FOREIGN // from other source file
+    FOREIGN, // from other source file
+    TEMPLATE // for A1Ext only, incName is [uname of caller]/[incName] or [uname of caller]
 };
 
 class A1Type {
@@ -139,7 +140,6 @@ enum class A1DeclType {
     RAW_IR,
     INCLUDE,
     TEMPLATE,
-    TYPEDEF,
     VAR,
     FUNC,
     STRUCT,
@@ -649,30 +649,23 @@ class A1DeclInclude : public A1Decl { // include
     }
 };
 
-class A1DeclName : public A1Decl { // template or typedef
+class A1DeclTemplate : public A1Decl { // template
     public:
-    std::unique_ptr<A1Type> type; // for typedef
-    int typeSize;
-    int typeAlign;
+    std::unique_ptr<A1Type> body;
 
-    A1DeclName(): A1Decl(A1DeclType::NONE), type(), typeSize(-1), typeAlign(-1) {}
-    A1DeclName(A1DeclType tp): A1Decl(tp), type(), typeSize(-1), typeAlign(-1) {}
-    virtual ~A1DeclName() = default;
+    A1DeclTemplate(): A1Decl(A1DeclType::TEMPLATE), body() {}
+    virtual ~A1DeclTemplate() = default;
 
     virtual std::unique_ptr<A1Decl> Clone(A1StatScope* parent) {
-        std::unique_ptr<A1DeclName> newNode = std::make_unique<A1DeclName>(objType);
+        std::unique_ptr<A1DeclTemplate> newNode = std::make_unique<A1DeclTemplate>();
         newNode->location = location;
         newNode->name = name;
-        newNode->type = type ? type->Clone() : nullptr;
-        newNode->isExported = isExported;
-        newNode->typeSize = typeSize;
-        newNode->typeAlign = typeAlign;
+        newNode->body = body->Clone();
         return newNode;
     }
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent * 2, ' ') + std::format("A1DeclName {} {}", (int)objType, name);
-        if (type) result += "\n" + type->toString(indent + 1);
+        std::string result = std::string(indent * 2, ' ') + std::format("A1DeclTemplate {} {}", (int)objType, name);
         return result;
     }
 };
@@ -828,20 +821,21 @@ class A1Module {
     public:
     std::string path;
     std::string uname; // for non-duplicate compile
-    std::vector<std::unique_ptr<A1Type>> tmpArgs; // template arguments with uname.name format
     std::unique_ptr<A1StatScope> code;
-    bool isTemplate;
+    std::vector<std::unique_ptr<A1Type>> tmpArgs; // template arguments with uname.name format
+    int tmpArgsCount; // number of template argument required
     bool isFinished;
 
-    A1Module(): path(""), uname(""), code(), isTemplate(false), isFinished(false) {}
-    A1Module(const std::string& fpath): path(fpath), uname(""), code(), isTemplate(false), isFinished(false) {}
-    A1Module(const std::string& fpath, const std::string& uname): path(fpath), uname(uname), code(), isTemplate(false), isFinished(false) {}
+    A1Module(): path(""), uname(""), code(), tmpArgsCount(0), isFinished(false) {}
+    A1Module(const std::string& fpath): path(fpath), uname(""), code(), tmpArgsCount(0), isFinished(false) {}
+    A1Module(const std::string& fpath, const std::string& uname): path(fpath), uname(uname), code(), tmpArgsCount(0), isFinished(false) {}
 
     std::unique_ptr<A1Module> Clone() {
         std::unique_ptr<A1Module> result = std::make_unique<A1Module>(path);
         result->uname = uname;
         if (code) result->code = std::unique_ptr<A1StatScope>(static_cast<A1StatScope*>(code->Clone(nullptr).release()));
-        result->isTemplate = isTemplate;
+        for (auto& arg : tmpArgs) result->tmpArgs.push_back(arg->Clone());
+        result->tmpArgsCount = tmpArgsCount;
         result->isFinished = isFinished;
         return result;
     }
@@ -888,7 +882,6 @@ class A1Gen {
     std::unique_ptr<A1DeclStruct> parseStruct(TokenProvider& tp, A1StatScope& current, A1Module& mod, bool isExported); // struct declaration
     std::unique_ptr<A1DeclEnum> parseEnum(TokenProvider& tp, A1StatScope& current, A1Module& mod, bool isExported); // enum declaration
     std::unique_ptr<A1DeclFunc> parseFunc(TokenProvider& tp, A1StatScope& current, A1Module& mod, std::unique_ptr<A1Type> retType, bool isVaArg, bool isExported); // function declaration
-    std::unique_ptr<A1DeclName> parseTypedef(TokenProvider& tp, A1StatScope& current, A1Module& mod); // typedef
     
     std::unique_ptr<A1Expr> parseAtomicExpr(TokenProvider& tp, A1StatScope& current, A1Module& mod); // atomic expression (primary expression)
     std::unique_ptr<A1Expr> parsePrattExpr(TokenProvider& tp, A1StatScope& current, A1Module& mod, int level); // pratt expression (binary, tertiary)
@@ -900,7 +893,7 @@ class A1Gen {
     std::unique_ptr<A1StatScope> parseScope(TokenProvider& tp, A1StatScope& current, A1Module& mod); // parse scope
     std::unique_ptr<A1StatDecl> parseTopLevel(TokenProvider& tp, A1StatScope& current, A1Module& mod); // parse toplevel declaration
 
-    bool completeType(A1StatScope& current,A1Module& mod, A1Type& tgt); // calculate type size, return true if modified
+    bool completeType(A1Module& mod, A1Type& tgt); // calculate type size, return true if modified
     bool completeStruct(A1Module& mod, A1DeclStruct& tgt); // calculate struct size, return true if modified
 };
 
