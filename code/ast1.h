@@ -138,6 +138,7 @@ enum class A1DeclType {
     NONE,
     RAW_C,
     RAW_IR,
+    TYPEDEF,
     INCLUDE,
     TEMPLATE,
     VAR,
@@ -649,6 +650,28 @@ class A1DeclInclude : public A1Decl { // include
     }
 };
 
+class A1DeclTypedef : public A1Decl { // typedef
+    public:
+
+    A1DeclTypedef(): A1Decl(A1DeclType::TYPEDEF) {}
+    virtual ~A1DeclTypedef() = default;
+
+    virtual std::unique_ptr<A1Decl> Clone(A1StatScope* parent) {
+        std::unique_ptr<A1DeclTypedef> newNode = std::make_unique<A1DeclTypedef>();
+        newNode->location = location;
+        newNode->name = name;
+        newNode->type = type ? type->Clone() : nullptr;
+        newNode->isExported = isExported;
+        return newNode;
+    }
+
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A1DeclTypedef {}", name);
+        result += "\n" + type->toString(indent + 1);
+        return result;
+    }
+};
+
 class A1DeclTemplate : public A1Decl { // template
     public:
     std::unique_ptr<A1Type> body;
@@ -882,6 +905,7 @@ class A1Gen {
     std::unique_ptr<A1DeclStruct> parseStruct(TokenProvider& tp, A1StatScope& current, A1Module& mod, bool isExported); // struct declaration
     std::unique_ptr<A1DeclEnum> parseEnum(TokenProvider& tp, A1StatScope& current, A1Module& mod, bool isExported); // enum declaration
     std::unique_ptr<A1DeclFunc> parseFunc(TokenProvider& tp, A1StatScope& current, A1Module& mod, std::unique_ptr<A1Type> retType, bool isVaArg, bool isExported); // function declaration
+    std::unique_ptr<A1DeclTypedef> parseTypedef(TokenProvider& tp, A1StatScope& current, A1Module& mod); // typedef declaration
     
     std::unique_ptr<A1Expr> parseAtomicExpr(TokenProvider& tp, A1StatScope& current, A1Module& mod); // atomic expression (primary expression)
     std::unique_ptr<A1Expr> parsePrattExpr(TokenProvider& tp, A1StatScope& current, A1Module& mod, int level); // pratt expression (binary, tertiary)

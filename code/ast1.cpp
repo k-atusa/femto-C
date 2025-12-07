@@ -161,8 +161,8 @@ A1Decl* A1Module::findDeclaration(const std::string& name, bool checkExported) {
         return dNode;
     }
     switch (dNode->objType) {
-        case A1DeclType::INCLUDE: case A1DeclType::TEMPLATE:
-            return nullptr; // include, template are not exported
+        case A1DeclType::INCLUDE: case A1DeclType::TEMPLATE: case A1DeclType::TYPEDEF:
+            return nullptr; // include, template, typedef are not exported
         case A1DeclType::VAR: case A1DeclType::STRUCT: case A1DeclType::ENUM:
             if ('A' <= dNode->name[0] && dNode->name[0] <= 'Z') {
                 return dNode;
@@ -245,9 +245,14 @@ std::unique_ptr<A1Type> A1Module::parseType(TokenProvider& tp, A1StatScope& curr
         result = std::make_unique<A1Type>(includeTkn.text, nameTkn.text);
         result->location = includeTkn.location;
 
-    } else if (tp.match({TokenType::IDENTIFIER})) { // template, struct, enum
+    } else if (tp.match({TokenType::IDENTIFIER})) { // typedef, template, struct, enum
         Token& nameTkn = tp.pop();
-        result = std::make_unique<A1Type>(A1TypeType::NAME, nameTkn.text);
+        A1Decl* dNode = current.findDeclaration(nameTkn.text);
+        if (dNode == nullptr || dNode->objType != A1DeclType::TYPEDEF) { // template, struct, enum
+            result = std::make_unique<A1Type>(dNode->name, nameTkn.text);
+        } else { // typedef, replace to original
+            result = dNode->type->Clone();
+        }
         result->location = nameTkn.location;
 
     } else if (tp.canPop(1)) { // primitive
@@ -1048,6 +1053,19 @@ std::unique_ptr<A1DeclFunc> A1Gen::parseFunc(TokenProvider& tp, A1StatScope& cur
     return funcNode;
 }
 
+// parse after #typedef
+std::unique_ptr<A1DeclTypedef> A1Gen::parseTypedef(TokenProvider& tp, A1StatScope& current, A1Module& mod) {
+    Token& nameTkn = tp.pop();
+    if (nameTkn.objType != TokenType::IDENTIFIER) {
+        throw std::runtime_error(std::format("E0429 expected identifier at {}", getLocString(nameTkn.location))); // E0429
+    }
+    std::unique_ptr<A1DeclTypedef> typedefNode = std::make_unique<A1DeclTypedef>();
+    typedefNode->location = nameTkn.location;
+    typedefNode->name = nameTkn.text;
+    typedefNode->type = mod.parseType(tp, current, arch);
+    return typedefNode;
+}
+
 // parse atomic expression
 std::unique_ptr<A1Expr> A1Gen::parseAtomicExpr(TokenProvider& tp, A1StatScope& current, A1Module& mod) {
     Token& tkn = tp.pop();
@@ -1642,6 +1660,15 @@ std::unique_ptr<A1Stat> A1Gen::parseStatement(TokenProvider& tp, A1StatScope& cu
                 return result;
             }
 
+            case TokenType::ORDER_TYPEDEF: // typedef
+            {
+                tp.pop();
+                std::unique_ptr<A1StatDecl> result = std::make_unique<A1StatDecl>();
+                result->location = tkn.location;
+                result->decl = parseTypedef(tp, current, mod);
+                return result;
+            }
+
             case TokenType::OP_LBRACE: // scope
                 return parseScope(tp, current, mod);
 
@@ -1796,6 +1823,15 @@ std::unique_ptr<A1StatDecl> A1Gen::parseTopLevel(TokenProvider& tp, A1StatScope&
                 std::unique_ptr<A1StatDecl> result = std::make_unique<A1StatDecl>();
                 result->location = tkn.location;
                 result->decl = std::move(dNode);
+                return result;
+            }
+
+            case TokenType::ORDER_TYPEDEF:
+            {
+                tp.pop();
+                std::unique_ptr<A1StatDecl> result = std::make_unique<A1StatDecl>();
+                result->location = tkn.location;
+                result->decl = parseTypedef(tp, current, mod);
                 return result;
             }
 
@@ -2116,7 +2152,7 @@ std::string A1Gen::parse(const std::string& path, int nameCut) {
                 }
                 break;
 
-                case TokenType::ORDER_TEMPLATE: case TokenType::ORDER_RAW_C: case TokenType::ORDER_RAW_IR: case TokenType::ORDER_DEFINE: // need to be parsed for deciding types
+                case TokenType::ORDER_TYPEDEF: case TokenType::ORDER_TEMPLATE: case TokenType::ORDER_RAW_C: case TokenType::ORDER_RAW_IR: case TokenType::ORDER_DEFINE: // need to be parsed for deciding types
                     modules[index]->code->body.push_back(parseTopLevel(tp, *modules[index]->code, *modules[index]));
                     break;
 
