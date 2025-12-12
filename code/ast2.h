@@ -164,17 +164,18 @@ class A2Decl {
     public:
     A2DeclType objType;
     Location location;
+    std::string modUname;
     std::string name; // declaration name
     std::unique_ptr<A2Type> type; // declaration type
     bool isExported;
 
-    A2Decl(): objType(A2DeclType::NONE), location(), name(), type(nullptr), isExported(false) {}
-    A2Decl(A2DeclType t): objType(t), location(), name(), type(nullptr), isExported(false) {}
-    A2Decl(A2DeclType t, std::string nm): objType(t), location(), name(nm), type(nullptr), isExported(false) {}
+    A2Decl(): objType(A2DeclType::NONE), location(), modUname(), name(), type(nullptr), isExported(false) {}
+    A2Decl(A2DeclType t): objType(t), location(), modUname(), name(), type(nullptr), isExported(false) {}
+    A2Decl(A2DeclType t, std::string nm): objType(t), location(), modUname(), name(nm), type(nullptr), isExported(false) {}
     virtual ~A2Decl() = default;
 
     virtual std::string toString(int indent) { 
-        std::string result = std::string(indent * 2, ' ') + std::format("A2Decl {} {}", (int)objType, name);
+        std::string result = std::string(indent * 2, ' ') + std::format("A2Decl {} {}.{}", (int)objType, modUname, name);
         if (type) result += "\n" + type->toString(indent + 1);
         return result;
     }
@@ -594,6 +595,12 @@ class A2Gen {
     A2DeclFunc* curFunc;
 
     std::string getLocString(Location loc) { return std::format("{}:{}", genOrder[loc.srcLoc], loc.line); } // get location string
+    int findModule(const std::string& uname) {
+        for (size_t i = 0; i < modules.size(); i++) {
+            if (modules[i]->uname == uname) return i;
+        }
+        return -1;
+    }
 
     private:
     void initTypePool();

@@ -269,86 +269,52 @@ std::unique_ptr<A2Expr> A2Gen::convertExpr(A1Expr* e, A1Module* mod, A2Type* exp
             std::unique_ptr<A2ExprLiteralData> newData = std::make_unique<A2ExprLiteralData>();
             newData->location = e->location;
             if (expectedType->objType == A2TypeType::STRUCT) { // check struct elements
-
+                A2Decl* decl = modules[findModule(expectedType->modUname)]->nameMap[expectedType->name];
+                if (decl->objType != A2DeclType::STRUCT) {
+                    throw std::runtime_error(std::format("E1015 {}.{} is not found at {}", expectedType->modUname, expectedType->name, getLocString(e->location))); // E1015
+                }
+                A2DeclStruct* sDecl = static_cast<A2DeclStruct*>(decl);
+                if (sDecl->memTypes.size() != data->elements.size()) {
+                    throw std::runtime_error(std::format("E1016 {}.{} has {} elements but {} was given at {}", expectedType->modUname, expectedType->name, sDecl->memTypes.size(), data->elements.size(), getLocString(e->location))); // E1016
+                }
+                for (size_t i = 0; i < sDecl->memTypes.size(); i++) {
+                    newData->elements.push_back(convertExpr(data->elements[i].get(), mod, sDecl->memTypes[i].get()));
+                }
             } else if (expectedType->objType == A2TypeType::SLICE || expectedType->objType == A2TypeType::ARRAY) { // check slice, array elements
-
+                if (expectedType->objType == A2TypeType::ARRAY && expectedType->arrLen != data->elements.size()) {
+                    throw std::runtime_error(std::format("E1017 expected {} elements but {} was given at {}", expectedType->arrLen, data->elements.size(), getLocString(e->location))); // E1017
+                }
+                for (size_t i = 0; i < data->elements.size(); i++) {
+                    newData->elements.push_back(convertExpr(data->elements[i].get(), mod, expectedType->direct.get()));
+                }
+            } else {
+                throw std::runtime_error(std::format("E1018 cannot convert literal data to {} at {}", expectedType->toString(), getLocString(e->location))); // E1018
             }
             newData->exprType = expectedType;
             res = std::move(newData);
             break;
         }
 
-        case A1ExprType::NAME:
+        case A1ExprType::NAME: // single name is global/local variable, function //////////
         {
             A1ExprName* nm = static_cast<A1ExprName*>(e);
-            A2DeclVar* local = findVar(nm->name);
-            if (local) {
-                res = std::make_unique<A2ExprName>(A2ExprType::VAR_NAME, local);
-                if (local->type) res->exprType = local->type->Clone().release();
-                res->isLvalue = true;
-            } else {
-                if (curModule->nameMap.count(nm->name)) {
-                     A2Decl* d = curModule->nameMap[nm->name];
-                     if (d->objType == A2DeclType::VAR) res = std::make_unique<A2ExprName>(A2ExprType::VAR_NAME, d);
-                     else if (d->objType == A2DeclType::FUNC) res = std::make_unique<A2ExprName>(A2ExprType::FUNC_NAME, d);
-                     else throw std::runtime_error(std::format("E3011 name {} is not variable or function at {}", nm->name, getLocString(e->location)));
-                     
-                     if (d->type) res->exprType = d->type->Clone().release();
-                     else if (d->objType == A2DeclType::FUNC) {
-                         A2DeclFunc* fd = static_cast<A2DeclFunc*>(d);
-                         res->exprType = new A2Type(A2TypeType::FUNCTION, "");
-                         res->exprType->direct = fd->retType->Clone();
-                         for (auto& p : fd->paramTypes) res->exprType->indirect.push_back(p->Clone());
-                     }
-                } else {
-                    A1Decl* d1 = mod->findDeclaration(nm->name, false);
-                    if (d1) {
-                         if (d1->objType == A1DeclType::INCLUDE) {
-                             A1DeclInclude* inc = static_cast<A1DeclInclude*>(d1);
-                             bool found = false;
-                             for (auto& incInfo : includes) {
-                                  if (incInfo.uname == inc->tgtUname) {
-                                      A2Module* tgtMod = nullptr;
-                                      for (auto& m : modules) {
-                                          if (m->uname == incInfo.uname) {
-                                              tgtMod = m.get();
-                                              break;
-                                          }
-                                      }
-                                      if (tgtMod && tgtMod->nameMap.count(nm->name)) {
-                                          A2Decl* d = tgtMod->nameMap[nm->name];
-                                          if (!d->isExported && !('A' <= d->name[0] && d->name[0] <= 'Z')) {
-                                              throw std::runtime_error(std::format("E3009 symbol {} is not visible at {}", nm->name, getLocString(e->location)));
-                                          }
-                                          if (d->objType == A2DeclType::VAR) res = std::make_unique<A2ExprName>(A2ExprType::VAR_NAME, d);
-                                          else if (d->objType == A2DeclType::FUNC) res = std::make_unique<A2ExprName>(A2ExprType::FUNC_NAME, d);
-                                          else continue;
-                                          
-                                          if (d->type) res->exprType = d->type->Clone().release();
-                                          else if (d->objType == A2DeclType::FUNC) {
-                                               A2DeclFunc* fd = static_cast<A2DeclFunc*>(d);
-                                               res->exprType = new A2Type(A2TypeType::FUNCTION, "");
-                                               res->exprType->direct = fd->retType->Clone();
-                                               for (auto& p : fd->paramTypes) res->exprType->indirect.push_back(p->Clone());
-                                          }
-                                          found = true;
-                                          break;
-                                      }
-                                  }
-                             }
-                             if (!found) throw std::runtime_error(std::format("E3006 unknown variable {} at {}", nm->name, getLocString(e->location)));
-                        } else {
-                             throw std::runtime_error(std::format("E3006 unknown variable {} at {}", nm->name, getLocString(e->location)));
-                        }
-                    } else {
-                        throw std::runtime_error(std::format("E3006 unknown variable {} at {}", nm->name, getLocString(e->location)));
-                    }
-                }
+            std::unique_ptr<A2ExprName> newName = std::make_unique<A2ExprName>();
+            newName->location = e->location;
+            A2DeclVar* vDecl = findVar(nm->name); // local var
+            A1Decl* decl = mod->findDeclaration(nm->name, false); // global/function
+            if (!vDecl && !decl) {
+                throw std::runtime_error(std::format("E1019 {} is not found at {}", nm->name, getLocString(e->location))); // E1019
             }
+            newName->decl = vDecl;
+            newName->exprType = vDecl->type.get();
+            if (expectedType && !isTypeEqual(expectedType, newName->exprType)) {
+                throw std::runtime_error(std::format("E1020 cannot convert {} to {} at {}", nm->name, expectedType->toString(), getLocString(e->location))); // E1020
+            }
+            res = std::move(newName);
             break;
         }
 
-        case A1ExprType::OPERATION:
+        case A1ExprType::OPERATION: // op, inc.name, struct.method, inc.struct.method
         {
             A1ExprOperation* op = static_cast<A1ExprOperation*>(e);
             std::unique_ptr<A2ExprOperation> newOp = std::make_unique<A2ExprOperation>();
@@ -383,7 +349,7 @@ std::unique_ptr<A2Expr> A2Gen::convertExpr(A1Expr* e, A1Module* mod, A2Type* exp
             break;
         }
 
-        case A1ExprType::FUNC_CALL:
+        case A1ExprType::FUNC_CALL: // struct.method, inc.struct.method
         {
             A1ExprFuncCall* call = static_cast<A1ExprFuncCall*>(e);
             std::unique_ptr<A2ExprFuncCall> newCall = std::make_unique<A2ExprFuncCall>();
