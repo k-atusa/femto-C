@@ -1,13 +1,53 @@
 #include "ast1ext.h"
 
 // helper functions
-bool isTypeEqual(A1Type* a, A1Type* b) {
-    if (a == nullptr ^ b == nullptr) return false;
-    if (a == nullptr && b == nullptr) return true;
-    if (a->objType != b->objType || a->typeSize != b->typeSize || a->typeAlign != b->typeAlign || a->name != b->name || a->incName != b->incName) return false;
-    if (!isTypeEqual(a->direct.get(), b->direct.get())) return false;
-    for (int i = 0; i < a->indirect.size(); i++) {
-        if (!isTypeEqual(a->indirect[i].get(), b->indirect[i].get())) return false;
+std::string A1Ext::getOrigin(A1Type* t, A1Module* m) {
+    if (t->objType == A1TypeType::NAME) { // local name from module
+        return m->uname;
+    } else if (t->objType == A1TypeType::FOREIGN) { // foreign name from include
+        A1DeclInclude* includeNode = static_cast<A1DeclInclude*>(m->findDeclaration(t->incName, A1DeclType::INCLUDE, false));
+        if (includeNode == nullptr) {
+            return "";
+        }
+        return includeNode->tgtUname;
+    } else if (t->objType == A1TypeType::TEMPLATE) { // indirect incName
+        if (t->incName.contains("/")) { // uname/incName
+            int pos = t->incName.find("/");
+            int idx = findModule(t->incName.substr(0, pos));
+            if (idx != -1) { // from another module
+                m = modules[idx].get();
+            }
+            A1DeclInclude* includeNode = static_cast<A1DeclInclude*>(m->findDeclaration(t->incName.substr(pos + 1), A1DeclType::INCLUDE, false));
+            if (includeNode == nullptr) {
+                return "";
+            }
+            return includeNode->tgtUname;
+        } else { // uname
+            return t->incName;
+        }
+    } else {
+        return "";
+    }
+}
+
+bool A1Ext::isTypeEqual(A1Type* A, A1Type* B, A1Module* modA, A1Module* modB) {
+    if (A == nullptr ^ B == nullptr) return false;
+    if (A == nullptr && B == nullptr) return true;
+    if (A->typeSize != B->typeSize || A->typeAlign != B->typeAlign || A->name != B->name) return false;
+    if (A->objType == A1TypeType::ARRAY) {
+        if (A->objType != B->objType) return false;
+        if (A->arrLen != B->arrLen) return false;
+    } else if (A->objType == A1TypeType::PRIMITIVE || A->objType == A1TypeType::POINTER || A->objType == A1TypeType::SLICE || A->objType == A1TypeType::FUNCTION) {
+        if (A->objType != B->objType) return false;
+    } else {
+        std::string originA = getOrigin(A, modA);
+        std::string originB = getOrigin(B, modB);
+        if (originA == "" || originB == "") return false; // both are before instantiated
+        if (originA != originB) return false;
+    }
+    if (!isTypeEqual(A->direct.get(), B->direct.get(), modA, modB)) return false;
+    for (int i = 0; i < A->indirect.size(); i++) {
+        if (!isTypeEqual(A->indirect[i].get(), B->indirect[i].get(), modA, modB)) return false;
     }
     return true;
 }
@@ -19,12 +59,12 @@ int A1Ext::findModule(const std::string& uname) {
     return -1;
 }
 
-int A1Ext::findModule(const std::string& path, std::vector<A1Type*> args) {
+int A1Ext::findModule(const std::string& path, std::vector<A1Type*> args, A1Module* caller) {
     for (int i = 0; i < modules.size(); i++) {
         if (modules[i]->path == path && modules[i]->tmpArgsCount == args.size()) {
             bool equal = true;
             for (int j = 0; j < modules[i]->tmpArgs.size(); j++) {
-                if (!isTypeEqual(modules[i]->tmpArgs[j].get(), args[j])) {
+                if (!isTypeEqual(modules[i]->tmpArgs[j].get(), args[j], modules[i].get(), caller)) {
                     equal = false;
                     break;
                 }
@@ -75,19 +115,19 @@ bool A1Ext::completeType(A1Module& mod, A1Type& tgt) {
                 }
                 A1DeclTemplate* templateNode = static_cast<A1DeclTemplate*>(mod.findDeclaration(tgt.name, A1DeclType::TEMPLATE, false));
                 if (templateNode != nullptr) { // copy from template body
-                    tgt.objType = templateNode->body->objType;
-                    tgt.location = templateNode->body->location;
-                    tgt.name = templateNode->body->name;
-                    tgt.incName = templateNode->body->incName;
-                    if (templateNode->body->direct != nullptr) {
-                        tgt.direct = templateNode->body->direct->Clone();
+                    tgt.objType = templateNode->type->objType;
+                    tgt.location = templateNode->type->location;
+                    tgt.name = templateNode->type->name;
+                    tgt.incName = templateNode->type->incName;
+                    if (templateNode->type->direct != nullptr) {
+                        tgt.direct = templateNode->type->direct->Clone();
                     }
-                    for (auto& ind : templateNode->body->indirect) {
+                    for (auto& ind : templateNode->type->indirect) {
                         tgt.indirect.push_back(ind->Clone());
                     }
-                    tgt.arrLen = templateNode->body->arrLen;
-                    tgt.typeSize = templateNode->body->typeSize;
-                    tgt.typeAlign = templateNode->body->typeAlign;
+                    tgt.arrLen = templateNode->type->arrLen;
+                    tgt.typeSize = templateNode->type->typeSize;
+                    tgt.typeAlign = templateNode->type->typeAlign;
                     modified = true;
                 }
                 if (structNode == nullptr && enumNode == nullptr && templateNode == nullptr) {
@@ -221,7 +261,7 @@ std::string A1Ext::complete(std::unique_ptr<A1Module> mod, std::vector<std::uniq
             A1StatDecl* dNode = static_cast<A1StatDecl*>(node.get());
             if (dNode->decl->objType == A1DeclType::TEMPLATE) {
                 A1DeclTemplate* tmpNode = static_cast<A1DeclTemplate*>(dNode->decl.get());
-                tmpNode->body = std::move(args[tmpIndex++]);
+                tmpNode->type = std::move(args[tmpIndex++]);
             }
         }
     }
@@ -276,7 +316,7 @@ std::string A1Ext::complete(std::unique_ptr<A1Module> mod, std::vector<std::uniq
                     tmps.push_back(arg->Clone());
                     finds.push_back(arg.get());
                 }
-                int idx = findModule(incNodes[i]->tgtPath, finds);
+                int idx = findModule(incNodes[i]->tgtPath, finds, mod.get());
                 if (idx == -1) { // include only if not imported
                     idx = ast1->findModule(incNodes[i]->tgtPath);
                     if (idx == -1) {

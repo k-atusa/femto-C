@@ -21,3 +21,16 @@ include : 일반 참조는 바로 인스턴스화.
 struct : 반복 크기 계산
 typedef : struct 범위 안은 모두 치환
 template -> typedef로 치환
+
+A1TypeType {
+    NONE, -> NONE
+    AUTO, -> NONE
+    PRIMITIVE, -> 원시 타입
+    POINTER, -> 포인터 (...)
+    ARRAY, -> 배열 (...)
+    SLICE, -> 슬라이스 (...)
+    FUNCTION, -> 함수 (...)
+    NAME, -> 같은 모듈 안에서 선언된 구조체/열거형/템플릿명
+    FOREIGN, -> 다른 모듈에 선언된 구조체/열거형
+    TEMPLATE -> 절대참조형 구조체/열거형
+};

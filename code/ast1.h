@@ -674,16 +674,15 @@ class A1DeclTypedef : public A1Decl { // typedef
 
 class A1DeclTemplate : public A1Decl { // template
     public:
-    std::unique_ptr<A1Type> body;
 
-    A1DeclTemplate(): A1Decl(A1DeclType::TEMPLATE), body() {}
+    A1DeclTemplate(): A1Decl(A1DeclType::TEMPLATE) {}
     virtual ~A1DeclTemplate() = default;
 
     virtual std::unique_ptr<A1Decl> Clone(A1StatScope* parent) {
         std::unique_ptr<A1DeclTemplate> newNode = std::make_unique<A1DeclTemplate>();
         newNode->location = location;
         newNode->name = name;
-        newNode->body = body->Clone();
+        newNode->type = type->Clone();
         return newNode;
     }
 
@@ -737,7 +736,6 @@ class A1DeclFunc : public A1Decl { // function declaration
     std::unique_ptr<A1Type> retType;
     std::unique_ptr<A1StatScope> body; // have param declarations
     bool isVaArg;
-    // bool isExported; // shadowed from A1Decl
 
     A1DeclFunc(): A1Decl(A1DeclType::FUNC), structNm(), funcNm(), paramTypes(), paramNames(), retType(), body(), isVaArg(false) {}
     virtual ~A1DeclFunc() = default;
