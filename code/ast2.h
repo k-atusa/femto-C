@@ -1,8 +1,7 @@
 #ifndef AST2_H
 #define AST2_H
 
-#include "ast1.h"
-#include "unordered_map"
+#include <unordered_map>
 #include "ast1ext.h"
 
 // forward declarations
@@ -163,9 +162,6 @@ enum class A2DeclType {
     ENUM
 };
 
-class A2StatScope;
-
-
 class A2Decl {
     public:
     A2DeclType objType;
@@ -280,10 +276,10 @@ class A2ExprName: public A2Expr { // variable or function name
 
 class A2ExprFuncCall : public A2Expr { // static function call
     public:
-    std::unique_ptr<A2Decl> func;
+    A2Decl* func;
     std::vector<std::unique_ptr<A2Expr>> args;
 
-    A2ExprFuncCall(): A2Expr(A2ExprType::FUNC_CALL), func(), args() {}
+    A2ExprFuncCall(): A2Expr(A2ExprType::FUNC_CALL), func(nullptr), args() {}
     virtual ~A2ExprFuncCall() = default;
 
     virtual std::string toString(int indent) {
@@ -734,9 +730,14 @@ class A2Gen {
     std::unique_ptr<A2Type> convertType(A1Type* t, A1Module* mod);
 
     std::unique_ptr<A2Expr> convertExpr(A1Expr* e, A1Module* mod, A2Type* expectedType);
+    std::unique_ptr<A2ExprLiteral> convertLiteralExpr(A1ExprLiteral* lit, A2Type* expectedType);
     std::unique_ptr<A2Expr> convertDotExpr(A1ExprOperation* op, A1Module* mod);
     std::unique_ptr<A2Expr> convertOpExpr(A1ExprOperation* op, A1Module* mod);
     std::unique_ptr<A2Expr> convertFuncCallExpr(A1ExprFuncCall* fcall, A1Module* mod);
+
+    std::unique_ptr<A2Stat> convertStat(A1Stat* s, A1Module* mod);
+
+    std::unique_ptr<A2Decl> convertDecl(A1Decl* d, A1Module* mod);
 };
 
 #endif // AST2_H

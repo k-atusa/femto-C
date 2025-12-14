@@ -1029,24 +1029,13 @@ std::unique_ptr<A1DeclFunc> A1Gen::parseFunc(TokenProvider& tp, A1StatScope& cur
         }
     }
     if (funcNode->isVaArg) { // check va_arg
-        if (funcNode->paramTypes.size() < 2) {
-            throw std::runtime_error(std::format("E0427 last two parameters must be (void**, int) at {}", getLocString(funcNode->location))); // E0427
+        if (funcNode->paramTypes.size() < 1) {
+            throw std::runtime_error(std::format("E0427 last parameter must be void*[] at {}", getLocString(funcNode->location))); // E0427
         }
-        A1Type* arg0 = funcNode->paramTypes[funcNode->paramTypes.size() - 2].get();
-        A1Type* arg1 = funcNode->paramTypes[funcNode->paramTypes.size() - 1].get();
-        bool flag0 = false;
-        bool flag1 = false;
-        if (arg0->objType == A1TypeType::POINTER
-                && arg0->direct->objType == A1TypeType::POINTER
-                && arg0->direct->direct->objType == A1TypeType::PRIMITIVE
-                && arg0->direct->direct->name == "void") {
-            flag0 = true;
-        }
-        if (arg1->objType == A1TypeType::PRIMITIVE && arg1->name == "int") {
-            flag1 = true;
-        }
-        if (!flag0 || !flag1) {
-            throw std::runtime_error(std::format("E0428 last two parameters must be (void**, int) at {}", getLocString(funcNode->location))); // E0428
+        A1Type* arg = funcNode->paramTypes[funcNode->paramTypes.size() - 1].get();
+        if (arg->objType != A1TypeType::SLICE || arg->direct->objType != A1TypeType::POINTER
+                || arg->direct->direct->objType != A1TypeType::PRIMITIVE || arg->direct->direct->name != "void") {
+            throw std::runtime_error(std::format("E0428 last parameter must be void*[] at {}", getLocString(funcNode->location))); // E0428
         }
     }
     prt.Log(std::format("AST1 func {} at {}", funcNode->name, getLocString(funcNode->location)), 1);
