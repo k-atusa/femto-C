@@ -7,7 +7,7 @@
 // forward declarations
 class A2Type;
 class A2StatScope;
-class A2StatWhile;
+class A2StatLoop;
 bool isTypeEqual(A2Type* a, A2Type* b);
 
 // AST2 type node
@@ -133,7 +133,7 @@ enum class A2StatType {
     CONTINUE,
     SCOPE,
     IF,
-    WHILE,
+    LOOP,
     SWITCH
 };
 
@@ -369,28 +369,30 @@ class A2StatAssign : public A2Stat { // assignment statement
     }
 };
 
-// A2Stat While statement forward
-class A2StatWhile : public A2Stat { // while statement
+// A2Stat loop statement forward
+class A2StatLoop : public A2Stat { // while & for statement
     public:
     std::unique_ptr<A2Expr> cond;
+    std::unique_ptr<A2Stat> step; // for loop step
     std::unique_ptr<A2Stat> body;
 
-    A2StatWhile(): A2Stat(A2StatType::WHILE), cond(), body() {}
-    virtual ~A2StatWhile() = default;
+    A2StatLoop(): A2Stat(A2StatType::LOOP), cond(), step(), body() {}
+    virtual ~A2StatLoop() = default;
 
     virtual std::string toString(int indent) {
         std::string result = std::string(indent * 2, ' ') + std::format("A2StatWhile");
         if (cond) result += "\n" + cond->toString(indent + 1);
+        if (step) result += "\n" + step->toString(indent + 1);
         if (body) result += "\n" + body->toString(indent + 1);
         return result;
     }
 };
-// A2Stat While statement forward
+// A2Stat loop statement forward
 
 class A2StatCtrl : public A2Stat { // control statement (return, break, continue)
     public:
     std::unique_ptr<A2Expr> body; // for return
-    A2StatWhile* loop; // for break, continue
+    A2StatLoop* loop; // for break, continue
 
     A2StatCtrl(): A2Stat(A2StatType::NONE), body(), loop() {}
     A2StatCtrl(A2StatType tp): A2Stat(tp), body(), loop() {}
@@ -696,7 +698,7 @@ class A2Gen {
 
     // local convertion context
     std::vector<ScopeInfo> scopes;
-    std::vector<A2StatWhile*> loops;
+    std::vector<A2StatLoop*> loops;
     A2Module* curModule;
     A2DeclFunc* curFunc;
 
@@ -735,7 +737,8 @@ class A2Gen {
     std::unique_ptr<A2Expr> convertOpExpr(A1ExprOperation* op, A1Module* mod);
     std::unique_ptr<A2Expr> convertFuncCallExpr(A1ExprFuncCall* fcall, A1Module* mod);
 
-    std::unique_ptr<A2Stat> convertStat(A1Stat* s, A1Module* mod);
+    std::unique_ptr<A2Stat> convertStat(A1Stat* s, A1Module* mod, A2StatScope* parent);
+    bool checkReturnable(A2Stat* stat);
 
     std::unique_ptr<A2Decl> convertDecl(A1Decl* d, A1Module* mod);
 };

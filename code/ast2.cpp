@@ -221,7 +221,7 @@ std::unique_ptr<A2Expr> A2Gen::convertExpr(A1Expr* e, A1Module* mod, A2Type* exp
         case A1ExprType::LITERAL_DATA:
         {
             if (expectedType == nullptr) {
-                throw std::runtime_error(std::format("E1114 need type expection for literal data at {}", getLocString(e->location))); // E1114
+                throw std::runtime_error(std::format("E1101 need type expection for literal data at {}", getLocString(e->location))); // E1101
             }
             A1ExprLiteralData* data = static_cast<A1ExprLiteralData*>(e);
             std::unique_ptr<A2ExprLiteralData> newData = std::make_unique<A2ExprLiteralData>();
@@ -230,11 +230,11 @@ std::unique_ptr<A2Expr> A2Gen::convertExpr(A1Expr* e, A1Module* mod, A2Type* exp
             if (expectedType->objType == A2TypeType::STRUCT) { // check struct elements
                 A2Decl* decl = modules[findModule(expectedType->modUname)]->nameMap[expectedType->name];
                 if (decl == nullptr || decl->objType != A2DeclType::STRUCT) {
-                    throw std::runtime_error(std::format("E1115 undefined struct {}.{} at {}", expectedType->modUname, expectedType->name, getLocString(e->location))); // E1115
+                    throw std::runtime_error(std::format("E1102 undefined struct {}.{} at {}", expectedType->modUname, expectedType->name, getLocString(e->location))); // E1102
                 }
                 A2DeclStruct* sDecl = static_cast<A2DeclStruct*>(decl);
                 if (sDecl->memTypes.size() != data->elements.size()) {
-                    throw std::runtime_error(std::format("E1116 {}.{} has {} members but {} was given at {}", expectedType->modUname, expectedType->name, sDecl->memTypes.size(), data->elements.size(), getLocString(e->location))); // E1116
+                    throw std::runtime_error(std::format("E1103 {}.{} has {} members but {} was given at {}", expectedType->modUname, expectedType->name, sDecl->memTypes.size(), data->elements.size(), getLocString(e->location))); // E1103
                 }
                 for (size_t i = 0; i < sDecl->memTypes.size(); i++) {
                     newData->elements.push_back(convertExpr(data->elements[i].get(), mod, sDecl->memTypes[i].get()));
@@ -242,14 +242,14 @@ std::unique_ptr<A2Expr> A2Gen::convertExpr(A1Expr* e, A1Module* mod, A2Type* exp
 
             } else if (expectedType->objType == A2TypeType::SLICE || expectedType->objType == A2TypeType::ARRAY) { // check slice, array elements
                 if (expectedType->objType == A2TypeType::ARRAY && expectedType->arrLen != data->elements.size()) {
-                    throw std::runtime_error(std::format("E1117 expected {} elements but {} was given at {}", expectedType->arrLen, data->elements.size(), getLocString(e->location))); // E1117
+                    throw std::runtime_error(std::format("E1104 expected {} elements but {} was given at {}", expectedType->arrLen, data->elements.size(), getLocString(e->location))); // E1104
                 }
                 for (size_t i = 0; i < data->elements.size(); i++) {
                     newData->elements.push_back(convertExpr(data->elements[i].get(), mod, expectedType->direct.get()));
                 }
 
             } else {
-                throw std::runtime_error(std::format("E1118 cannot convert literal data to {} at {}", expectedType->toString(), getLocString(e->location))); // E1118
+                throw std::runtime_error(std::format("E1105 cannot convert literal data to {} at {}", expectedType->toString(), getLocString(e->location))); // E1105
             }
             newData->exprType = expectedType;
             return std::move(newData);
@@ -266,7 +266,7 @@ std::unique_ptr<A2Expr> A2Gen::convertExpr(A1Expr* e, A1Module* mod, A2Type* exp
             if (vDecl == nullptr) { // function
                 A2Decl* decl = curModule->nameMap[nm->name];
                 if (decl == nullptr || decl->objType != A2DeclType::FUNC) {
-                    throw std::runtime_error(std::format("E1119 {} is not found at {}", nm->name, getLocString(e->location))); // E1119
+                    throw std::runtime_error(std::format("E1106 {} is not found at {}", nm->name, getLocString(e->location))); // E1106
                 }
                 A2DeclFunc* fDecl = static_cast<A2DeclFunc*>(decl);
                 newName->exprType = fDecl->type.get();
@@ -281,7 +281,7 @@ std::unique_ptr<A2Expr> A2Gen::convertExpr(A1Expr* e, A1Module* mod, A2Type* exp
             }
 
             if (expectedType && !isTypeEqual(expectedType, newName->exprType)) { // check type
-                throw std::runtime_error(std::format("E1120 expected type {}, but {} at {}", expectedType->toString(), newName->exprType->toString(), getLocString(e->location))); // E1120
+                throw std::runtime_error(std::format("E1107 expected type {}, but {} at {}", expectedType->toString(), newName->exprType->toString(), getLocString(e->location))); // E1107
             }
             return res;
         }
@@ -296,7 +296,7 @@ std::unique_ptr<A2Expr> A2Gen::convertExpr(A1Expr* e, A1Module* mod, A2Type* exp
                 res = convertOpExpr(op, mod); // normal op
             }
             if (expectedType && !isTypeEqual(expectedType, res->exprType)) { // check type
-                throw std::runtime_error(std::format("E1121 expected type {}, but {} at {}", expectedType->toString(), res->exprType->toString(), getLocString(e->location))); // E1121
+                throw std::runtime_error(std::format("E1108 expected type {}, but {} at {}", expectedType->toString(), res->exprType->toString(), getLocString(e->location))); // E1108
             }
             return res;
         }
@@ -307,13 +307,13 @@ std::unique_ptr<A2Expr> A2Gen::convertExpr(A1Expr* e, A1Module* mod, A2Type* exp
             A1ExprFuncCall* fcall = static_cast<A1ExprFuncCall*>(e);
             res = convertFuncCallExpr(fcall, mod);
             if (expectedType && !isTypeEqual(expectedType, res->exprType)) { // check type
-                throw std::runtime_error(std::format("E1122 expected type {}, but {} at {}", expectedType->toString(), res->exprType->toString(), getLocString(e->location))); // E1122
+                throw std::runtime_error(std::format("E1109 expected type {}, but {} at {}", expectedType->toString(), res->exprType->toString(), getLocString(e->location))); // E1109
             }
             return res;
         }
 
         default:
-            throw std::runtime_error(std::format("E1123 unsupported expression {} at {}", (int)e->objType, getLocString(e->location))); // E1123
+            throw std::runtime_error(std::format("E1110 unsupported expression {} at {}", (int)e->objType, getLocString(e->location))); // E1110
     }
 }
 
@@ -340,7 +340,7 @@ std::unique_ptr<A2ExprLiteral> A2Gen::convertLiteralExpr(A1ExprLiteral* lit, A2T
             newLit->exprType = typePool[14].get();
             break;
         default:
-            throw std::runtime_error(std::format("E1101 invalid literal at {}", getLocString(lit->location))); // E1101
+            throw std::runtime_error(std::format("E1201 invalid literal at {}", getLocString(lit->location))); // E1201
     }
 
     // check convertability
@@ -349,59 +349,65 @@ std::unique_ptr<A2ExprLiteral> A2Gen::convertLiteralExpr(A1ExprLiteral* lit, A2T
             case A2TypeType::PRIMITIVE: // int, float, bool
                 if (lit->value.objType == LiteralType::INT) {
                     if (!(isSint(expectedType) || isUint(expectedType))) {
-                        throw std::runtime_error(std::format("E1102 cannot convert int literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1102
+                        throw std::runtime_error(std::format("E1202 cannot convert int literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1202
                     }
                 } else if (lit->value.objType == LiteralType::FLOAT) {
                     if (!(isFloat(expectedType))) {
-                        throw std::runtime_error(std::format("E1103 cannot convert float literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1103
+                        throw std::runtime_error(std::format("E1203 cannot convert float literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1203
                     }
                 } else if (lit->value.objType == LiteralType::BOOL) {
                     if (!(isBool(expectedType))) {
-                        throw std::runtime_error(std::format("E1104 cannot convert bool literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1104
+                        throw std::runtime_error(std::format("E1204 cannot convert bool literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1204
                     }
                 } else {
-                    throw std::runtime_error(std::format("E1105 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1105
+                    throw std::runtime_error(std::format("E1205 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1205
                 }
                 break;
 
             case A2TypeType::POINTER: // nptr, string
                 if (lit->value.objType == LiteralType::STRING) {
                     if (!isTypeEqual(expectedType->direct.get(), typePool[6].get())) {
-                        throw std::runtime_error(std::format("E1106 cannot convert string literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1106
+                        throw std::runtime_error(std::format("E1206 cannot convert string literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1206
                     }
                 } else if (lit->value.objType != LiteralType::NPTR) {
-                    throw std::runtime_error(std::format("E1107 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1107
+                    throw std::runtime_error(std::format("E1207 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1207
                 }
                 break;
 
             case A2TypeType::ARRAY: // string
                 if (lit->value.objType == LiteralType::STRING) {
                     if (!isTypeEqual(expectedType->direct.get(), typePool[6].get())) {
-                        throw std::runtime_error(std::format("E1108 cannot convert string literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1108
+                        throw std::runtime_error(std::format("E1208 cannot convert string literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1208
                     }
                 } else {
-                    throw std::runtime_error(std::format("E1109 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1109
+                    throw std::runtime_error(std::format("E1209 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1209
                 }
                 break;
 
             case A2TypeType::SLICE: // string
                 if (lit->value.objType == LiteralType::STRING) {
                     if (!isTypeEqual(expectedType->direct.get(), typePool[6].get())) {
-                        throw std::runtime_error(std::format("E1110 cannot convert string literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1110
+                        throw std::runtime_error(std::format("E1210 cannot convert string literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1210
                     }
                 } else {
-                    throw std::runtime_error(std::format("E1111 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1111
+                    throw std::runtime_error(std::format("E1211 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1211
                 }
                 break;
 
             case A2TypeType::FUNCTION: // nptr
                 if (lit->value.objType != LiteralType::NPTR) {
-                    throw std::runtime_error(std::format("E1112 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1112
+                    throw std::runtime_error(std::format("E1212 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1212
+                }
+                break;
+
+            case A2TypeType::ENUM: // enum int
+                if (lit->value.objType != LiteralType::INT) {
+                    throw std::runtime_error(std::format("E1213 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1213
                 }
                 break;
 
             default:
-                throw std::runtime_error(std::format("E1113 cannot convert literal at {}", getLocString(lit->location))); // E1113
+                throw std::runtime_error(std::format("E1214 cannot convert literal at {}", getLocString(lit->location))); // E1214
         }
         newLit->exprType = expectedType;
     }
@@ -422,7 +428,7 @@ std::unique_ptr<A2Expr> A2Gen::convertDotExpr(A1ExprOperation* op, A1Module* mod
             {
                 A2Decl* decl = modules[findModule(lname)]->nameMap[rname];
                 if (decl == nullptr || rname[0] < 'A' || rname[0] > 'Z') {
-                    throw std::runtime_error(std::format("E1124 {}.{} is not found at {}", lname, rname, getLocString(op->location))); // E1124
+                    throw std::runtime_error(std::format("E1301 {}.{} is not found at {}", lname, rname, getLocString(op->location))); // E1301
                 }
                 std::unique_ptr<A2ExprName> newName = std::make_unique<A2ExprName>();
                 newName->location = op->location;
@@ -483,7 +489,7 @@ std::unique_ptr<A2Expr> A2Gen::convertDotExpr(A1ExprOperation* op, A1Module* mod
             // check visibility
             if (rname[0] < 'A' || rname[0] > 'Z') {
                 if (lhs->exprType->modUname != curFunc->modUname || lhs->exprType->name != curFunc->structNm) {
-                    throw std::runtime_error(std::format("E1127 {} is private at {}", rname, getLocString(op->location))); // E1127
+                    throw std::runtime_error(std::format("E1302 {} is private at {}", rname, getLocString(op->location))); // E1302
                 }
             }
 
@@ -491,7 +497,7 @@ std::unique_ptr<A2Expr> A2Gen::convertDotExpr(A1ExprOperation* op, A1Module* mod
             A2Decl* sDecl = static_cast<A2ExprName*>(lhs.get())->decl;
             A2Module* targetMod = modules[findModule(sDecl->modUname)].get();
             if (targetMod->nameMap.count(sDecl->name + "." + rname) == 0) {
-                throw std::runtime_error(std::format("E1125 {}.{} is not found at {}", sDecl->name, rname, getLocString(op->location))); // E1125
+                throw std::runtime_error(std::format("E1303 {}.{} is not found at {}", sDecl->name, rname, getLocString(op->location))); // E1303
             }
             A2DeclFunc* fDecl = static_cast<A2DeclFunc*>(targetMod->nameMap[sDecl->name + "." + rname]);
             
@@ -508,7 +514,7 @@ std::unique_ptr<A2Expr> A2Gen::convertDotExpr(A1ExprOperation* op, A1Module* mod
             // check visibility
             if (rname[0] < 'A' || rname[0] > 'Z') {
                 if (lhs->exprType->modUname != curFunc->modUname) {
-                    throw std::runtime_error(std::format("E1127 {} is private at {}", rname, getLocString(op->location))); // E1127
+                    throw std::runtime_error(std::format("E1304 {} is private at {}", rname, getLocString(op->location))); // E1304
                 }
             }
 
@@ -516,7 +522,7 @@ std::unique_ptr<A2Expr> A2Gen::convertDotExpr(A1ExprOperation* op, A1Module* mod
             A2DeclEnum* eDecl = static_cast<A2DeclEnum*>(static_cast<A2ExprName*>(lhs.get())->decl);
             auto it = std::find(eDecl->memNames.begin(), eDecl->memNames.end(), rname);
             if (it == eDecl->memNames.end()) {
-                throw std::runtime_error(std::format("E1126 {}.{} is not found at {}", eDecl->name, rname, getLocString(op->location))); // E1126
+                throw std::runtime_error(std::format("E1305 {}.{} is not found at {}", eDecl->name, rname, getLocString(op->location))); // E1305
             }
 
             std::unique_ptr<A2ExprLiteral> newLiteral = std::make_unique<A2ExprLiteral>();
@@ -538,24 +544,24 @@ std::unique_ptr<A2Expr> A2Gen::convertDotExpr(A1ExprOperation* op, A1Module* mod
                 structType = lhs->exprType->direct.get();
                 opType = A2ExprOpType::B_ARROW;
             } else {
-                throw std::runtime_error(std::format("E1127 invalid access .{} at {}", rname, getLocString(op->location))); // E1127
+                throw std::runtime_error(std::format("E1306 invalid access .{} at {}", rname, getLocString(op->location))); // E1306
             }
 
             // check visibility
             if (rname[0] < 'A' || rname[0] > 'Z') {
                 if (structType->modUname != curFunc->modUname || structType->name != curFunc->structNm) {
-                    throw std::runtime_error(std::format("E1127 {} is private at {}", rname, getLocString(op->location))); // E1127
+                    throw std::runtime_error(std::format("E1307 {} is private at {}", rname, getLocString(op->location))); // E1307
                 }
             }
 
             // resolve member
             A2DeclStruct* sDecl = static_cast<A2DeclStruct*>(modules[findModule(structType->modUname)]->nameMap[structType->name]);
             if (sDecl == nullptr || sDecl->objType != A2DeclType::STRUCT) {
-                throw std::runtime_error(std::format("E1129 struct {} not found at {}", structType->name, getLocString(op->location))); // E1129
+                throw std::runtime_error(std::format("E1308 struct {} not found at {}", structType->name, getLocString(op->location))); // E1308
             }
             auto it = std::find(sDecl->memNames.begin(), sDecl->memNames.end(), rname);
             if (it == sDecl->memNames.end()) {
-                throw std::runtime_error(std::format("E1130 member {} not found in {} at {}", rname, structType->name, getLocString(op->location))); // E1130
+                throw std::runtime_error(std::format("E1309 member {} not found in {} at {}", rname, structType->name, getLocString(op->location))); // E1309
             }
             int index = std::distance(sDecl->memNames.begin(), it);
 
@@ -579,6 +585,57 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
     std::unique_ptr<A2ExprOperation> newOp = std::make_unique<A2ExprOperation>();
     newOp->location = op->location;
     switch (op->subType) {
+        case A1ExprOpType::T_COND: // op0 ? op1 : op2
+        {
+            newOp->subType = A2ExprOpType::T_COND;
+            newOp->operand0 = convertExpr(op->operand0.get(), mod, typePool[12].get()); // expect bool
+            
+            newOp->operand1 = convertExpr(op->operand1.get(), mod, nullptr);
+            newOp->operand2 = convertExpr(op->operand2.get(), mod, newOp->operand1->exprType); // expect op1 type
+            newOp->exprType = newOp->operand1->exprType;
+            return std::move(newOp);
+        }
+
+        case A1ExprOpType::T_SLICE: // op0[op1:op2]
+        {
+            newOp->subType = A2ExprOpType::T_SLICE;
+            newOp->operand0 = convertExpr(op->operand0.get(), mod, nullptr);
+            A2Type* t0 = newOp->operand0->exprType;
+            if (t0->objType != A2TypeType::ARRAY && t0->objType != A2TypeType::SLICE) {
+                throw std::runtime_error(std::format("E1402 slice requires array or slice at {}", getLocString(op->location))); // E1402
+            }
+
+            // op1 (start) - optional
+            if (op->operand1 && op->operand1->objType != A1ExprType::NONE) {
+                newOp->operand1 = convertExpr(op->operand1.get(), mod, nullptr);
+                if (!isSint(newOp->operand1->exprType) && !isUint(newOp->operand1->exprType)) {
+                     throw std::runtime_error(std::format("E1403 start index must be integer at {}", getLocString(op->location))); // E1403
+                }
+            }
+
+            // op2 (end) - optional
+            if (op->operand2 && op->operand2->objType != A1ExprType::NONE) {
+                newOp->operand2 = convertExpr(op->operand2.get(), mod, nullptr);
+                if (!isSint(newOp->operand2->exprType) && !isUint(newOp->operand2->exprType)) {
+                     throw std::runtime_error(std::format("E1404 end index must be integer at {}", getLocString(op->location))); // E1404
+                }
+            }
+
+            // result type is slice
+            auto sliceType = std::make_unique<A2Type>(A2TypeType::SLICE, "[]");
+            sliceType->direct = t0->direct->Clone();
+            sliceType->typeSize = arch * 2;
+            sliceType->typeAlign = arch;
+            int idx = findType(sliceType.get());
+            if (idx == -1) {
+                typePool.push_back(std::move(sliceType));
+                newOp->exprType = typePool.back().get();
+            } else {
+                newOp->exprType = typePool[idx].get();
+            }
+            return std::move(newOp);
+        }
+
         case A1ExprOpType::B_INDEX: // op0[op1]
         {
             newOp->subType = A2ExprOpType::B_INDEX;
@@ -595,12 +652,12 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
                 newOp->exprType = t0->direct.get();
                 newOp->isLvalue = true;
             } else {
-                throw std::runtime_error(std::format("E1132 cannot index type {} at {}", t0->toString(), getLocString(op->location))); // E1132
+                throw std::runtime_error(std::format("E1405 cannot index type {} at {}", t0->toString(), getLocString(op->location))); // E1405
             }
 
             // check op1 type
             if (!isSint(newOp->operand1->exprType) && !isUint(newOp->operand1->exprType)) {
-                 throw std::runtime_error(std::format("E1131 index must be integer at {}", getLocString(op->location))); // E1131
+                 throw std::runtime_error(std::format("E1406 index must be integer at {}", getLocString(op->location))); // E1406
             }
             return std::move(newOp);
         }
@@ -611,7 +668,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
             newOp->operand0 = convertExpr(op->operand0.get(), mod, nullptr);
             A2Type* t0 = newOp->operand0->exprType;
             if (!isSint(t0) && !isUint(t0) && !isFloat(t0)) {
-                throw std::runtime_error(std::format("E1133 invalid type {} for unary op at {}", t0->toString(), getLocString(op->location))); // E1133
+                throw std::runtime_error(std::format("E1407 invalid type {} for unary op at {}", t0->toString(), getLocString(op->location))); // E1407
             }
             newOp->exprType = t0;
             return std::move(newOp);
@@ -623,7 +680,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
             newOp->operand0 = convertExpr(op->operand0.get(), mod, nullptr);
             A2Type* t0 = newOp->operand0->exprType;
             if (!isSint(t0) && !isUint(t0)) {
-                throw std::runtime_error(std::format("E1134 invalid type {} for bit-not at {}", t0->toString(), getLocString(op->location))); // E1134
+                throw std::runtime_error(std::format("E1408 invalid type {} for bit-not at {}", t0->toString(), getLocString(op->location))); // E1408
             }
             newOp->exprType = t0;
             return std::move(newOp);
@@ -642,7 +699,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
             newOp->subType = A2ExprOpType::U_REF;
             newOp->operand0 = convertExpr(op->operand0.get(), mod, nullptr);
             if (!newOp->operand0->isLvalue) {
-                throw std::runtime_error(std::format("E1136 cannot take address of r-value at {}", getLocString(op->location))); // E1136
+                throw std::runtime_error(std::format("E1409 cannot take address of r-value at {}", getLocString(op->location))); // E1409
             }
             
             auto ptrType = std::make_unique<A2Type>(A2TypeType::POINTER, "*");
@@ -665,11 +722,11 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
             newOp->operand0 = convertExpr(op->operand0.get(), mod, nullptr);
             A2Type* t0 = newOp->operand0->exprType;
             if (t0->objType != A2TypeType::POINTER) {
-                throw std::runtime_error(std::format("E1137 cannot dereference non-pointer type {} at {}", t0->toString(), getLocString(op->location))); // E1137
+                throw std::runtime_error(std::format("E1410 cannot dereference non-pointer type {} at {}", t0->toString(), getLocString(op->location))); // E1410
             }
             newOp->exprType = t0->direct.get();
             if (newOp->exprType->name == "void") {
-                throw std::runtime_error(std::format("E1138 cannot dereference void* at {}", getLocString(op->location))); // E1138
+                throw std::runtime_error(std::format("E1411 cannot dereference void* at {}", getLocString(op->location))); // E1411
             }
             newOp->isLvalue = true;
             return std::move(newOp);
@@ -703,7 +760,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
             if ((newOp->subType == A2ExprOpType::B_ADD || newOp->subType == A2ExprOpType::B_SUB) && 
                     newOp->operand0->exprType->objType == A2TypeType::POINTER) {
                 if (!isSint(newOp->operand1->exprType) && !isUint(newOp->operand1->exprType)) {
-                     throw std::runtime_error(std::format("E1140 invalid type {} for pointer arithmetic at {}", newOp->operand1->exprType->toString(), getLocString(op->location))); // E1140
+                     throw std::runtime_error(std::format("E1412 invalid type {} for pointer arithmetic at {}", newOp->operand1->exprType->toString(), getLocString(op->location))); // E1412
                 }
                 newOp->exprType = newOp->operand0->exprType;
                 return std::move(newOp);
@@ -717,14 +774,14 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
 
             // check type if normal arithmetic
             if (!isTypeEqual(newOp->operand0->exprType, newOp->operand1->exprType)) {
-                throw std::runtime_error(std::format("E1139 type mismatch {} and {} at {}", newOp->operand0->exprType->toString(), newOp->operand1->exprType->toString(), getLocString(op->location))); // E1139
+                throw std::runtime_error(std::format("E1413 type mismatch {} and {} at {}", newOp->operand0->exprType->toString(), newOp->operand1->exprType->toString(), getLocString(op->location))); // E1413
             }
             A2Type* t0 = newOp->operand0->exprType;
             if (!isSint(t0) && !isUint(t0) && !isFloat(t0)) {
-                throw std::runtime_error(std::format("E1140 invalid type {} for arithmetic op at {}", t0->toString(), getLocString(op->location))); // E1140
+                throw std::runtime_error(std::format("E1414 invalid type {} for arithmetic op at {}", t0->toString(), getLocString(op->location))); // E1414
             }
             if (newOp->subType == A2ExprOpType::B_MOD && isFloat(t0)) {
-                throw std::runtime_error(std::format("E1141 cannot use modulo with float at {}", getLocString(op->location))); // E1141
+                throw std::runtime_error(std::format("E1415 cannot use modulo with float at {}", getLocString(op->location))); // E1415
             }
             newOp->exprType = t0;
             return std::move(newOp);
@@ -747,7 +804,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
             // check type
             A2Type* t0 = newOp->operand0->exprType;
             if (!isSint(t0) && !isUint(t0)) {
-                throw std::runtime_error(std::format("E1143 invalid type {} for bitwise op at {}", t0->toString(), getLocString(op->location))); // E1143
+                throw std::runtime_error(std::format("E1416 invalid type {} for bitwise op at {}", t0->toString(), getLocString(op->location))); // E1416
             }
             newOp->exprType = t0;
             return std::move(newOp);
@@ -768,7 +825,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
             // check type
             A2Type* t0 = newOp->operand0->exprType;
             if (!isSint(t0) && !isUint(t0) && !isFloat(t0)) {
-                throw std::runtime_error(std::format("E1145 invalid type {} for comparison at {}", t0->toString(), getLocString(op->location))); // E1145
+                throw std::runtime_error(std::format("E1417 invalid type {} for comparison at {}", t0->toString(), getLocString(op->location))); // E1417
             }
             newOp->exprType = typePool[12].get(); // bool
             return std::move(newOp);
@@ -784,7 +841,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
             A2Type* t0 = newOp->operand0->exprType;
             if (t0->objType != A2TypeType::PRIMITIVE && t0->objType != A2TypeType::POINTER
                     && t0->objType != A2TypeType::FUNCTION && t0->objType != A2TypeType::ENUM) {
-                throw std::runtime_error(std::format("E1145 invalid type {} for comparison at {}", t0->toString(), getLocString(op->location))); // E1145
+                throw std::runtime_error(std::format("E1418 invalid type {} for comparison at {}", t0->toString(), getLocString(op->location))); // E1418
             }
             newOp->exprType = typePool[12].get(); // bool
             return std::move(newOp);
@@ -817,7 +874,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
             newOp->operand0 = convertExpr(op->operand0.get(), mod, nullptr);
             A2Type* t0 = newOp->operand0->exprType;
             if (t0->objType != A2TypeType::ARRAY && t0->objType != A2TypeType::SLICE) {
-                throw std::runtime_error(std::format("E1149 len() requires array or slice at {}", getLocString(op->location))); // E1149
+                throw std::runtime_error(std::format("E1419 len() requires array or slice at {}", getLocString(op->location))); // E1419
             }
             newOp->exprType = typePool[0].get(); // int
             return std::move(newOp);
@@ -826,7 +883,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
         case A1ExprOpType::B_CAST: // cast<type>(expr)
         {
             newOp->subType = A2ExprOpType::B_CAST;
-            if (op->typeOperand == nullptr) throw std::runtime_error("E1150 cast without type info at " + getLocString(op->location)); // E1150
+            if (op->typeOperand == nullptr) throw std::runtime_error("E1420 cast without type info at " + getLocString(op->location)); // E1420
             newOp->typeOperand = convertType(op->typeOperand.get(), mod);
             newOp->operand0 = convertExpr(op->operand0.get(), mod, nullptr);
             
@@ -839,7 +896,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
             else if ((isSint(from) || isUint(from)) && to->objType == A2TypeType::POINTER) valid = true; // int -> ptr
             else if (from->objType == A2TypeType::POINTER && (isSint(to) || isUint(to))) valid = true; // ptr -> int
             if (!valid) {
-                throw std::runtime_error(std::format("E1151 cannot cast {} to {} at {}", from->toString(), to->toString(), getLocString(op->location))); // E1151
+                throw std::runtime_error(std::format("E1421 cannot cast {} to {} at {}", from->toString(), to->toString(), getLocString(op->location))); // E1421
             }
             newOp->exprType = to;
             return std::move(newOp);
@@ -854,15 +911,15 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
             // check op0 type
             A2Type* t0 = newOp->operand0->exprType;
             if (t0->objType != A2TypeType::POINTER) {
-                throw std::runtime_error(std::format("E1153 make() requires pointer as arg[0] at {}", getLocString(op->location))); // E1153
+                throw std::runtime_error(std::format("E1422 make() requires pointer as arg[0] at {}", getLocString(op->location))); // E1422
             }
             if (t0->direct->name == "void" && t0->direct->objType == A2TypeType::PRIMITIVE) { // void* check
-                 throw std::runtime_error(std::format("E1155 cannot make slice from void* at {}", getLocString(op->location))); // E1155
+                 throw std::runtime_error(std::format("E1423 cannot make slice from void* at {}", getLocString(op->location))); // E1423
             }
             
             // check op1 type
             if (!isSint(newOp->operand1->exprType) && !isUint(newOp->operand1->exprType)) {
-                 throw std::runtime_error(std::format("E1152 make() requires integer as arg[1] at {}", getLocString(op->location))); // E1152
+                 throw std::runtime_error(std::format("E1424 make() requires integer as arg[1] at {}", getLocString(op->location))); // E1424
             }
 
             auto sliceType = std::make_unique<A2Type>(A2TypeType::SLICE, "[]");
@@ -880,7 +937,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod)
         }
 
         default:
-            throw std::runtime_error(std::format("E1156 unknown op {} at {}", (int)op->subType, getLocString(op->location))); // E1156
+            throw std::runtime_error(std::format("E1425 unknown op {} at {}", (int)op->subType, getLocString(op->location))); // E1425
     }
 }
 
@@ -928,7 +985,7 @@ std::unique_ptr<A2Expr> A2Gen::convertFuncCallExpr(A1ExprFuncCall* fcall, A1Modu
                                 // check visibility
                                 if (rname[0] < 'A' || rname[0] > 'Z') {
                                     if (structType->modUname != curFunc->modUname || structType->name != curFunc->structNm) {
-                                        throw std::runtime_error(std::format("E1127 {} is private at {}", rname, getLocString(op->location))); // E1127
+                                        throw std::runtime_error(std::format("E1501 {} is private at {}", rname, getLocString(op->location))); // E1501
                                     }
                                 }
                             }
@@ -947,7 +1004,7 @@ std::unique_ptr<A2Expr> A2Gen::convertFuncCallExpr(A1ExprFuncCall* fcall, A1Modu
         // handle this argument
         if (instanceExpr->exprType->objType == A2TypeType::STRUCT) {
             if (!instanceExpr->isLvalue) {
-                throw std::runtime_error(std::format("E1157 cannot call method on rvalue struct at {}", getLocString(fcall->location))); // E1157
+                throw std::runtime_error(std::format("E1502 cannot call method on rvalue struct at {}", getLocString(fcall->location))); // E1502
             }
             auto refOp = std::make_unique<A2ExprOperation>(A2ExprOpType::U_REF);
             refOp->location = instanceExpr->location;
@@ -1027,7 +1084,347 @@ std::unique_ptr<A2Expr> A2Gen::convertFuncCallExpr(A1ExprFuncCall* fcall, A1Modu
             return std::move(newCall);
 
         } else {
-            throw std::runtime_error(std::format("E1160 not callable type {} at {}", funcExpr->exprType->toString(), getLocString(fcall->location))); // E1160
+            throw std::runtime_error(std::format("E1503 not callable type {} at {}", funcExpr->exprType->toString(), getLocString(fcall->location))); // E1503
         }
     }
+}
+
+// main conversion of statement
+std::unique_ptr<A2Stat> A2Gen::convertStat(A1Stat* stat, A1Module* mod, A2StatScope* parent) {
+    switch (stat->objType) {
+        case A1StatType::NONE:
+            return nullptr;
+            
+        case A1StatType::RAW_C:
+        {
+            A1StatRaw* raw = static_cast<A1StatRaw*>(stat);
+            std::unique_ptr<A2StatRaw> res = std::make_unique<A2StatRaw>(A2StatType::RAW_C);
+            res->uid = uidCount++;
+            res->location = stat->location;
+            res->code = raw->code;
+            return std::move(res);
+        }
+
+        case A1StatType::RAW_IR:
+        {
+            A1StatRaw* raw = static_cast<A1StatRaw*>(stat);
+            std::unique_ptr<A2StatRaw> res = std::make_unique<A2StatRaw>(A2StatType::RAW_IR);
+            res->uid = uidCount++;
+            res->location = stat->location;
+            res->code = raw->code;
+            return std::move(res);
+        }
+
+        case A1StatType::EXPR:
+        {
+            A1StatExpr* expr = static_cast<A1StatExpr*>(stat);
+            std::unique_ptr<A2StatExpr> res = std::make_unique<A2StatExpr>();
+            res->uid = uidCount++;
+            res->location = stat->location;
+            res->expr = convertExpr(expr->expr.get(), mod, nullptr);
+            return std::move(res);
+        }
+
+        case A1StatType::DECL:
+        {
+            A1StatDecl* decl = static_cast<A1StatDecl*>(stat);
+            std::unique_ptr<A2StatDecl> res = std::make_unique<A2StatDecl>();
+            res->uid = uidCount++;
+            res->location = stat->location;
+            res->decl = convertDecl(decl->decl.get(), mod);
+            return std::move(res);
+        }
+        
+        case A1StatType::ASSIGN:
+        {
+            A1StatAssign* assign = static_cast<A1StatAssign*>(stat);
+            std::unique_ptr<A2StatAssign> res = std::make_unique<A2StatAssign>();
+            res->uid = uidCount++;
+            res->location = stat->location;
+            res->left = convertExpr(assign->left.get(), mod, nullptr);
+            if (!res->left->isLvalue) {
+                throw std::runtime_error(std::format("E1601 left side of assignment must be lvalue at {}", getLocString(stat->location))); // E1601
+            }
+            
+            // map subtype
+            switch (assign->subType) {
+                case A1StatAssignType::ASSIGN: res->objType = A2StatType::ASSIGN; break;
+                case A1StatAssignType::ASSIGN_ADD: res->objType = A2StatType::ASSIGN_ADD; break;
+                case A1StatAssignType::ASSIGN_SUB: res->objType = A2StatType::ASSIGN_SUB; break;
+                case A1StatAssignType::ASSIGN_MUL: res->objType = A2StatType::ASSIGN_MUL; break;
+                case A1StatAssignType::ASSIGN_DIV: res->objType = A2StatType::ASSIGN_DIV; break;
+                case A1StatAssignType::ASSIGN_REMAIN: res->objType = A2StatType::ASSIGN_MOD; break;
+                default: break;
+            }
+            
+            // convert right
+            A2Type* expected = (res->objType == A2StatType::ASSIGN) ? res->left->exprType : nullptr;
+            res->right = convertExpr(assign->right.get(), mod, expected);
+
+            // check type for compound assignment
+            A2Type* t0 = res->left->exprType;
+            A2Type* t1 = res->right->exprType;
+            bool valid = false;
+            if (res->objType == A2StatType::ASSIGN_ADD || res->objType == A2StatType::ASSIGN_SUB) {
+                if ((isSint(t0) || isUint(t0) || isFloat(t0)) && (isSint(t1) || isUint(t1) || isFloat(t1) && isTypeEqual(t0, t1))) valid = true; // num op num
+                else if (t0->objType == A2TypeType::POINTER && (isSint(t1) || isUint(t1))) valid = true; // ptr op int
+            } else if (res->objType == A2StatType::ASSIGN_MUL || res->objType == A2StatType::ASSIGN_DIV) {
+                if ((isSint(t0) || isUint(t0) || isFloat(t0)) && (isSint(t1) || isUint(t1) || isFloat(t1) && isTypeEqual(t0, t1))) valid = true; // num op num
+            } else if (res->objType == A2StatType::ASSIGN_MOD) {
+                if ((isSint(t0) || isUint(t0)) && (isSint(t1) || isUint(t1) && isTypeEqual(t0, t1))) valid = true; // int op int
+            }
+            if (!valid) {
+                throw std::runtime_error(std::format("E1602 invalid types {} and {} for assignment op at {}", t0->toString(), t1->toString(), getLocString(stat->location))); // E1602
+            }
+            return std::move(res);
+        }
+
+        case A1StatType::RETURN:
+        {
+            A1StatCtrl* ret = static_cast<A1StatCtrl*>(stat);
+            std::unique_ptr<A2StatCtrl> res = std::make_unique<A2StatCtrl>(A2StatType::RETURN);
+            res->uid = uidCount++;
+            res->location = stat->location;
+            
+            // check return type
+            A2Type* expected = curFunc->retType.get();
+            bool isVoid = (expected->name == "void" && expected->objType == A2TypeType::PRIMITIVE);
+            if (ret->body && ret->body->objType != A1ExprType::NONE) { // have return value
+                res->body = convertExpr(ret->body.get(), mod, expected);
+                if (isVoid || !isTypeEqual(res->body->exprType, expected)) {
+                    throw std::runtime_error(std::format("E1603 return type mismatch expected {} but got {} at {}", expected->toString(), res->body->exprType->toString(), getLocString(stat->location))); // E1603
+                }
+            } else { // no return value
+                if (!isVoid) {
+                    throw std::runtime_error(std::format("E1604 return value required in function returning {} at {}", expected->toString(), getLocString(stat->location))); // E1604
+                }
+            }
+            res->isReturnable = true;
+            return std::move(res);
+        }
+
+        case A1StatType::DEFER:
+        {
+            A1StatCtrl* defer = static_cast<A1StatCtrl*>(stat);
+            if (parent) {
+                parent->defers.push_back(convertExpr(defer->body.get(), mod, nullptr));
+            } else {
+                throw std::runtime_error(std::format("E1605 defer statement outside of scope at {}", getLocString(stat->location))); // E1605
+            }
+            return nullptr;
+        }
+
+        case A1StatType::BREAK:
+        {
+            if (loops.empty()) {
+                throw std::runtime_error(std::format("E1606 break statement outside of loop at {}", getLocString(stat->location))); // E1606
+            }
+            std::unique_ptr<A2StatCtrl> res = std::make_unique<A2StatCtrl>(A2StatType::BREAK);
+            res->uid = uidCount++;
+            res->location = stat->location;
+            res->loop = loops.back();
+            return std::move(res);
+        }
+
+        case A1StatType::CONTINUE:
+        {
+            if (loops.empty()) {
+                throw std::runtime_error(std::format("E1607 continue statement outside of loop at {}", getLocString(stat->location))); // E1607
+            }
+            std::unique_ptr<A2StatCtrl> res = std::make_unique<A2StatCtrl>(A2StatType::CONTINUE);
+            res->uid = uidCount++;
+            res->location = stat->location;
+            res->loop = loops.back();
+            return std::move(res);
+        }
+        
+        case A1StatType::FALL: // fallthrough is processed by switch
+            return nullptr;
+            
+        case A1StatType::SCOPE:
+        {
+            A1StatScope* scope = static_cast<A1StatScope*>(stat);
+            std::unique_ptr<A2StatScope> res = std::make_unique<A2StatScope>();
+            res->uid = uidCount++;
+            res->location = stat->location;
+            res->parent = parent;
+            
+            scopes.push_back(ScopeInfo(res.get())); // scope push
+            for (auto& st : scope->body) {
+                auto converted = convertStat(st.get(), mod, res.get());
+                if (converted) res->body.push_back(std::move(converted));
+            }
+            scopes.pop_back(); // scope pop
+            res->isReturnable = checkReturnable(res.get());
+            return std::move(res);
+        }
+
+        case A1StatType::IF:
+        {
+            A1StatIf* ifStat = static_cast<A1StatIf*>(stat);
+            std::unique_ptr<A2StatIf> res = std::make_unique<A2StatIf>();
+            res->uid = uidCount++;
+            res->location = stat->location;
+            
+            res->cond = convertExpr(ifStat->cond.get(), mod, typePool[12].get()); // expect bool
+            res->thenBody = convertStat(ifStat->thenBody.get(), mod, parent);
+            if (ifStat->elseBody) {
+                res->elseBody = convertStat(ifStat->elseBody.get(), mod, parent);
+            }
+            res->isReturnable = checkReturnable(res.get());
+            return std::move(res);
+        }
+
+        case A1StatType::WHILE:
+        {
+            A1StatWhile* whileStat = static_cast<A1StatWhile*>(stat);
+            std::unique_ptr<A2StatLoop> res = std::make_unique<A2StatLoop>();
+            res->uid = uidCount++;
+            res->location = stat->location;
+            
+            res->cond = convertExpr(whileStat->cond.get(), mod, typePool[12].get()); // expect bool
+            loops.push_back(res.get());
+            res->body = convertStat(whileStat->body.get(), mod, parent);
+            loops.pop_back();
+            res->isReturnable = checkReturnable(res.get());
+            return std::move(res);
+        }
+
+        case A1StatType::FOR:
+        {
+            A1StatFor* forStat = static_cast<A1StatFor*>(stat);
+            std::unique_ptr<A2StatLoop> res = std::make_unique<A2StatLoop>();
+            res->uid = uidCount++;
+            res->location = stat->location;
+            
+            if (forStat->cond) { // cond exists
+                res->cond = convertExpr(forStat->cond.get(), mod, typePool[12].get()); // expect bool
+            } else { // empty cond -> true
+                auto trueExpr = std::make_unique<A2ExprLiteral>();
+                trueExpr->exprType = typePool[12].get();
+                trueExpr->value = Literal(true);
+                res->cond = std::move(trueExpr);
+            }
+            
+            loops.push_back(res.get());
+            res->body = convertStat(forStat->body.get(), mod, parent);
+            if (forStat->step) { // step exists
+                res->step = convertStat(forStat->step.get(), mod, parent);
+            }
+            loops.pop_back();
+            res->isReturnable = checkReturnable(res.get());
+            return std::move(res);
+        }
+
+        case A1StatType::SWITCH:
+        {
+            A1StatSwitch* switchStat = static_cast<A1StatSwitch*>(stat);
+            std::unique_ptr<A2StatSwitch> res = std::make_unique<A2StatSwitch>();
+            res->uid = uidCount++;
+            res->location = stat->location;
+            
+            // cond
+            res->cond = convertExpr(switchStat->cond.get(), mod, nullptr);
+            if (!isSint(res->cond->exprType) && !isUint(res->cond->exprType) && res->cond->exprType->objType != A2TypeType::ENUM) {
+                 throw std::runtime_error(std::format("E1608 switch condition must be integer or enum at {}", getLocString(stat->location))); // E1608
+            }
+            res->caseConds = switchStat->caseConds; // case conds
+
+            // case bodies
+            for (size_t i = 0; i < switchStat->caseBodies.size(); i++) {
+                std::vector<std::unique_ptr<A2Stat>> newStats;
+                bool fall = false;
+                auto& stats = switchStat->caseBodies[i];
+                for (size_t j = 0; j < stats.size(); j++) {
+                    if (stats[j]->objType == A1StatType::DECL || stats[j]->objType == A1StatType::DEFER) { // check stat types
+                        throw std::runtime_error(std::format("E1609 defer, declaration are not allowed in switch case at {}", getLocString(stats[j]->location))); // E1609
+                    } else if (stats[j]->objType == A1StatType::FALL) { // check fall
+                        if (j != stats.size() - 1) {
+                            throw std::runtime_error(std::format("E1610 fallthrough must be the last statement at {}", getLocString(stats[j]->location))); // E1610
+                        }
+                        fall = true;
+                    } else { // normal stats
+                        auto converted = convertStat(stats[j].get(), mod, parent);
+                        if (converted) newStats.push_back(std::move(converted));
+                    }
+                }
+                res->caseBodies.push_back(std::move(newStats));
+                res->caseFalls.push_back(fall);
+            }
+            
+            // default body
+            for (auto& st : switchStat->defaultBody) {
+                if (st->objType == A1StatType::DECL || st->objType == A1StatType::DEFER || st->objType == A1StatType::FALL) { // check stat types
+                    throw std::runtime_error(std::format("E1611 defer, declaration, fall are not allowed in switch default at {}", getLocString(st->location))); // E1611
+                } else { // normal stats
+                    auto converted = convertStat(st.get(), mod, parent);
+                    if (converted) res->defaultBody.push_back(std::move(converted));
+                }
+            }
+            res->isReturnable = checkReturnable(res.get());
+            return std::move(res);
+        }
+
+        default:
+             throw std::runtime_error(std::format("E1612 unknown statement type {} at {}", (int)stat->objType, getLocString(stat->location))); // E1612
+    }
+}
+
+// check if statement returns
+bool A2Gen::checkReturnable(A2Stat* stat) {
+    // check basic stats
+    if (!stat) return false;
+    if (stat->objType == A2StatType::RETURN) return true;
+    
+    // check scope
+    if (stat->objType == A2StatType::SCOPE) {
+        A2StatScope* s = static_cast<A2StatScope*>(stat);
+        for (auto& st : s->body) {
+            if (st->objType == A2StatType::BREAK || st->objType == A2StatType::CONTINUE) return false;
+            if (checkReturnable(st.get())) return true;
+        }
+        return false;
+    }
+    
+    // check if
+    if (stat->objType == A2StatType::IF) {
+        A2StatIf* s = static_cast<A2StatIf*>(stat);
+        if (s->elseBody) {
+            return checkReturnable(s->thenBody.get()) && checkReturnable(s->elseBody.get());
+        }
+        return false;
+    }
+    
+    // check switch
+    if (stat->objType == A2StatType::SWITCH) {
+        A2StatSwitch* s = static_cast<A2StatSwitch*>(stat);
+        if (s->defaultBody.empty()) return false;
+        
+        // check default body returnable
+        bool defRet = false;
+        for (auto& st : s->defaultBody) {
+            if (st->objType == A2StatType::BREAK || st->objType == A2StatType::CONTINUE) return false;
+            if (checkReturnable(st.get())) {
+                defRet = true; 
+                break;
+            }
+        }
+        if (!defRet) return false;
+        
+        // check all cases returnable
+        for (auto& body : s->caseBodies) {
+            bool caseRet = false;
+            for (auto& st : body) {
+                if (st->objType == A2StatType::BREAK || st->objType == A2StatType::CONTINUE) return false;
+                if (checkReturnable(st.get())) {
+                    caseRet = true;
+                    break;
+                }
+            }
+            if (!caseRet) return false;
+        }
+        return true;
+    }
+
+    return false;
 }
