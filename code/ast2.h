@@ -107,9 +107,10 @@ class A2Expr {
     Location location;
     A2Type* exprType;
     bool isLvalue;
+    bool isConst;
 
-    A2Expr(): objType(A2ExprType::NONE), location(), exprType(nullptr), isLvalue(false) {}
-    A2Expr(A2ExprType t): objType(t), location(), exprType(nullptr), isLvalue(false) {}
+    A2Expr(): objType(A2ExprType::NONE), location(), exprType(nullptr), isLvalue(false), isConst(false) {}
+    A2Expr(A2ExprType t): objType(t), location(), exprType(nullptr), isLvalue(false), isConst(false) {}
     virtual ~A2Expr() = default;
 
     virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("A2Expr {}", (int)objType); }
@@ -647,14 +648,10 @@ class A2DeclEnum : public A2Decl { // enum declaration
 class ScopeInfo {
     public:
     A2StatScope* scope;
-    std::unordered_map<std::string, A2DeclVar*> nameMap; // local var name map
+    std::unordered_map<std::string, A2DeclVar*> nameMap; // global, local var name map
 
     ScopeInfo(): scope(nullptr), nameMap() {}
     ScopeInfo(A2StatScope* s): scope(s), nameMap() {}
-
-    void addVar(A2DeclVar* var) {
-        nameMap[var->name] = var;
-    }
 };
 
 // single source file module
@@ -663,7 +660,7 @@ class A2Module {
     std::string path;
     std::string uname;
     std::unique_ptr<A2StatScope> code;
-    std::unordered_map<std::string, A2Decl*> nameMap; // name map for global var, func, struct, enum
+    std::unordered_map<std::string, A2Decl*> nameMap; // name map for func, struct, enum
 
     A2Module(): path(""), uname(""), code(), nameMap() {}
     A2Module(const std::string& fpath): path(fpath), uname(""), code(), nameMap() {}
@@ -674,10 +671,6 @@ class A2Module {
         if (code) result += "\n" + code->toString(0);
         return result;
     }
-
-    void addDecl(A2Decl* decl) {
-        nameMap[decl->name] = decl;
-    }
 };
 
 // AST2 generator
@@ -687,8 +680,8 @@ class A2Gen {
     int arch;
     std::vector<std::unique_ptr<A2Module>> modules;
 
-    A2Gen(): prt(3), arch(8), modules(), uidCount(0), ast1(), typePool(), genOrder(), scopes(), loops(), curModule(), curFunc() { initTypePool(); }
-    A2Gen(int p, int a): prt(p), arch(a), modules(), uidCount(0), ast1(), typePool(), genOrder(), scopes(), loops(), curModule(), curFunc() { initTypePool(); }
+    A2Gen(): prt(3), arch(8), modules(), uidCount(0), ast1(), typePool(), genOrder(), scopes(), loops(), curModule(), curFunc() {}
+    A2Gen(int p, int a): prt(p), arch(a), modules(), uidCount(0), ast1(), typePool(), genOrder(), scopes(), loops(), curModule(), curFunc() {}
 
     // global convertion context
     int64_t uidCount;
@@ -709,6 +702,8 @@ class A2Gen {
         }
         return -1;
     }
+
+    std::string convert(A1Ext* ext);
 
     private:
     void initTypePool();

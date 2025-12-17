@@ -1,0 +1,103 @@
+
+// A2Gen conversion
+std::string A2Gen::convert(A1Ext* ext) {
+    if (ext == nullptr) return "error: null ast1 extensions";
+    ast1 = ext;
+
+    // init context
+    typePool.clear();
+    initTypePool();
+    modules.clear();
+    genOrder.clear();
+    uidCount = 0;
+    
+    // pass 1, register all modules and global declarations
+    try {
+        for (auto& mod : ext->modules) {
+            genOrder.push_back(mod->path);
+            std::unique_ptr<A2Module> newMod = std::make_unique<A2Module>(mod->path, mod->uname);
+            
+            // set current context
+            curModule = newMod.get();
+            curFunc = nullptr;
+            
+            // convert code (declarations only)
+            // convertStat will call convertDecl for top-level declarations
+            // convertDecl puts decls into mod->nameMap
+            if (mod->code) {
+                // we treat module code as a scope validation context too? 
+                // A2Module::code is A2StatScope
+                // convertStat for SCOPE returns unique_ptr<A2Stat>, cast to A2StatScope
+                auto stat = convertStat(mod->code.get(), mod.get(), nullptr);
+                if (stat->objType != A2StatType::SCOPE) {
+                     return "internal error: module code is not scope";
+                }
+                // ownership transfer
+                newMod->code.reset(static_cast<A2StatScope*>(stat.release()));
+            }
+
+            modules.push_back(std::move(newMod));
+        }
+    } catch (std::runtime_error& e) {
+        return e.what();
+    } catch (std::exception& e) {
+        return "internal error: " + std::string(e.what());
+    }
+
+    // pass 2, fill function bodies
+    try {
+        // iterate modules in parallel (ext->modules and this->modules should match order)
+        for (size_t i = 0; i < modules.size(); i++) {
+            A2Module* a2mod = modules[i].get();
+            A1Module* a1mod = ext->modules[i].get();
+            
+            curModule = a2mod;
+
+            // iterate code body to find functions
+            if (a2mod->code && a1mod->code) {
+                for (size_t j = 0; j < a2mod->code->body.size(); j++) {
+                    A2Stat* st = a2mod->code->body[j].get();
+                    if (st->objType == A2StatType::DECL) {
+                        A2Decl* decl = static_cast<A2StatDecl*>(st)->decl.get();
+                        if (decl->objType == A2DeclType::FUNC) {
+                            A2DeclFunc* a2func = static_cast<A2DeclFunc*>(decl);
+                            
+                            // find corresponding A1 function body
+                            // simplistic assumption: straightforward mapping is safer if index-based
+                            // A1StatScope body[j] should correspond to A2StatScope body[j]
+                            A1Stat* s1 = a1mod->code->body[j].get();
+                            if (s1->objType == A1StatType::DECL) {
+                                A1Decl* d1 = static_cast<A1StatDecl*>(s1)->decl.get();
+                                if (d1->objType == A1DeclType::FUNC) {
+                                    A1DeclFunc* a1func = static_cast<A1DeclFunc*>(d1);
+                                    
+                                    // set context
+                                    curFunc = a2func;
+                                    
+                                    // convert body
+                                    if (a1func->body) {
+                                        auto b = convertStat(a1func->body.get(), a1mod, nullptr);
+                                        if (b->objType != A2StatType::SCOPE) throw std::runtime_error("internal error: func body is not scope");
+                                        a2func->body.reset(static_cast<A2StatScope*>(b.release()));
+                                        
+                                        // check return
+                                        if (a2func->retType->objType != A2TypeType::NONE && !checkReturnable(a2func->body.get())) {
+                                            throw std::runtime_error(std::format("E1602 control reaches end of non-void function {} at {}", a2func->name, getLocString(a2func->location)));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+    } catch (std::runtime_error& e) {
+        return e.what();
+    } catch (std::exception& e) {
+        return "internal error: " + std::string(e.what());
+    }
+
+    return "";
+}
