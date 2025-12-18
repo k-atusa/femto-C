@@ -1,0 +1,422 @@
+#ifndef AST3_H
+#define AST3_H
+
+#include "ast2.h"
+
+// forward declarations
+
+// AST3 type node
+enum class A3TypeType {
+    PRIMITIVE,
+    POINTER,
+    ARRAY,
+    SLICE,
+    FUNCTION,
+    STRUCT
+    // enum -> int
+};
+
+class A3Type {
+    public:
+    A3TypeType objType;
+    std::string name;
+    std::unique_ptr<A3Type> direct; // ptr, arr, slice target & func return
+    std::vector<std::unique_ptr<A3Type>> indirect; // func args
+    int64_t arrLen; // array length
+    int typeSize; // total size in bytes
+    int typeAlign; // align requirement in bytes
+
+    std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A2Type {} {} {} {} {}", (int)objType, name, arrLen, typeSize, typeAlign);
+        if (direct) result += "\n" + direct->toString(indent + 1);
+        for (auto& ind : indirect) {
+            result += "\n" + ind->toString(indent + 1);
+        }
+        return result;
+    }
+};
+
+// AST3 expression node
+enum class A3ExprType {
+    LITERAL, // literal_data, preStat requirements -> converted at A2Stat
+    OPERATION,
+    VAR_NAME,
+    FUNC_NAME,
+    FUNC_CALL,
+    FPTR_CALL
+};
+
+class A3Expr {
+    public:
+    A3ExprType objType;
+    A3Type* exprType;
+
+    virtual ~A3Expr() = default;
+    virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("A3Expr {}", (int)objType); }
+};
+
+// AST3 statement node
+enum class A3StatType {
+    RAW_C, RAW_IR, // raw code
+    LABEL, JUMP, BREAK, CONTINUE, RETURN, // controls
+    MEMSET, MEMCPY, // array copy
+    EXPR,
+    DECL,
+    ASSIGN,
+    SCOPE,
+    IF,
+    WHILE,
+    SWITCH
+};
+
+class A3Stat {
+    public:
+    A3StatType objType;
+    int64_t uid;
+
+    virtual ~A3Stat() = default;
+    virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("A3Stat {}", (int)objType); }
+};
+
+// AST3 declaration node
+enum class A3DeclType {
+    RAW_C,
+    RAW_IR,
+    VAR,
+    FUNC,
+    STRUCT,
+    ENUM
+};
+
+class A3Decl {
+    public:
+    A3DeclType objType;
+    std::string name; // declaration name
+    int64_t uid;
+    std::unique_ptr<A3Type> type; // declaration type
+
+    virtual ~A3Decl() = default;
+    virtual std::string toString(int indent) { 
+        std::string result = std::string(indent * 2, ' ') + std::format("A3Decl {} {}", (int)objType, name);
+        if (type) result += "\n" + type->toString(indent + 1);
+        return result;
+    }
+};
+
+// AST3 expression node implementation
+class A3ExprLiteral : public A3Expr { // literal value
+    public:
+    Literal value;
+    
+    virtual ~A3ExprLiteral() = default;
+    virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("A3ExprLiteral {}", value.toString()); }
+};
+
+enum class A3ExprOpType {
+    B_DOT, B_ARROW, B_INDEX,
+    U_PLUS, U_MINUS, U_LOGIC_NOT, U_BIT_NOT, U_REF, U_DEREF,
+    B_MUL, B_DIV, B_MOD,
+    B_ADD, B_SUB,
+    B_SHL, B_SHR,
+    B_LT, B_LE, B_GT, B_GE,
+    B_EQ, B_NE,
+    B_BIT_AND,
+    B_BIT_XOR,
+    B_BIT_OR,
+    B_LOGIC_AND,
+    B_LOGIC_OR,
+    T_COND,
+    // integrated func
+    U_SIZEOF, B_CAST, B_MAKE, U_LEN
+};
+
+class A3ExprOperation : public A3Expr { // operation
+    public:
+    A3ExprOpType subType;
+    std::unique_ptr<A3Type> typeOperand; // for sizeof(type), cast<type>
+    std::unique_ptr<A3Expr> operand0;
+    std::unique_ptr<A3Expr> operand1;
+    std::unique_ptr<A3Expr> operand2;
+    int accessPos; // struct member index
+
+    virtual ~A3ExprOperation() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3ExprOperation {} {}", (int)subType, accessPos);
+        if (typeOperand) result += "\n" + typeOperand->toString(indent + 1);
+        if (operand0) result += "\n" + operand0->toString(indent + 1);
+        if (operand1) result += "\n" + operand1->toString(indent + 1);
+        if (operand2) result += "\n" + operand2->toString(indent + 1);
+        return result;
+    }
+};
+
+class A3ExprName: public A3Expr { // variable or function name
+    public:
+    A3Decl* decl;
+
+    virtual ~A3ExprName() = default;
+    virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("A3ExprName {}", decl->name); }
+};
+
+class A3ExprFuncCall : public A3Expr { // static function call
+    public:
+    A3Decl* func;
+    std::vector<std::unique_ptr<A3Expr>> args;
+
+    virtual ~A3ExprFuncCall() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3ExprFuncCall");
+        if (func) result += "\n" + func->toString(indent + 1);
+        for (auto& arg : args) {
+            result += "\n" + arg->toString(indent + 1);
+        }
+        return result;
+    }
+};
+
+class A3ExprFptrCall : public A3Expr { // function pointer call
+    public:
+    std::unique_ptr<A3Expr> fptr;
+    std::vector<std::unique_ptr<A3Expr>> args;
+
+    virtual ~A3ExprFptrCall() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3ExprFptrCall");
+        if (fptr) result += "\n" + fptr->toString(indent + 1);
+        for (auto& arg : args) {
+            result += "\n" + arg->toString(indent + 1);
+        }
+        return result;
+    }
+};
+
+// AST3 statement node implementation
+class A3StatRaw : public A3Stat { // raw code statement
+    public:
+    std::string code;
+
+    virtual ~A3StatRaw() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3StatRaw {} {}", (int)objType, code);
+        return result;
+    }
+};
+
+class A3StatCtrl : public A3Stat { // label, jump, break, continue, return
+    public:
+    A3StatCtrl* label; // jump target
+    std::unique_ptr<A3Expr> expr; // return value
+
+    virtual ~A3StatCtrl() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3StatCtrl {}", (int)objType);
+        return result;
+    }
+};
+
+class A3StatMem : public A3Stat { // memset, memcpy
+    public:
+    std::unique_ptr<A3Expr> from; // for memcpy
+    std::unique_ptr<A3Expr> to;
+    std::unique_ptr<A3Expr> size;
+
+    virtual ~A3StatMem() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3StatMem");
+        if (from) result += "\n" + from->toString(indent + 1);
+        if (to) result += "\n" + to->toString(indent + 1);
+        if (size) result += "\n" + size->toString(indent + 1);
+        return result;
+    }
+};
+
+class A3StatExpr : public A3Stat { // expression statement
+    public:
+    std::unique_ptr<A3Expr> expr;
+
+    virtual ~A3StatExpr() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3StatExpr");
+        if (expr) result += "\n" + expr->toString(indent + 1);
+        return result;
+    }
+};
+
+class A3StatDecl : public A3Stat { // declaration statement
+    public:
+    std::unique_ptr<A3Decl> decl;
+
+    virtual ~A3StatDecl() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A2StatDecl");
+        if (decl) result += "\n" + decl->toString(indent + 1);
+        return result;
+    }
+};
+
+class A3StatAssign : public A3Stat { // assignment statement
+    public:
+    std::unique_ptr<A3Expr> left;
+    std::unique_ptr<A3Expr> right;
+
+    virtual ~A3StatAssign() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3StatAssign");
+        if (left) result += "\n" + left->toString(indent + 1);
+        if (right) result += "\n" + right->toString(indent + 1);
+        return result;
+    }
+};
+
+class A3StatScope : public A3Stat { // scope statement
+    public:
+    A3StatScope* parent;
+    std::vector<std::unique_ptr<A3Stat>> body;
+
+    virtual ~A3StatScope() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3StatScope");
+        for (auto& stat : body) {
+            result += "\n" + stat->toString(indent + 1);
+        }
+        return result;
+    }
+};
+
+class A3StatIf : public A3Stat { // if statement
+    public:
+    std::unique_ptr<A3Expr> cond;
+    std::unique_ptr<A3Stat> thenBody;
+    std::unique_ptr<A3Stat> elseBody;
+
+    virtual ~A3StatIf() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3StatIf");
+        if (cond) result += "\n" + cond->toString(indent + 1);
+        if (thenBody) result += "\n" + thenBody->toString(indent + 1);
+        if (elseBody) result += "\n" + elseBody->toString(indent + 1);
+        return result;
+    }
+};
+
+class A3StatWhile : public A3Stat { // while statement
+    public:
+    std::unique_ptr<A3Expr> cond;
+    std::unique_ptr<A3Stat> body;
+
+    virtual ~A3StatWhile() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3StatWhile");
+        if (cond) result += "\n" + cond->toString(indent + 1);
+        if (body) result += "\n" + body->toString(indent + 1);
+        return result;
+    }
+};
+
+class A3StatSwitch : public A3Stat { // switch statement
+    public:
+    std::unique_ptr<A3Expr> cond;
+    std::vector<int64_t> caseConds;
+    std::vector<bool> caseFalls;
+    std::vector<std::vector<std::unique_ptr<A3Stat>>> caseBodies;
+    std::vector<std::unique_ptr<A3Stat>> defaultBody;
+
+    virtual ~A3StatSwitch() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3StatSwitch");
+        if (cond) result += "\n" + cond->toString(indent + 1);
+        for (size_t i = 0; i < caseConds.size(); i++) {
+            result += "\n" + std::string(indent * 2, ' ') + std::format("case {}:", caseConds[i]);
+            for (auto& stat : caseBodies[i]) {
+                result += "\n" + std::string(indent * 2, ' ') + stat->toString(indent + 1);
+            }
+        }
+        if (!defaultBody.empty()) {
+            result += "\ndefault:";
+            for (auto& stat : defaultBody) {
+                result += "\n" + std::string(indent * 2, ' ') + stat->toString(indent + 1);
+            }
+        }
+        return result;
+    }
+};
+
+// AST3 declaration node implementation
+class A3DeclRaw : public A3Decl { // raw code
+    public:
+    std::string code;
+
+    virtual ~A3DeclRaw() = default;
+    virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("A3DeclRaw {} {}", (int)objType, code); }
+};
+
+class A3DeclVar : public A3Decl { // variable declaration
+    public:
+    std::unique_ptr<A3Expr> init;
+    bool isConst; // define, param, extern is not real variable
+    bool isVolatile;
+
+    virtual ~A3DeclVar() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3DeclVar {} {}", (int)objType, name);
+        if (init) result += "\n" + init->toString(indent + 1);
+        return result;
+    }
+};
+
+class A3DeclFunc : public A3Decl { // function declaration
+    public:
+    std::vector<std::unique_ptr<A3Type>> paramTypes;
+    std::vector<std::string> paramNames;
+    std::unique_ptr<A3Type> retType;
+    std::unique_ptr<A3StatScope> body; // have param init codes
+
+    virtual ~A3DeclFunc() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3DeclFunc {} {}", (int)objType, name);
+        for (size_t i = 0; i < paramTypes.size(); i++) {
+            result += "\n" + std::string(indent * 2, ' ') + std::format("param {}:", i);
+            result += "\n" + paramTypes[i]->toString(indent + 1);
+        }
+        if (retType) result += "\n" + retType->toString(indent + 1);
+        if (body) result += "\n" + body->toString(indent + 1);
+        return result;
+    }
+};
+
+class A3DeclStruct : public A3Decl { // struct declaration
+    public:
+    int structSize; // total size in bytes
+    int structAlign; // align requirement in bytes
+    std::vector<std::unique_ptr<A3Type>> memTypes;
+    std::vector<std::string> memNames;
+    std::vector<int> memOffsets;
+
+    virtual ~A3DeclStruct() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3DeclStruct {} {}", (int)objType, name);
+        for (size_t i = 0; i < memTypes.size(); i++) {
+            result += "\n" + std::string(indent * 2, ' ') + std::format("member {}:", i);
+            result += "\n" + memTypes[i]->toString(indent + 1);
+        }
+        return result;
+    }
+};
+
+class A3DeclEnum : public A3Decl { // enum declaration
+    public:
+    int enumSize; // size in bytes
+    std::vector<std::string> memNames;
+    std::vector<int64_t> memValues;
+
+    virtual ~A3DeclEnum() = default;
+    virtual std::string toString(int indent) {
+        std::string result = std::string(indent * 2, ' ') + std::format("A3DeclEnum {}", (int)objType, name);
+        for (size_t i = 0; i < memNames.size(); i++) {
+            result += "\n" + std::string(indent * 2, ' ') + std::format("member {}: {}", i, memNames[i]);
+        }
+        return result;
+    }
+};
+
+#endif

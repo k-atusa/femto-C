@@ -1485,6 +1485,7 @@ std::unique_ptr<A2Decl> A2Gen::convertDecl(A1Decl* d, A1Module* mod) {
             std::unique_ptr<A2DeclRaw> res = std::make_unique<A2DeclRaw>(d->objType == A1DeclType::RAW_C ? A2DeclType::RAW_C : A2DeclType::RAW_IR);
             res->location = d->location;
             res->name = d->name;
+            res->uid = uidCount++;
             res->isExported = d->isExported;
             res->code = raw->code;
             return std::move(res);
@@ -1497,6 +1498,7 @@ std::unique_ptr<A2Decl> A2Gen::convertDecl(A1Decl* d, A1Module* mod) {
             res->location = d->location;
             res->modUname = mod->uname;
             res->name = d->name;
+            res->uid = uidCount++;
             res->isExported = d->isExported;
             res->type = convertType(var->type.get(), mod);
             res->isDefine = var->isDefine;
@@ -1526,6 +1528,7 @@ std::unique_ptr<A2Decl> A2Gen::convertDecl(A1Decl* d, A1Module* mod) {
             res->location = d->location;
             res->modUname = mod->uname;
             res->name = d->name;
+            res->uid = uidCount++;
             res->isExported = d->isExported;
             res->structNm = func->structNm;
             res->funcNm = func->funcNm;
@@ -1544,6 +1547,7 @@ std::unique_ptr<A2Decl> A2Gen::convertDecl(A1Decl* d, A1Module* mod) {
             } else {
                 curModule->nameMap[res->structNm + "." + res->funcNm] = res.get();
             }
+            prt.Log(std::format("AST2 func {} at {}", res->name, getLocString(d->location)), 1);
             return std::move(res);
         }
 
@@ -1554,6 +1558,7 @@ std::unique_ptr<A2Decl> A2Gen::convertDecl(A1Decl* d, A1Module* mod) {
             res->location = d->location;
             res->modUname = mod->uname;
             res->name = d->name;
+            res->uid = uidCount++;
             res->isExported = d->isExported;
             res->structSize = structDecl->structSize;
             res->structAlign = structDecl->structAlign;
@@ -1567,6 +1572,7 @@ std::unique_ptr<A2Decl> A2Gen::convertDecl(A1Decl* d, A1Module* mod) {
             res->memNames = structDecl->memNames;
             res->memOffsets = structDecl->memOffsets;
             curModule->nameMap[res->name] = res.get();
+            prt.Log(std::format("AST2 struct {} at {}", res->name, getLocString(d->location)), 1);
             return std::move(res);
         }
 
@@ -1577,11 +1583,13 @@ std::unique_ptr<A2Decl> A2Gen::convertDecl(A1Decl* d, A1Module* mod) {
             res->location = d->location;
             res->modUname = mod->uname;
             res->name = d->name;
+            res->uid = uidCount++;
             res->isExported = d->isExported;
             res->enumSize = enumDecl->enumSize;
             res->memNames = enumDecl->memNames;
             res->memValues = enumDecl->memValues;
             curModule->nameMap[res->name] = res.get();
+            prt.Log(std::format("AST2 enum {} at {}", res->name, getLocString(d->location)), 1);
             return std::move(res);
         }
 
@@ -1627,6 +1635,7 @@ std::string A2Gen::convert(A1Ext* ext) {
     } catch (std::runtime_error& e) {
         return e.what();
     }
+    prt.Log("pass5 finished", 2);
 
     // pass 6, fill function bodies
     try {
@@ -1668,5 +1677,6 @@ std::string A2Gen::convert(A1Ext* ext) {
     } catch (std::runtime_error& e) {
         return e.what();
     }
+    prt.Log("pass6 finished", 2);
     return "";
 }

@@ -169,12 +169,13 @@ class A2Decl {
     Location location;
     std::string modUname;
     std::string name; // declaration name
+    int64_t uid;
     std::unique_ptr<A2Type> type; // declaration type
     bool isExported;
 
-    A2Decl(): objType(A2DeclType::NONE), location(), modUname(), name(), type(nullptr), isExported(false) {}
-    A2Decl(A2DeclType t): objType(t), location(), modUname(), name(), type(nullptr), isExported(false) {}
-    A2Decl(A2DeclType t, std::string nm): objType(t), location(), modUname(), name(nm), type(nullptr), isExported(false) {}
+    A2Decl(): objType(A2DeclType::NONE), location(), modUname(), name(), uid(0), type(nullptr), isExported(false) {}
+    A2Decl(A2DeclType t): objType(t), location(), modUname(), name(), uid(0), type(nullptr), isExported(false) {}
+    A2Decl(A2DeclType t, std::string nm): objType(t), location(), modUname(), name(nm), uid(0), type(nullptr), isExported(false) {}
     virtual ~A2Decl() = default;
 
     virtual std::string toString(int indent) { 
@@ -188,6 +189,7 @@ class A2Decl {
         newNode->location = location;
         newNode->modUname = modUname;
         newNode->name = name;
+        newNode->uid = uid;
         if (type) newNode->type = type->Clone();
         newNode->isExported = isExported;
         return newNode;
@@ -381,7 +383,7 @@ class A2StatLoop : public A2Stat { // while & for statement
     virtual ~A2StatLoop() = default;
 
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent * 2, ' ') + std::format("A2StatWhile");
+        std::string result = std::string(indent * 2, ' ') + std::format("A2StatLoop");
         if (cond) result += "\n" + cond->toString(indent + 1);
         if (step) result += "\n" + step->toString(indent + 1);
         if (body) result += "\n" + body->toString(indent + 1);

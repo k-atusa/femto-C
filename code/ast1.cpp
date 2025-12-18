@@ -249,7 +249,7 @@ std::unique_ptr<A1Type> A1Module::parseType(TokenProvider& tp, A1StatScope& curr
         Token& nameTkn = tp.pop();
         A1Decl* dNode = current.findDeclaration(nameTkn.text);
         if (dNode == nullptr || dNode->objType != A1DeclType::TYPEDEF) { // template, struct, enum
-            result = std::make_unique<A1Type>(dNode->name, nameTkn.text);
+            result = std::make_unique<A1Type>(A1TypeType::NAME, nameTkn.text);
         } else { // typedef, replace to original
             result = dNode->type->Clone();
         }
