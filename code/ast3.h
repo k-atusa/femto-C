@@ -3,13 +3,11 @@
 
 #include "ast2.h"
 
-// forward declarations
-
 // AST3 type node
 enum class A3TypeType {
     PRIMITIVE,
     POINTER,
-    ARRAY,
+    ARRAY, // array of A3 is pointer
     SLICE,
     FUNCTION,
     STRUCT

@@ -1678,5 +1678,6 @@ std::string A2Gen::convert(A1Ext* ext) {
         return e.what();
     }
     prt.Log("pass6 finished", 2);
+    prt.Log(std::format("finished semantic analysis of {} modules", modules.size()), 3);
     return "";
 }
