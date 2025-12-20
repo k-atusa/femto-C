@@ -8,9 +8,9 @@
 enum class A3TypeType {
     PRIMITIVE,
     POINTER,
-    ARRAY, // array of A3 is pointer
+    ARRAY, // array of A3 act like pointer
     SLICE,
-    FUNCTION,
+    FUNCTION, // function returns array -> add ptr at end, change ret to void
     STRUCT
     // enum -> int
 };
@@ -18,12 +18,28 @@ enum class A3TypeType {
 class A3Type {
     public:
     A3TypeType objType;
+    Location location;
     std::string name;
     std::unique_ptr<A3Type> direct; // ptr, arr, slice target & func return
     std::vector<std::unique_ptr<A3Type>> indirect; // func args
     int64_t arrLen; // array length
     int typeSize; // total size in bytes
     int typeAlign; // align requirement in bytes
+
+    std::unique_ptr<A3Type> clone() const {
+        auto res = std::make_unique<A3Type>();
+        res->objType = objType;
+        res->location = location;
+        res->name = name;
+        if (direct) res->direct = direct->clone();
+        for (const auto& item : indirect) {
+            res->indirect.push_back(item->clone());
+        }
+        res->arrLen = arrLen;
+        res->typeSize = typeSize;
+        res->typeAlign = typeAlign;
+        return res;
+    }
 
     std::string toString(int indent) {
         std::string result = std::string(indent * 2, ' ') + std::format("A2Type {} {} {} {} {}", (int)objType, name, arrLen, typeSize, typeAlign);
@@ -48,6 +64,7 @@ enum class A3ExprType {
 class A3Expr {
     public:
     A3ExprType objType;
+    Location location;
     A3Type* exprType;
 
     virtual ~A3Expr() = default;
@@ -71,6 +88,7 @@ enum class A3StatType {
 class A3Stat {
     public:
     A3StatType objType;
+    Location location;
     int64_t uid;
 
     virtual ~A3Stat() = default;
@@ -90,6 +108,7 @@ enum class A3DeclType {
 class A3Decl {
     public:
     A3DeclType objType;
+    Location location;
     std::string name; // declaration name
     int64_t uid;
     std::unique_ptr<A3Type> type; // declaration type
@@ -426,24 +445,72 @@ class A3Gen {
     public:
     CompileMessage prt;
     int arch;
+    int64_t bigCopyAlert;
     std::unique_ptr<A3Stat> code;
 
     // convert context
     int64_t uidCount;
     A2Gen* ast2;
     std::vector<std::string> genOrder; // code generation order of fpath
+
     std::vector<std::unique_ptr<A3Type>> typePool; // type pool
     std::vector<std::unique_ptr<A3ScopeInfo>> scopes; // scope context
     std::vector<A3StatScope*> jmpScopes; // scope with jumps
     std::vector<A3StatWhile*> jmpWhiles; // while with jumps
 
-    A3Gen(int p, int a, int64_t c) : prt(p), arch(a), uidCount(c) {}
+    std::vector<std::unique_ptr<A3Stat>> statBuf; // preStat buffer
+
+    A3Gen(int p, int a, int64_t b, int64_t c) : prt(p), arch(a), bigCopyAlert(b), uidCount(c) {}
 
     std::string lower();
 
     std::string getLocString(Location loc) { return std::format("{}:{}", genOrder[loc.srcLoc], loc.line); } // get location string
 
     private:
+    void initTypePool();
+    int findType(A3Type* t);
+
+    A3Decl* findDecl(int64_t uid) { // find declaration by uid in global scope
+        if (scopes[0]->nameMap.count(uid)) return scopes[0]->nameMap[uid];
+        return nullptr;
+    }
+
+    A3DeclVar* findVar(int64_t uid) { // find variable by uid in all scopes
+        for (auto& scope : scopes) {
+            if (scope->nameMap.count(uid)) {
+                A3Decl* decl = scope->nameMap[uid];
+                if (decl->objType == A3DeclType::VAR) return (A3DeclVar*)decl;
+            }
+        }
+        return nullptr;
+    }
+
+    A3DeclVar* findVar(std::string name) { // find variable by name in all scopes
+        for (auto& scope : scopes) {
+            for (auto& [uid, decl] : scope->nameMap) {
+                if (decl->name == name && decl->objType == A3DeclType::VAR) return (A3DeclVar*)decl;
+            }
+        }
+        return nullptr;
+    }
+
+    std::string genName() { // generate unique name for temp var
+        int count = 0;
+        while (true) {
+            std::string name = std::format("_t{}_{}", uidCount, count++);
+            if (!findVar(name)) {
+                uidCount++;
+                return name;
+            }
+        }
+    }
+
+    std::unique_ptr<A3Type> lowerType(A2Type* t);
+
+    std::unique_ptr<A3Expr> lowerExpr(A2Expr* e);
+    std::unique_ptr<A3Expr> lowerExprLitData(A2ExprLiteralData* e);
+    std::unique_ptr<A3Expr> lowerExprOp(A2ExprOperation* e);
+    std::unique_ptr<A3Expr> lowerExprCall(A2Expr* e);
 };
 
 #endif

@@ -8,15 +8,14 @@ bool isTypeEqual(A2Type* a, A2Type* b) {
     if (a->typeSize != b->typeSize || a->typeAlign != b->typeAlign) return false;
     if (a->objType == A2TypeType::ARRAY) {
         if (a->arrLen != b->arrLen) return false;
-    }
-    if (a->objType == A2TypeType::ARRAY || a->objType == A2TypeType::POINTER || a->objType == A2TypeType::SLICE
-            || a->objType == A2TypeType::FUNCTION || a->objType == A2TypeType::PRIMITIVE) {
-        if (a->objType != b->objType || a->name != b->name) return false;
-    }
-    if (a->objType == A2TypeType::FUNCTION) {
+    } else if (a->objType == A2TypeType::FUNCTION) {
         if (a->indirect.size() != b->indirect.size()) return false;
     }
-    if (a->objType == A2TypeType::STRUCT || a->objType == A2TypeType::ENUM) {
+    if (a->objType == A2TypeType::ARRAY || a->objType == A2TypeType::POINTER || a->objType == A2TypeType::SLICE || a->objType == A2TypeType::FUNCTION) {
+        if (a->objType != b->objType) return false;
+    } else if (a->objType == A2TypeType::PRIMITIVE) {
+        if (a->objType != b->objType || a->name != b->name) return false;
+    } else if (a->objType == A2TypeType::STRUCT || a->objType == A2TypeType::ENUM) {
         if (a->objType != b->objType || a->name != b->name || a->modUname != b->modUname) return false;
     }
     if (!isTypeEqual(a->direct.get(), b->direct.get())) return false;
