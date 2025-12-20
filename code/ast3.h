@@ -1,6 +1,7 @@
 #ifndef AST3_H
 #define AST3_H
 
+#include <unordered_map>
 #include "ast2.h"
 
 // AST3 type node
@@ -36,7 +37,7 @@ class A3Type {
 
 // AST3 expression node
 enum class A3ExprType {
-    LITERAL, // literal_data, preStat requirements -> converted at A2Stat
+    LITERAL, // literal_data -> converted to preStats
     OPERATION,
     VAR_NAME,
     FUNC_NAME,
@@ -214,15 +215,16 @@ class A3StatCtrl : public A3Stat { // label, jump, break, continue, return
 
 class A3StatMem : public A3Stat { // memset, memcpy
     public:
-    std::unique_ptr<A3Expr> from; // for memcpy
-    std::unique_ptr<A3Expr> to;
+    std::unique_ptr<A3Expr> src;
+    std::unique_ptr<A3Expr> dst; // memset tgt
     std::unique_ptr<A3Expr> size;
+    int64_t sizeHint; // pre-calculated size for IR
 
     virtual ~A3StatMem() = default;
     virtual std::string toString(int indent) {
-        std::string result = std::string(indent * 2, ' ') + std::format("A3StatMem");
-        if (from) result += "\n" + from->toString(indent + 1);
-        if (to) result += "\n" + to->toString(indent + 1);
+        std::string result = std::string(indent * 2, ' ') + std::format("A3StatMem {}", sizeHint);
+        if (src) result += "\n" + src->toString(indent + 1);
+        if (dst) result += "\n" + dst->toString(indent + 1);
         if (size) result += "\n" + size->toString(indent + 1);
         return result;
     }
@@ -268,7 +270,6 @@ class A3StatAssign : public A3Stat { // assignment statement
 
 class A3StatScope : public A3Stat { // scope statement
     public:
-    A3StatScope* parent;
     std::vector<std::unique_ptr<A3Stat>> body;
 
     virtual ~A3StatScope() = default;
@@ -384,8 +385,6 @@ class A3DeclFunc : public A3Decl { // function declaration
 
 class A3DeclStruct : public A3Decl { // struct declaration
     public:
-    int structSize; // total size in bytes
-    int structAlign; // align requirement in bytes
     std::vector<std::unique_ptr<A3Type>> memTypes;
     std::vector<std::string> memNames;
     std::vector<int> memOffsets;
@@ -403,7 +402,6 @@ class A3DeclStruct : public A3Decl { // struct declaration
 
 class A3DeclEnum : public A3Decl { // enum declaration
     public:
-    int enumSize; // size in bytes
     std::vector<std::string> memNames;
     std::vector<int64_t> memValues;
 
@@ -415,6 +413,37 @@ class A3DeclEnum : public A3Decl { // enum declaration
         }
         return result;
     }
+};
+
+// AST3 convert context
+class A3ScopeInfo {
+    public:
+    A3StatScope* scope;
+    std::unordered_map<int64_t, A3Decl*> nameMap;
+};
+
+class A3Gen {
+    public:
+    CompileMessage prt;
+    int arch;
+    std::unique_ptr<A3Stat> code;
+
+    // convert context
+    int64_t uidCount;
+    A2Gen* ast2;
+    std::vector<std::string> genOrder; // code generation order of fpath
+    std::vector<std::unique_ptr<A3Type>> typePool; // type pool
+    std::vector<std::unique_ptr<A3ScopeInfo>> scopes; // scope context
+    std::vector<A3StatScope*> jmpScopes; // scope with jumps
+    std::vector<A3StatWhile*> jmpWhiles; // while with jumps
+
+    A3Gen(int p, int a, int64_t c) : prt(p), arch(a), uidCount(c) {}
+
+    std::string lower();
+
+    std::string getLocString(Location loc) { return std::format("{}:{}", genOrder[loc.srcLoc], loc.line); } // get location string
+
+    private:
 };
 
 #endif

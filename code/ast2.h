@@ -183,17 +183,6 @@ class A2Decl {
         if (type) result += "\n" + type->toString(indent + 1);
         return result;
     }
-
-    virtual std::unique_ptr<A2Decl> Clone(A2StatScope* parent) {
-        std::unique_ptr<A2Decl> newNode = std::make_unique<A2Decl>(objType);
-        newNode->location = location;
-        newNode->modUname = modUname;
-        newNode->name = name;
-        newNode->uid = uid;
-        if (type) newNode->type = type->Clone();
-        newNode->isExported = isExported;
-        return newNode;
-    }
 };
 
 // AST2 expression node implementation
@@ -485,17 +474,6 @@ class A2DeclRaw : public A2Decl { // raw code
     virtual ~A2DeclRaw() = default;
 
     virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("A2DeclRaw {} {}", (int)objType, code); }
-
-    virtual std::unique_ptr<A2Decl> Clone(A2StatScope* parent) {
-        std::unique_ptr<A2DeclRaw> newNode = std::make_unique<A2DeclRaw>(objType);
-        newNode->location = location;
-        newNode->modUname = modUname;
-        newNode->name = name;
-        if (type) newNode->type = type->Clone();
-        newNode->isExported = isExported;
-        newNode->code = code;
-        return newNode;
-    }
 };
 
 class A2DeclVar : public A2Decl { // variable declaration
@@ -515,22 +493,6 @@ class A2DeclVar : public A2Decl { // variable declaration
         std::string result = std::string(indent * 2, ' ') + std::format("A2DeclVar {} {}", (int)objType, name);
         if (init) result += "\n" + init->toString(indent + 1);
         return result;
-    }
-
-    virtual std::unique_ptr<A2Decl> Clone(A2StatScope* parent) {
-        std::unique_ptr<A2DeclVar> newNode = std::make_unique<A2DeclVar>();
-        newNode->location = location;
-        newNode->modUname = modUname;
-        newNode->name = name;
-        if (type) newNode->type = type->Clone();
-        newNode->isExported = isExported;
-        if (init) newNode->init = nullptr; // Don't clone init for signature
-        newNode->isDefine = isDefine;
-        newNode->isConst = isConst;
-        newNode->isVolatile = isVolatile;
-        newNode->isExtern = isExtern;
-        newNode->isParam = isParam;
-        return newNode;
     }
 };
 
@@ -557,35 +519,15 @@ class A2DeclFunc : public A2Decl { // function declaration
         if (body) result += "\n" + body->toString(indent + 1);
         return result;
     }
-
-    virtual std::unique_ptr<A2Decl> Clone(A2StatScope* parent) {
-        std::unique_ptr<A2DeclFunc> newNode = std::make_unique<A2DeclFunc>();
-        newNode->location = location;
-        newNode->modUname = modUname;
-        newNode->name = name;
-        if (type) newNode->type = type->Clone();
-        newNode->isExported = isExported;
-        newNode->structNm = structNm;
-        newNode->funcNm = funcNm;
-        for (auto& pt : paramTypes) {
-            newNode->paramTypes.push_back(pt->Clone());
-        }
-        newNode->paramNames = paramNames;
-        if (retType) newNode->retType = retType->Clone();
-        newNode->isVaArg = isVaArg;
-        return newNode;
-    }
 };
 
 class A2DeclStruct : public A2Decl { // struct declaration
     public:
-    int structSize; // total size in bytes
-    int structAlign; // align requirement in bytes
     std::vector<std::unique_ptr<A2Type>> memTypes;
     std::vector<std::string> memNames;
     std::vector<int> memOffsets;
 
-    A2DeclStruct(): A2Decl(A2DeclType::STRUCT), structSize(-1), structAlign(-1), memTypes(), memNames(), memOffsets() {}
+    A2DeclStruct(): A2Decl(A2DeclType::STRUCT), memTypes(), memNames(), memOffsets() {}
     virtual ~A2DeclStruct() = default;
 
     virtual std::string toString(int indent) {
@@ -596,32 +538,14 @@ class A2DeclStruct : public A2Decl { // struct declaration
         }
         return result;
     }
-
-    virtual std::unique_ptr<A2Decl> Clone(A2StatScope* parent) {
-        std::unique_ptr<A2DeclStruct> newNode = std::make_unique<A2DeclStruct>();
-        newNode->location = location;
-        newNode->modUname = modUname;
-        newNode->name = name;
-        if (type) newNode->type = type->Clone();
-        newNode->isExported = isExported;
-        newNode->structSize = structSize;
-        newNode->structAlign = structAlign;
-        for (auto& mt : memTypes) {
-            newNode->memTypes.push_back(mt->Clone());
-        }
-        newNode->memNames = memNames;
-        newNode->memOffsets = memOffsets;
-        return newNode;
-    }
 };
 
 class A2DeclEnum : public A2Decl { // enum declaration
     public:
-    int enumSize; // size in bytes
     std::vector<std::string> memNames;
     std::vector<int64_t> memValues;
 
-    A2DeclEnum(): A2Decl(A2DeclType::ENUM), enumSize(-1), memNames(), memValues() {}
+    A2DeclEnum(): A2Decl(A2DeclType::ENUM), memNames(), memValues() {}
     virtual ~A2DeclEnum() = default;
 
     virtual std::string toString(int indent) {
@@ -630,19 +554,6 @@ class A2DeclEnum : public A2Decl { // enum declaration
             result += "\n" + std::string(indent * 2, ' ') + std::format("member {}: {}", i, memNames[i]);
         }
         return result;
-    }
-
-    virtual std::unique_ptr<A2Decl> Clone(A2StatScope* parent) {
-        std::unique_ptr<A2DeclEnum> newNode = std::make_unique<A2DeclEnum>();
-        newNode->location = location;
-        newNode->modUname = modUname;
-        newNode->name = name;
-        if (type) newNode->type = type->Clone();
-        newNode->isExported = isExported;
-        newNode->enumSize = enumSize;
-        newNode->memNames = memNames;
-        newNode->memValues = memValues;
-        return newNode;
     }
 };
 
@@ -731,7 +642,7 @@ class A2Gen {
     std::unique_ptr<A2Expr> convertExpr(A1Expr* e, A1Module* mod, A2Type* expectedType);
     std::unique_ptr<A2ExprLiteral> convertLiteralExpr(A1ExprLiteral* lit, A2Type* expectedType);
     std::unique_ptr<A2Expr> convertDotExpr(A1ExprOperation* op, A1Module* mod);
-    std::unique_ptr<A2Expr> convertOpExpr(A1ExprOperation* op, A1Module* mod);
+    std::unique_ptr<A2Expr> convertOpExpr(A1ExprOperation* op, A1Module* mod, A2Type* typeHint);
     std::unique_ptr<A2Expr> convertFuncCallExpr(A1ExprFuncCall* fcall, A1Module* mod);
 
     std::unique_ptr<A2Stat> convertStat(A1Stat* s, A1Module* mod, A2StatScope* parent);
