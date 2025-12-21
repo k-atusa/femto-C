@@ -320,7 +320,7 @@ std::unique_ptr<A2Expr> A2Gen::convertExpr(A1Expr* e, A1Module* mod, A2Type* exp
                 newName->exprType = vDecl->type.get();
                 newName->decl = vDecl;
                 if (!vDecl->isDefine) newName->isLvalue = true;
-                if (vDecl->isConst) newName->isConst = true;
+                if (vDecl->isConst || vDecl->isDefine) newName->isConst = true;
                 res = std::move(newName);
             }
 
@@ -537,8 +537,14 @@ std::unique_ptr<A2Expr> A2Gen::convertDotExpr(A1ExprOperation* op, A1Module* mod
         {
             // check visibility
             if (rname[0] < 'A' || rname[0] > 'Z') {
-                if (lhs->exprType->modUname != curFunc->modUname || lhs->exprType->name != curFunc->structNm) {
-                    throw std::runtime_error(std::format("E1303 {} is private at {}", rname, getLocString(op->location))); // E1303
+                if (rname[0] == '_') { // struct private
+                    if (lhs->exprType->modUname != curFunc->modUname || lhs->exprType->name != curFunc->structNm) {
+                        throw std::runtime_error(std::format("E1303 {} is private at {}", rname, getLocString(op->location))); // E1303
+                    }
+                } else { // module private
+                    if (lhs->exprType->modUname != curFunc->modUname) {
+                        throw std::runtime_error(std::format("E1304 {} is protected at {}", rname, getLocString(op->location))); // E1304
+                    }
                 }
             }
 
@@ -546,7 +552,7 @@ std::unique_ptr<A2Expr> A2Gen::convertDotExpr(A1ExprOperation* op, A1Module* mod
             A2Decl* sDecl = static_cast<A2ExprName*>(lhs.get())->decl;
             A2Module* targetMod = modules[findModule(sDecl->modUname)].get();
             if (targetMod->nameMap.count(sDecl->name + "." + rname) == 0) {
-                throw std::runtime_error(std::format("E1304 {}.{} is not found at {}", sDecl->name, rname, getLocString(op->location))); // E1304
+                throw std::runtime_error(std::format("E1305 {}.{} is not found at {}", sDecl->name, rname, getLocString(op->location))); // E1305
             }
             A2DeclFunc* fDecl = static_cast<A2DeclFunc*>(targetMod->nameMap[sDecl->name + "." + rname]);
             
@@ -563,7 +569,7 @@ std::unique_ptr<A2Expr> A2Gen::convertDotExpr(A1ExprOperation* op, A1Module* mod
             // check visibility
             if (rname[0] < 'A' || rname[0] > 'Z') {
                 if (lhs->exprType->modUname != curFunc->modUname) {
-                    throw std::runtime_error(std::format("E1305 {} is private at {}", rname, getLocString(op->location))); // E1305
+                    throw std::runtime_error(std::format("E1306 {} is private at {}", rname, getLocString(op->location))); // E1306
                 }
             }
 
@@ -571,7 +577,7 @@ std::unique_ptr<A2Expr> A2Gen::convertDotExpr(A1ExprOperation* op, A1Module* mod
             A2DeclEnum* eDecl = static_cast<A2DeclEnum*>(static_cast<A2ExprName*>(lhs.get())->decl);
             auto it = std::find(eDecl->memNames.begin(), eDecl->memNames.end(), rname);
             if (it == eDecl->memNames.end()) {
-                throw std::runtime_error(std::format("E1306 {}.{} is not found at {}", eDecl->name, rname, getLocString(op->location))); // E1306
+                throw std::runtime_error(std::format("E1307 {}.{} is not found at {}", eDecl->name, rname, getLocString(op->location))); // E1307
             }
 
             std::unique_ptr<A2ExprLiteral> newLiteral = std::make_unique<A2ExprLiteral>();
@@ -593,24 +599,30 @@ std::unique_ptr<A2Expr> A2Gen::convertDotExpr(A1ExprOperation* op, A1Module* mod
                 structType = lhs->exprType->direct.get();
                 opType = A2ExprOpType::B_ARROW;
             } else {
-                throw std::runtime_error(std::format("E1307 invalid access .{} at {}", rname, getLocString(op->location))); // E1307
+                throw std::runtime_error(std::format("E1308 invalid access .{} at {}", rname, getLocString(op->location))); // E1308
             }
 
             // check visibility
             if (rname[0] < 'A' || rname[0] > 'Z') {
-                if (structType->modUname != curFunc->modUname || structType->name != curFunc->structNm) {
-                    throw std::runtime_error(std::format("E1308 {} is private at {}", rname, getLocString(op->location))); // E1308
+                if (rname[0] == '_') { // struct private
+                    if (structType->modUname != curFunc->modUname || structType->name != curFunc->structNm) {
+                        throw std::runtime_error(std::format("E1309 {} is private at {}", rname, getLocString(op->location))); // E1309
+                    }
+                } else { // module private
+                    if (structType->modUname != curFunc->modUname) {
+                        throw std::runtime_error(std::format("E1310 {} is protected at {}", rname, getLocString(op->location))); // E1310
+                    }
                 }
             }
 
             // resolve member
             A2DeclStruct* sDecl = static_cast<A2DeclStruct*>(modules[findModule(structType->modUname)]->nameMap[structType->name]);
             if (sDecl == nullptr || sDecl->objType != A2DeclType::STRUCT) {
-                throw std::runtime_error(std::format("E1309 struct {} not found at {}", structType->name, getLocString(op->location))); // E1309
+                throw std::runtime_error(std::format("E1311 struct {} not found at {}", structType->name, getLocString(op->location))); // E1311
             }
             auto it = std::find(sDecl->memNames.begin(), sDecl->memNames.end(), rname);
             if (it == sDecl->memNames.end()) {
-                throw std::runtime_error(std::format("E1310 member {} not found in {} at {}", rname, structType->name, getLocString(op->location))); // E1310
+                throw std::runtime_error(std::format("E1312 member {} not found in {} at {}", rname, structType->name, getLocString(op->location))); // E1312
             }
             int index = std::distance(sDecl->memNames.begin(), it);
 
@@ -1058,8 +1070,14 @@ std::unique_ptr<A2Expr> A2Gen::convertFuncCallExpr(A1ExprFuncCall* fcall, A1Modu
 
                                 // check visibility
                                 if (rname[0] < 'A' || rname[0] > 'Z') {
-                                    if (structType->modUname != curFunc->modUname || structType->name != curFunc->structNm) {
-                                        throw std::runtime_error(std::format("E1501 {} is private at {}", rname, getLocString(op->location))); // E1501
+                                    if (rname[0] == '_') { // struct private
+                                        if (structType->modUname != curFunc->modUname || structType->name != curFunc->structNm) {
+                                            throw std::runtime_error(std::format("E1501 {} is private at {}", rname, getLocString(op->location))); // E1501
+                                        }
+                                    } else { // module private
+                                        if (structType->modUname != curFunc->modUname) {
+                                            throw std::runtime_error(std::format("E1502 {} is protected at {}", rname, getLocString(op->location))); // E1502
+                                        }
                                     }
                                 }
                             }
@@ -1156,7 +1174,7 @@ std::unique_ptr<A2Expr> A2Gen::convertFuncCallExpr(A1ExprFuncCall* fcall, A1Modu
             return std::move(newCall);
 
         } else {
-            throw std::runtime_error(std::format("E1502 not callable type {} at {}", funcExpr->exprType->toString(), getLocString(fcall->location))); // E1503
+            throw std::runtime_error(std::format("E1503 not callable type {} at {}", funcExpr->exprType->toString(), getLocString(fcall->location))); // E1503
         }
     }
 }

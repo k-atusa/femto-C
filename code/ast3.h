@@ -512,6 +512,12 @@ class A3Gen {
     std::unique_ptr<A3Expr> lowerExprLitData(A2ExprLiteralData* e);
     std::unique_ptr<A3Expr> lowerExprOp(A2ExprOperation* e);
     std::unique_ptr<A3Expr> lowerExprCall(A2Expr* e);
+
+    std::unique_ptr<A3Stat> lowerStat(A2Stat* s);
+    std::unique_ptr<A3StatScope> lowerStatScope(A2StatScope* s);
+    std::unique_ptr<A3StatExpr> lowerStatExpr(A2StatExpr* s);
+    std::unique_ptr<A3StatIf> lowerStatIf(A2StatIf* s);
+    std::unique_ptr<A3StatWhile> lowerStatLoop(A2StatLoop* s);
 };
 
 #endif
