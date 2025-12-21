@@ -12,10 +12,10 @@ lowering 주요 변환규칙
 - 문자열 슬라이스는 문자열 포인터를 받아 슬라이스 구조체를 생성
 - 삼항연산자 안에서 prestat 발생 시 if-else로 변환
 - 논리연산자 안에서 prestat 발생 시 단축평가 고려하여 if-else로 변환
-- rvalue인 메서드 호출 (func().method() 등)은 임시변수로 변환
+- rvalue에 & 취하는 경우 임시변수 할당
 
 - 가변인자함수는 void*[] (void*들의 슬라이스)로 포장하여 전달
-- 가변인자함수 인자로 값 타입이 들어간다면 임시변수 선언하고 해당 변수의 주소를 취해 넣을 것
+- 가변인자함수 인자로 값 타입이 들어간다면 임시변수 선언하고 복사 후 해당 변수의 주소를 취해 넣을 것
 - 함수 호출 시 인자에 함수 호출을 포함하는 side-effect 있는 인자는 순서에 맞춰서 미리 임시변수에 할당하고 넣을 것
 - 함수 호출 시 반환값이 배열이라면 반환값을 받을 임시변수를 선언하고 호출 마지막 인자로 전달
 
@@ -253,14 +253,14 @@ std::unique_ptr<A3Expr> A3Gen::lowerExpr(A2Expr* e) {
     return res;
 }
 
-std::unique_ptr<A3Expr> lowerExprLitData(A2ExprLiteralData* e) {
+std::unique_ptr<A3Expr> A3Gen::lowerExprLitData(A2ExprLiteralData* e) {
 
 }
 
-std::unique_ptr<A3Expr> lowerExprOp(A2ExprOperation* e) {
+std::unique_ptr<A3Expr> A3Gen::lowerExprOp(A2ExprOperation* e) {
 
 }
 
-std::unique_ptr<A3Expr> lowerExprCall(A2Expr* e) {
+std::unique_ptr<A3Expr> A3Gen::lowerExprCall(A2Expr* e) {
 
 }

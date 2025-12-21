@@ -750,9 +750,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
         {
             newOp->subType = A2ExprOpType::U_REF;
             newOp->operand0 = convertExpr(op->operand0.get(), mod, nullptr);
-            if (!newOp->operand0->isLvalue) {
-                throw std::runtime_error(std::format("E1408 cannot take address of r-value at {}", getLocString(op->location))); // E1408
-            }
+            // if operand0 is rvalue, create temp var
             
             auto ptrType = std::make_unique<A2Type>(A2TypeType::POINTER, "*");
             ptrType->typeSize = arch;
@@ -775,11 +773,11 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
             newOp->operand0 = convertExpr(op->operand0.get(), mod, nullptr);
             A2Type* t0 = newOp->operand0->exprType;
             if (t0->objType != A2TypeType::POINTER) {
-                throw std::runtime_error(std::format("E1409 cannot dereference non-pointer type {} at {}", t0->toString(), getLocString(op->location))); // E1409
+                throw std::runtime_error(std::format("E1408 cannot dereference non-pointer type {} at {}", t0->toString(), getLocString(op->location))); // E1408
             }
             newOp->exprType = t0->direct.get();
             if (newOp->exprType->name == "void") {
-                throw std::runtime_error(std::format("E1410 cannot dereference void* at {}", getLocString(op->location))); // E1410
+                throw std::runtime_error(std::format("E1409 cannot dereference void* at {}", getLocString(op->location))); // E1409
             }
             newOp->isLvalue = true;
             if (newOp->operand0->isConst) newOp->isConst = true;
@@ -811,7 +809,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
             // ptr size check
             if ((newOp->operand0->exprType->objType == A2TypeType::POINTER && newOp->operand0->exprType->direct->typeSize <= 0)
                   || (newOp->operand1->exprType->objType == A2TypeType::POINTER && newOp->operand1->exprType->direct->typeSize <= 0)) {
-                throw std::runtime_error(std::format("E1411 cannot perform pointer arithmetic on unknown size pointer at {}", getLocString(op->location))); // E1411
+                throw std::runtime_error(std::format("E1410 cannot perform pointer arithmetic on unknown size pointer at {}", getLocString(op->location))); // E1410
             }
             
             // check type if pointer arithmetic
@@ -840,14 +838,14 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
 
             // check type if normal arithmetic
             if (!isTypeEqual(newOp->operand0->exprType, newOp->operand1->exprType)) {
-                throw std::runtime_error(std::format("E1412 type mismatch ({}, {}) at {}", newOp->operand0->exprType->toString(), newOp->operand1->exprType->toString(), getLocString(op->location))); // E1412
+                throw std::runtime_error(std::format("E1411 type mismatch ({}, {}) at {}", newOp->operand0->exprType->toString(), newOp->operand1->exprType->toString(), getLocString(op->location))); // E1411
             }
             A2Type* t0 = newOp->operand0->exprType;
             if (!isSint(t0) && !isUint(t0) && !isFloat(t0)) {
-                throw std::runtime_error(std::format("E1413 invalid type {} for arithmetic op at {}", t0->toString(), getLocString(op->location))); // E1413
+                throw std::runtime_error(std::format("E1412 invalid type {} for arithmetic op at {}", t0->toString(), getLocString(op->location))); // E1412
             }
             if (newOp->subType == A2ExprOpType::B_MOD && isFloat(t0)) {
-                throw std::runtime_error(std::format("E1414 cannot use modulo with float at {}", getLocString(op->location))); // E1414
+                throw std::runtime_error(std::format("E1413 cannot use modulo with float at {}", getLocString(op->location))); // E1413
             }
             newOp->exprType = t0;
             return std::move(newOp);
@@ -868,7 +866,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
             if (newOp->subType == A2ExprOpType::B_SHL || newOp->subType == A2ExprOpType::B_SHR) {
                 newOp->operand1 = convertExpr(op->operand1.get(), mod, nullptr); // can be int
                 if (!isUint(newOp->operand1->exprType)) {
-                    throw std::runtime_error(std::format("E1415 invalid type {} for shift op at {}", newOp->operand1->exprType->toString(), getLocString(op->location))); // E1415
+                    throw std::runtime_error(std::format("E1414 invalid type {} for shift op at {}", newOp->operand1->exprType->toString(), getLocString(op->location))); // E1414
                 }
             } else {
                 newOp->operand1 = convertExpr(op->operand1.get(), mod, newOp->operand0->exprType); // expect same type
@@ -877,7 +875,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
             // check type
             A2Type* t0 = newOp->operand0->exprType;
             if (!isSint(t0) && !isUint(t0)) {
-                throw std::runtime_error(std::format("E1416 invalid type {} for bitwise op at {}", t0->toString(), getLocString(op->location))); // E1416
+                throw std::runtime_error(std::format("E1415 invalid type {} for bitwise op at {}", t0->toString(), getLocString(op->location))); // E1415
             }
             newOp->exprType = t0;
             return std::move(newOp);
@@ -901,7 +899,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
             if (t0->objType == A2TypeType::POINTER && isTypeEqual(t0, newOp->operand1->exprType)) isAllowed = true;
             if (isSint(t0) || isUint(t0) || isFloat(t0)) isAllowed = true;
             if (!isAllowed) {
-                throw std::runtime_error(std::format("E1417 invalid type {} for comparison at {}", t0->toString(), getLocString(op->location))); // E1417
+                throw std::runtime_error(std::format("E1416 invalid type {} for comparison at {}", t0->toString(), getLocString(op->location))); // E1416
             }
             newOp->exprType = typePool[12].get(); // bool
             return std::move(newOp);
@@ -917,7 +915,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
             A2Type* t0 = newOp->operand0->exprType;
             if (t0->objType != A2TypeType::PRIMITIVE && t0->objType != A2TypeType::POINTER
                     && t0->objType != A2TypeType::FUNCTION && t0->objType != A2TypeType::ENUM) {
-                throw std::runtime_error(std::format("E1418 invalid type {} for comparison at {}", t0->toString(), getLocString(op->location))); // E1418
+                throw std::runtime_error(std::format("E1417 invalid type {} for comparison at {}", t0->toString(), getLocString(op->location))); // E1417
             }
             newOp->exprType = typePool[12].get(); // bool
             return std::move(newOp);
@@ -950,7 +948,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
             newOp->operand0 = convertExpr(op->operand0.get(), mod, nullptr);
             A2Type* t0 = newOp->operand0->exprType;
             if (t0->objType != A2TypeType::ARRAY && t0->objType != A2TypeType::SLICE) {
-                throw std::runtime_error(std::format("E1419 len() requires array or slice at {}", getLocString(op->location))); // E1419
+                throw std::runtime_error(std::format("E1418 len() requires array or slice at {}", getLocString(op->location))); // E1418
             }
             newOp->exprType = typePool[0].get(); // int
             return std::move(newOp);
@@ -959,7 +957,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
         case A1ExprOpType::B_CAST: // cast<type>(expr)
         {
             newOp->subType = A2ExprOpType::B_CAST;
-            if (op->typeOperand == nullptr) throw std::runtime_error("E1420 cast without type info at " + getLocString(op->location)); // E1420
+            if (op->typeOperand == nullptr) throw std::runtime_error("E1419 cast without type info at " + getLocString(op->location)); // E1419
             newOp->typeOperand = convertType(op->typeOperand.get(), mod);
             newOp->operand0 = convertExpr(op->operand0.get(), mod, nullptr);
             
@@ -972,7 +970,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
             else if ((isSint(from) || isUint(from)) && to->objType == A2TypeType::POINTER) valid = true; // int -> ptr
             else if (from->objType == A2TypeType::POINTER && (isSint(to) || isUint(to))) valid = true; // ptr -> int
             if (!valid) {
-                throw std::runtime_error(std::format("E1421 cannot cast {} to {} at {}", from->toString(), to->toString(), getLocString(op->location))); // E1421
+                throw std::runtime_error(std::format("E1420 cannot cast {} to {} at {}", from->toString(), to->toString(), getLocString(op->location))); // E1420
             }
             newOp->exprType = to;
             return std::move(newOp);
@@ -987,15 +985,15 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
             // check op0 type
             A2Type* t0 = newOp->operand0->exprType;
             if (t0->objType != A2TypeType::POINTER) {
-                throw std::runtime_error(std::format("E1422 make() requires pointer as arg[0] at {}", getLocString(op->location))); // E1422
+                throw std::runtime_error(std::format("E1421 make() requires pointer as arg[0] at {}", getLocString(op->location))); // E1421
             }
             if (t0->direct->typeSize <= 0) { // ptr size check
-                throw std::runtime_error(std::format("E1423 cannot make slice from pointer of unknown size at {}", getLocString(op->location))); // E1423
+                throw std::runtime_error(std::format("E1422 cannot make slice from pointer of unknown size at {}", getLocString(op->location))); // E1422
             }
             
             // check op1 type
             if (!isSint(newOp->operand1->exprType) && !isUint(newOp->operand1->exprType)) {
-                 throw std::runtime_error(std::format("E1424 make() requires integer as arg[1] at {}", getLocString(op->location))); // E1424
+                 throw std::runtime_error(std::format("E1423 make() requires integer as arg[1] at {}", getLocString(op->location))); // E1423
             }
 
             auto sliceType = std::make_unique<A2Type>(A2TypeType::SLICE, "[]");
@@ -1013,7 +1011,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
         }
 
         default:
-            throw std::runtime_error(std::format("E1425 unknown op {} at {}", (int)op->subType, getLocString(op->location))); // E1425
+            throw std::runtime_error(std::format("E1424 unknown op {} at {}", (int)op->subType, getLocString(op->location))); // E1424
     }
 }
 
@@ -1079,7 +1077,7 @@ std::unique_ptr<A2Expr> A2Gen::convertFuncCallExpr(A1ExprFuncCall* fcall, A1Modu
             
         // handle this argument
         if (instanceExpr->exprType->objType == A2TypeType::STRUCT) {
-            // if struct is non-lvalue, temp var will be generated at ast3
+            // if struct is rvalue, temp var will be generated at ast3
             auto refOp = std::make_unique<A2ExprOperation>(A2ExprOpType::U_REF);
             refOp->location = instanceExpr->location;
             refOp->operand0 = std::move(instanceExpr);
@@ -1665,6 +1663,7 @@ std::unique_ptr<A2Decl> A2Gen::convertDecl(A1Decl* d, A1Module* mod) {
         default:
             throw std::runtime_error(std::format("E1705 unknown declaration type {} at {}", (int)d->objType, getLocString(d->location))); // E1705
     }
+    return nullptr;
 }
 
 // A2Gen conversion

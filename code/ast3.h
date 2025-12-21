@@ -498,8 +498,9 @@ class A3Gen {
         int count = 0;
         while (true) {
             std::string name = std::format("_t{}_{}", uidCount, count++);
-            if (!findVar(name)) {
-                uidCount++;
+            if (findVar(name)) {
+                if (count > 16) {uidCount++; count = 0;}
+            } else {
                 return name;
             }
         }
