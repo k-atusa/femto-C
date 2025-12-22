@@ -423,35 +423,39 @@ std::unique_ptr<A2ExprLiteral> A2Gen::convertLiteralExpr(A1ExprLiteral* lit, A2T
                     if (!isTypeEqual(expectedType->direct.get(), typePool[6].get())) {
                         throw std::runtime_error(std::format("E1208 cannot convert string literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1208
                     }
+                    int strLen = std::get<std::string>(lit->value.value).size();
+                    if (strLen + 1 > expectedType->arrLen) {
+                        throw std::runtime_error(std::format("E1209 array u8[{}] cannot hold string (len {}) at {}", expectedType->arrLen, strLen, getLocString(lit->location))); // E1209
+                    }
                 } else {
-                    throw std::runtime_error(std::format("E1209 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1209
+                    throw std::runtime_error(std::format("E1210 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1210
                 }
                 break;
 
             case A2TypeType::SLICE: // string
                 if (lit->value.objType == LiteralType::STRING) {
                     if (!isTypeEqual(expectedType->direct.get(), typePool[6].get())) {
-                        throw std::runtime_error(std::format("E1210 cannot convert string literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1210
+                        throw std::runtime_error(std::format("E1211 cannot convert string literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1211
                     }
                 } else {
-                    throw std::runtime_error(std::format("E1211 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1211
+                    throw std::runtime_error(std::format("E1212 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1212
                 }
                 break;
 
             case A2TypeType::FUNCTION: // nptr
                 if (lit->value.objType != LiteralType::NPTR) {
-                    throw std::runtime_error(std::format("E1212 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1212
+                    throw std::runtime_error(std::format("E1213 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1213
                 }
                 break;
 
             case A2TypeType::ENUM: // enum int
                 if (lit->value.objType != LiteralType::INT) {
-                    throw std::runtime_error(std::format("E1213 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1213
+                    throw std::runtime_error(std::format("E1214 cannot convert literal to {} at {}", expectedType->toString(), getLocString(lit->location))); // E1214
                 }
                 break;
 
             default:
-                throw std::runtime_error(std::format("E1214 cannot convert literal at {}", getLocString(lit->location))); // E1214
+                throw std::runtime_error(std::format("E1215 cannot convert literal at {}", getLocString(lit->location))); // E1215
         }
         newLit->exprType = expectedType;
     }
@@ -959,7 +963,14 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
             newOp->subType = A2ExprOpType::U_LEN;
             newOp->operand0 = convertExpr(op->operand0.get(), mod, nullptr);
             A2Type* t0 = newOp->operand0->exprType;
-            if (t0->objType != A2TypeType::ARRAY && t0->objType != A2TypeType::SLICE) {
+            if (t0->objType == A2TypeType::ARRAY) { // convert to int
+                auto lit = std::make_unique<A2ExprLiteral>();
+                lit->objType = A2ExprType::LITERAL;
+                lit->location = op->location;
+                lit->exprType = typePool[0].get();
+                lit->value = Literal(int64_t(t0->arrLen));
+                return std::move(lit);
+            } else if (t0->objType != A2TypeType::SLICE) {
                 throw std::runtime_error(std::format("E1418 len() requires array or slice at {}", getLocString(op->location))); // E1418
             }
             newOp->exprType = typePool[0].get(); // int
@@ -1579,6 +1590,23 @@ std::unique_ptr<A2Decl> A2Gen::convertDecl(A1Decl* d, A1Module* mod) {
                     res->init = convertExpr(var->init.get(), mod, res->type.get());
                 }
             }
+
+            // check array arg for extern var
+            if (var->isExtern && var->type->objType == A1TypeType::FUNCTION) {
+                bool alert = false;
+                for (auto& t : var->type->indirect) {
+                    if (t->objType == A1TypeType::ARRAY) {
+                        alert = true;
+                        break;
+                    }
+                }
+                if (var->type->direct->objType == A1TypeType::ARRAY) {
+                    alert = true;
+                }
+                if (alert) {
+                    prt.Log(std::format("W1703 array arg in extern function will act as pointer at {}", getLocString(d->location)), 5); // W1703
+                }
+            }
             return std::move(res);
         }
 
@@ -1601,7 +1629,7 @@ std::unique_ptr<A2Decl> A2Gen::convertDecl(A1Decl* d, A1Module* mod) {
             res->paramNames = func->paramNames;
             res->retType = convertType(func->retType.get(), mod);
             if (res->retType->objType == A2TypeType::NONE) {
-                throw std::runtime_error(std::format("E1703 invalid function return type {} at {}", res->retType->toString(), getLocString(d->location))); // E1703
+                throw std::runtime_error(std::format("E1704 invalid function return type {} at {}", res->retType->toString(), getLocString(d->location))); // E1704
             }
             if (res->structNm.empty()) {
                 curModule->nameMap[res->name] = res.get();
@@ -1636,7 +1664,7 @@ std::unique_ptr<A2Decl> A2Gen::convertDecl(A1Decl* d, A1Module* mod) {
             for (auto& mt : structDecl->memTypes) {
                 res->memTypes.push_back(convertType(mt.get(), mod));
                 if (res->memTypes.back()->objType == A2TypeType::NONE) {
-                    throw std::runtime_error(std::format("E1704 invalid struct member type {} at {}", res->memTypes.back()->toString(), getLocString(d->location))); // E1704
+                    throw std::runtime_error(std::format("E1705 invalid struct member type {} at {}", res->memTypes.back()->toString(), getLocString(d->location))); // E1705
                 }
             }
             res->memNames = structDecl->memNames;
@@ -1679,7 +1707,7 @@ std::unique_ptr<A2Decl> A2Gen::convertDecl(A1Decl* d, A1Module* mod) {
         }
 
         default:
-            throw std::runtime_error(std::format("E1705 unknown declaration type {} at {}", (int)d->objType, getLocString(d->location))); // E1705
+            throw std::runtime_error(std::format("E1706 unknown declaration type {} at {}", (int)d->objType, getLocString(d->location))); // E1706
     }
     return nullptr;
 }

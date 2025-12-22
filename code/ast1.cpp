@@ -563,8 +563,12 @@ Literal A1Gen::foldNode(A1Expr& tgt, A1StatScope& current, A1Module& mod) {
                             return Literal((int64_t)arch * 2);
                         }
                     } else if (opNode->typeOperand) {
-                        if (opNode->typeOperand->typeSize > 0) {
+                        if (opNode->typeOperand->objType == A1TypeType::PRIMITIVE) {
                             return Literal((int64_t)opNode->typeOperand->typeSize);
+                        } else if (opNode->typeOperand->objType == A1TypeType::POINTER) {
+                            return Literal((int64_t)arch);
+                        } else if (opNode->typeOperand->objType == A1TypeType::SLICE) {
+                            return Literal((int64_t)arch * 2);
                         }
                     }
                     break;

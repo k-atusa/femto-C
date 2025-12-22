@@ -131,10 +131,10 @@ class A3ExprLiteral : public A3Expr { // literal value
 };
 
 enum class A3ExprOpType {
-    B_DOT, B_ARROW, B_INDEX,
+    B_DOT, B_ARROW, B_INDEX, // slice arr[m:n] -> lowered to make(arr+m, n-m)
     U_PLUS, U_MINUS, U_LOGIC_NOT, U_BIT_NOT, U_REF, U_DEREF,
     B_MUL, B_DIV, B_MOD,
-    B_ADD, B_SUB,
+    B_ADD, B_SUB, B_PTR_ADD, B_PTR_SUB, // lowered to ptr_add, ptr_sub
     B_SHL, B_SHR,
     B_LT, B_LE, B_GT, B_GE,
     B_EQ, B_NE,
@@ -388,6 +388,7 @@ class A3DeclFunc : public A3Decl { // function declaration
     std::vector<std::string> paramNames;
     std::unique_ptr<A3Type> retType;
     std::unique_ptr<A3StatScope> body; // have param init codes
+    bool isVaArg;
 
     virtual ~A3DeclFunc() = default;
     virtual std::string toString(int indent) {
@@ -462,7 +463,7 @@ class A3Gen {
 
     A3Gen(int p, int a, int64_t b, int64_t c) : prt(p), arch(a), bigCopyAlert(b), uidCount(c) {}
 
-    std::string lower();
+    std::string lower(A2Gen* a);
 
     std::string getLocString(Location loc) { return std::format("{}:{}", genOrder[loc.srcLoc], loc.line); } // get location string
 
@@ -506,12 +507,17 @@ class A3Gen {
         }
     }
 
+    std::string genTempVar(A3Type* t, Location l);
+    std::string setTempVar(A3Type* t, std::unique_ptr<A3Expr> v);
+    std::unique_ptr<A3ExprOperation> refVar(std::string name);
+
     std::unique_ptr<A3Type> lowerType(A2Type* t);
 
-    std::unique_ptr<A3Expr> lowerExpr(A2Expr* e);
+    std::unique_ptr<A3Expr> lowerExpr(A2Expr* e, std::string assignVarName);
+    std::unique_ptr<A3Expr> lowerExprLitString(A2ExprLiteral* l);
     std::unique_ptr<A3Expr> lowerExprLitData(A2ExprLiteralData* e);
     std::unique_ptr<A3Expr> lowerExprOp(A2ExprOperation* e);
-    std::unique_ptr<A3Expr> lowerExprCall(A2Expr* e);
+    std::vector<std::unique_ptr<A3Expr>> lowerExprCall(A3Type* ftype, std::vector<std::unique_ptr<A2Expr>>& a2Args, bool isVaArg, bool isRetArray, std::string* retName);
 
     std::unique_ptr<A3Stat> lowerStat(A2Stat* s);
     std::unique_ptr<A3StatScope> lowerStatScope(A2StatScope* s);
@@ -520,4 +526,4 @@ class A3Gen {
     std::unique_ptr<A3StatWhile> lowerStatLoop(A2StatLoop* s);
 };
 
-#endif
+#endif // AST3_H
