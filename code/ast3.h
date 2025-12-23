@@ -112,6 +112,7 @@ class A3Decl {
     std::string name; // declaration name
     int64_t uid;
     std::unique_ptr<A3Type> type; // declaration type
+    bool isExported;
 
     virtual ~A3Decl() = default;
     virtual std::string toString(int indent) { 
@@ -131,7 +132,7 @@ class A3ExprLiteral : public A3Expr { // literal value
 };
 
 enum class A3ExprOpType {
-    B_DOT, B_ARROW, B_INDEX, // slice arr[m:n] -> lowered to make(arr+m, n-m)
+    B_DOT, B_ARROW, B_INDEX, // slice arr[m:n] -> lowered to make(&arr[m], n-m)
     U_PLUS, U_MINUS, U_LOGIC_NOT, U_BIT_NOT, U_REF, U_DEREF,
     B_MUL, B_DIV, B_MOD,
     B_ADD, B_SUB, B_PTR_ADD, B_PTR_SUB, // lowered to ptr_add, ptr_sub
@@ -388,7 +389,7 @@ class A3DeclFunc : public A3Decl { // function declaration
     std::vector<std::string> paramNames;
     std::unique_ptr<A3Type> retType;
     std::unique_ptr<A3StatScope> body; // have param init codes
-    bool isVaArg;
+    bool isVaArg; // for A3 only
 
     virtual ~A3DeclFunc() = default;
     virtual std::string toString(int indent) {
@@ -515,7 +516,7 @@ class A3Gen {
 
     std::unique_ptr<A3Expr> lowerExpr(A2Expr* e, std::string assignVarName);
     std::unique_ptr<A3Expr> lowerExprLitString(A2ExprLiteral* l);
-    std::unique_ptr<A3Expr> lowerExprLitData(A2ExprLiteralData* e);
+    std::unique_ptr<A3Expr> lowerExprLitData(A2ExprLiteralData* e, std::string* setName);
     std::unique_ptr<A3Expr> lowerExprOp(A2ExprOperation* e);
     std::vector<std::unique_ptr<A3Expr>> lowerExprCall(A3Type* ftype, std::vector<std::unique_ptr<A2Expr>>& a2Args, bool isVaArg, bool isRetArray, std::string* retName);
 

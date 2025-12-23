@@ -1,5 +1,4 @@
 #include "ast2.h"
-#include "ast1.h"
 
 // helper functions
 bool isTypeEqual(A2Type* a, A2Type* b) {
@@ -261,16 +260,36 @@ std::unique_ptr<A2Expr> A2Gen::convertExpr(A1Expr* e, A1Module* mod, A2Type* exp
 
         case A1ExprType::LITERAL_DATA: // temp var will be allocated in stack
         {
-            if (expectedType == nullptr) {
+            A1ExprLiteralData* data = static_cast<A1ExprLiteralData*>(e);
+            if (expectedType == nullptr && data->elements.size() == 0) {
                 throw std::runtime_error(std::format("E1101 need type expectation for literal data at {}", getLocString(e->location))); // E1101
             }
-            A1ExprLiteralData* data = static_cast<A1ExprLiteralData*>(e);
             std::unique_ptr<A2ExprLiteralData> newData = std::make_unique<A2ExprLiteralData>();
             newData->location = e->location;
             newData->isLvalue = true;
             newData->isConst = true;
 
-            if (expectedType->objType == A2TypeType::STRUCT) { // check struct elements
+            if (expectedType == nullptr) { // auto array
+                newData->elements.push_back(convertExpr(data->elements[0].get(), mod, nullptr));
+                for (size_t i = 1; i < data->elements.size(); i++) {
+                    newData->elements.push_back(convertExpr(data->elements[i].get(), mod, newData->elements[0]->exprType));
+                }
+
+                auto arrType = std::make_unique<A2Type>(A2TypeType::ARRAY, std::format("[{}]", data->elements.size()));
+                arrType->direct = newData->elements[0]->exprType->Clone();
+                arrType->arrLen = data->elements.size();
+                arrType->typeSize = arrType->direct->typeSize * arrType->arrLen;
+                arrType->typeAlign = arrType->direct->typeAlign;
+
+                int idx = findType(arrType.get());
+                if (idx == -1) {
+                    typePool.push_back(std::move(arrType));
+                    expectedType = typePool.back().get();
+                } else {
+                    expectedType = typePool[idx].get();
+                }
+
+            } else if (expectedType->objType == A2TypeType::STRUCT) { // check struct elements
                 A2Decl* decl = modules[findModule(expectedType->modUname)]->nameMap[expectedType->name];
                 if (decl == nullptr || decl->objType != A2DeclType::STRUCT) {
                     throw std::runtime_error(std::format("E1102 undefined struct {}.{} at {}", expectedType->modUname, expectedType->name, getLocString(e->location))); // E1102
@@ -283,8 +302,8 @@ std::unique_ptr<A2Expr> A2Gen::convertExpr(A1Expr* e, A1Module* mod, A2Type* exp
                     newData->elements.push_back(convertExpr(data->elements[i].get(), mod, sDecl->memTypes[i].get()));
                 }
 
-            } else if (expectedType->objType == A2TypeType::SLICE || expectedType->objType == A2TypeType::ARRAY) { // check slice, array elements
-                if (expectedType->objType == A2TypeType::ARRAY && expectedType->arrLen < data->elements.size()) {
+            } else if (expectedType->objType == A2TypeType::ARRAY) { // check array elements
+                if (expectedType->arrLen < data->elements.size()) {
                     throw std::runtime_error(std::format("E1104 maximum {} elements but {} was given at {}", expectedType->arrLen, data->elements.size(), getLocString(e->location))); // E1104
                 }
                 for (size_t i = 0; i < data->elements.size(); i++) {
@@ -1003,7 +1022,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
         {
             newOp->subType = A2ExprOpType::B_MAKE;
             newOp->operand0 = convertExpr(op->operand0.get(), mod, nullptr);
-            newOp->operand1 = convertExpr(op->operand1.get(), mod, nullptr);
+            newOp->operand1 = convertExpr(op->operand1.get(), mod, newOp->operand0->exprType);
 
             // check op0 type
             A2Type* t0 = newOp->operand0->exprType;
@@ -1016,7 +1035,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
             
             // check op1 type
             if (!isSint(newOp->operand1->exprType) && !isUint(newOp->operand1->exprType)) {
-                 throw std::runtime_error(std::format("E1423 make() requires integer as arg[1] at {}", getLocString(op->location))); // E1423
+                throw std::runtime_error(std::format("E1423 make() requires integer as arg[1] at {}", getLocString(op->location))); // E1423
             }
 
             auto sliceType = std::make_unique<A2Type>(A2TypeType::SLICE, "[]");
