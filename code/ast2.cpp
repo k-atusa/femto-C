@@ -694,7 +694,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
             if (op->operand1 && op->operand1->objType != A1ExprType::NONE) {
                 newOp->operand1 = convertExpr(op->operand1.get(), mod, nullptr);
                 if (!isSint(newOp->operand1->exprType) && !isUint(newOp->operand1->exprType)) {
-                     throw std::runtime_error(std::format("E1402 start index must be integer at {}", getLocString(op->location))); // E1402
+                    throw std::runtime_error(std::format("E1402 start index must be integer at {}", getLocString(op->location))); // E1402
                 }
             }
 
@@ -702,7 +702,7 @@ std::unique_ptr<A2Expr> A2Gen::convertOpExpr(A1ExprOperation* op, A1Module* mod,
             if (op->operand2 && op->operand2->objType != A1ExprType::NONE) {
                 newOp->operand2 = convertExpr(op->operand2.get(), mod, nullptr);
                 if (!isSint(newOp->operand2->exprType) && !isUint(newOp->operand2->exprType)) {
-                     throw std::runtime_error(std::format("E1403 end index must be integer at {}", getLocString(op->location))); // E1403
+                    throw std::runtime_error(std::format("E1403 end index must be integer at {}", getLocString(op->location))); // E1403
                 }
             }
 

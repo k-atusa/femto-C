@@ -706,6 +706,7 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOp(A2ExprOperation* e) {
         case A2ExprOpType::B_BIT_AND: newOp->subType = A3ExprOpType::B_BIT_AND; break;
         case A2ExprOpType::B_BIT_XOR: newOp->subType = A3ExprOpType::B_BIT_XOR; break;
         case A2ExprOpType::B_BIT_OR: newOp->subType = A3ExprOpType::B_BIT_OR; break;
+        case A2ExprOpType::U_LOGIC_NOT: newOp->subType = A3ExprOpType::U_LOGIC_NOT; break;
 
         // number operations + pointer arithmetics
         case A2ExprOpType::B_ADD:
@@ -760,16 +761,14 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOp(A2ExprOperation* e) {
 
         // make(&arr[st], ed-st)
         case A2ExprOpType::T_SLICE:
-        {
-            
-        }
-        
-        case A2ExprOpType::T_COND:
-        case A2ExprOpType::B_LOGIC_AND:
-        case A2ExprOpType::B_LOGIC_OR:
-        case A2ExprOpType::U_LOGIC_NOT:
+            return lowerExprOpSlice(e);
+
+        // conditional operation can have preStats
+        case A2ExprOpType::T_COND: case A2ExprOpType::B_LOGIC_AND: case A2ExprOpType::B_LOGIC_OR:
+            return lowerExprOpCond(e);
+
         case A2ExprOpType::U_REF:
-             throw std::runtime_error(std::format("E9999 operation {} skipped due to preStats issues", (int)e->subType));
+            /////
 
         default:
             throw std::runtime_error(std::format("E9999 unsupported operation in ast3 {}", (int)e->subType));
@@ -784,6 +783,315 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOp(A2ExprOperation* e) {
     }
     newOp->exprType = typePool[idx].get();
     return newOp;
+}
+
+// lowering slicing operation
+std::unique_ptr<A3Expr> A3Gen::lowerExprOpSlice(A2ExprOperation* e) {
+    // 1. arr, st, ed expressions
+    auto arrExpr = lowerExpr(e->operand0.get(), "");
+    std::unique_ptr<A3Expr> startExpr;
+    std::unique_ptr<A3Expr> endExpr;
+
+    if (e->operand1) { // 1-1-1. cast startExpr to int
+        startExpr = lowerExpr(e->operand1.get(), "");
+        if (startExpr->exprType->objType != A3TypeType::PRIMITIVE || startExpr->exprType->name != "int") {
+            std::unique_ptr<A3ExprOperation> castOp = std::make_unique<A3ExprOperation>();
+            castOp->objType = A3ExprType::OPERATION;
+            castOp->location = e->location;
+            castOp->subType = A3ExprOpType::B_CAST;
+            castOp->operand0 = std::move(startExpr);
+            castOp->exprType = typePool[0].get();
+            startExpr = std::move(castOp);
+        }
+
+    } else { // 1-2. nullptr -> literal 0
+        auto lit = std::make_unique<A3ExprLiteral>();
+        lit->objType = A3ExprType::LITERAL;
+        lit->location = e->location;
+        lit->value = Literal((int64_t)0);
+        lit->exprType = typePool[0].get(); // int
+        startExpr = std::move(lit);
+    }
+
+    if (e->operand2) { // 1-1-2. cast endExpr to int
+        endExpr = lowerExpr(e->operand2.get(), "");
+        if (endExpr->exprType->objType != A3TypeType::PRIMITIVE || endExpr->exprType->name != "int") {
+            std::unique_ptr<A3ExprOperation> castOp = std::make_unique<A3ExprOperation>();
+            castOp->objType = A3ExprType::OPERATION;
+            castOp->location = e->location;
+            castOp->subType = A3ExprOpType::B_CAST;
+            castOp->operand0 = std::move(endExpr);
+            castOp->exprType = typePool[0].get();
+            endExpr = std::move(castOp);
+        }
+
+    } else if (arrExpr->exprType->objType == A3TypeType::ARRAY) { // 1-3-1. array -> literal k
+        auto lit = std::make_unique<A3ExprLiteral>();
+        lit->objType = A3ExprType::LITERAL;
+        lit->location = e->location;
+        lit->value = Literal((int64_t)arrExpr->exprType->arrLen);
+        lit->exprType = typePool[0].get(); // int
+        endExpr = std::move(lit);
+
+    } else if (arrExpr->exprType->objType == A3TypeType::SLICE) { // 1-3-2. slice -> temp var
+        if (arrExpr->objType != A3ExprType::VAR_NAME) { // make complex expr to var_name
+            std::string tName = setTempVar(arrExpr->exprType, std::move(arrExpr));
+            auto nameRef = std::make_unique<A3ExprName>();
+            nameRef->objType = A3ExprType::VAR_NAME;
+            nameRef->decl = findVar(tName);
+            nameRef->location = nameRef->decl->location;
+            nameRef->exprType = nameRef->decl->type.get();
+            arrExpr = std::move(nameRef);
+        }
+
+        // clone arrExpr, end = len(arr)
+        auto arrExprClone = std::make_unique<A3ExprName>();
+        arrExprClone->objType = A3ExprType::VAR_NAME;
+        arrExprClone->decl = ((A3ExprName*)arrExpr.get())->decl;
+        arrExprClone->location = arrExpr->location;
+        arrExprClone->exprType = arrExpr->exprType;
+
+        auto lenOp = std::make_unique<A3ExprOperation>();
+        lenOp->objType = A3ExprType::OPERATION;
+        lenOp->subType = A3ExprOpType::U_LEN;
+        lenOp->location = e->location;
+        lenOp->operand0 = std::move(arrExprClone);
+        lenOp->exprType = typePool[0].get(); // int
+        endExpr = std::move(lenOp);
+
+    } else { // invalid type
+        throw std::runtime_error(std::format("E9999 invalid slicing target type at {}", getLocString(e->location))); // E
+    }
+
+    // 2. make startExpr var_name or literal
+    if (startExpr->objType != A3ExprType::VAR_NAME && startExpr->objType != A3ExprType::LITERAL) {
+        std::string tName = setTempVar(startExpr->exprType, std::move(startExpr));
+        auto nameRef = std::make_unique<A3ExprName>();
+        nameRef->objType = A3ExprType::VAR_NAME;
+        nameRef->decl = findVar(tName);
+        nameRef->location = nameRef->decl->location;
+        nameRef->exprType = nameRef->decl->type.get();
+        startExpr = std::move(nameRef);
+    }
+
+    // 3. make arrExpr l-value (var_name)
+    if (arrExpr->objType != A3ExprType::VAR_NAME) {
+        std::string tName = setTempVar(arrExpr->exprType, std::move(arrExpr));
+        auto nameRef = std::make_unique<A3ExprName>();
+        nameRef->objType = A3ExprType::VAR_NAME;
+        nameRef->decl = findVar(tName);
+        nameRef->location = nameRef->decl->location;
+        nameRef->exprType = nameRef->decl->type.get();
+        arrExpr = std::move(nameRef);
+    }
+
+    // 4-1. assemble types, register
+    auto eleType = arrExpr->exprType->direct->clone();
+    int eIdx = findType(eleType.get());
+    if (eIdx == -1) { eIdx = typePool.size(); typePool.push_back(std::move(eleType)); }
+
+    auto ptrType = std::make_unique<A3Type>();
+    ptrType->objType = A3TypeType::POINTER;
+    ptrType->name = "*";
+    ptrType->typeSize = arch; ptrType->typeAlign = arch;
+    ptrType->direct = typePool[eIdx]->clone();
+    int pIdx = findType(ptrType.get());
+    if (pIdx == -1) { pIdx = typePool.size(); typePool.push_back(std::move(ptrType)); }
+
+    auto sliceType = std::make_unique<A3Type>();
+    sliceType->objType = A3TypeType::SLICE;
+    sliceType->name = "[]";
+    sliceType->typeSize = arch * 2; sliceType->typeAlign = arch;
+    sliceType->direct = typePool[eIdx]->clone();
+    int sIdx = findType(sliceType.get());
+    if (sIdx == -1) { sIdx = typePool.size(); typePool.push_back(std::move(sliceType)); }
+
+    // 4-2. copy startExpr, assemble arr[st]
+    std::unique_ptr<A3Expr> startExprClone;
+    if (startExpr->objType == A3ExprType::VAR_NAME) {
+        auto nameRef = std::make_unique<A3ExprName>();
+        nameRef->objType = A3ExprType::VAR_NAME;
+        nameRef->decl = ((A3ExprName*)startExpr.get())->decl;
+        nameRef->location = nameRef->decl->location;
+        nameRef->exprType = nameRef->decl->type.get();
+        startExprClone = std::move(nameRef);
+    } else if (startExpr->objType == A3ExprType::LITERAL) {
+        auto lit = std::make_unique<A3ExprLiteral>();
+        lit->objType = A3ExprType::LITERAL;
+        lit->location = startExpr->location;
+        lit->value = ((A3ExprLiteral*)startExpr.get())->value;
+        lit->exprType = startExpr->exprType;
+        startExprClone = std::move(lit);
+    }
+
+    auto idxOp = std::make_unique<A3ExprOperation>();
+    idxOp->objType = A3ExprType::OPERATION;
+    idxOp->subType = A3ExprOpType::B_INDEX;
+    idxOp->location = e->location;
+    idxOp->operand0 = std::move(arrExpr);
+    idxOp->operand1 = std::move(startExprClone);
+    idxOp->exprType = typePool[eIdx].get();
+
+    // 4-3. assemble &arr[st], ed - st
+    auto refOp = std::make_unique<A3ExprOperation>();
+    refOp->objType = A3ExprType::OPERATION;
+    refOp->subType = A3ExprOpType::U_REF;
+    refOp->location = e->location;
+    refOp->operand0 = std::move(idxOp);
+    refOp->exprType = typePool[pIdx].get();
+
+    auto subOp = std::make_unique<A3ExprOperation>();
+    subOp->objType = A3ExprType::OPERATION;
+    subOp->subType = A3ExprOpType::B_SUB;
+    subOp->location = e->location;
+    subOp->operand0 = std::move(endExpr);
+    subOp->operand1 = std::move(startExpr);
+    subOp->exprType = typePool[0].get(); // int
+
+    // Make: make(ptr, len)
+    auto makeOp = std::make_unique<A3ExprOperation>();
+    makeOp->objType = A3ExprType::OPERATION;
+    makeOp->subType = A3ExprOpType::B_MAKE;
+    makeOp->location = e->location;
+    makeOp->operand0 = std::move(refOp);
+    makeOp->operand1 = std::move(subOp);
+    makeOp->exprType = typePool[sIdx].get();
+    return makeOp;
+}
+
+// lowering conditional operation
+std::unique_ptr<A3Expr> A3Gen::lowerExprOpCond(A2ExprOperation* e) {
+    // 1. condition
+    auto condExpr = lowerExpr(e->operand0.get(), "");
+    
+    // 2. define targets
+    A2Expr* trueTarget = nullptr;
+    A2Expr* falseTarget = nullptr;
+    
+    // implicit conversions for logic ops
+    // AND: op0 ? op1 : 0
+    // OR: op0 ? 1 : op1
+    // COND: op0 ? op1 : op2
+    
+    if (e->subType == A2ExprOpType::T_COND) {
+        trueTarget = e->operand1.get();
+        falseTarget = e->operand2.get();
+    } else if (e->subType == A2ExprOpType::B_LOGIC_AND) {
+        trueTarget = e->operand1.get();
+        // falseTarget is null -> 0
+    } else if (e->subType == A2ExprOpType::B_LOGIC_OR) {
+        // trueTarget is null -> 1
+        falseTarget = e->operand1.get();
+    }
+
+    // Helper to capture branch stats
+    auto captureBranch = [&](A2Expr* target, int implicitVal) -> std::pair<std::unique_ptr<A3Expr>, std::vector<std::unique_ptr<A3Stat>>> {
+        std::vector<std::unique_ptr<A3Stat>> oldBuf;
+        std::swap(statBuf, oldBuf); // clear global
+        
+        std::unique_ptr<A3Expr> res;
+        if (target) {
+            res = lowerExpr(target, "");
+        } else {
+            auto lit = std::make_unique<A3ExprLiteral>();
+            lit->objType = A3ExprType::LITERAL;
+            lit->location = e->location;
+            lit->value = Literal((int64_t)implicitVal);
+            lit->exprType = typePool[0].get(); // int
+            res = std::move(lit);
+        }
+        
+        std::vector<std::unique_ptr<A3Stat>> newStats = std::move(statBuf);
+        statBuf = std::move(oldBuf); // restore
+        return {std::move(res), std::move(newStats)};
+    };
+
+    auto [trueExpr, trueStats] = captureBranch(trueTarget, 1);
+    auto [falseExpr, falseStats] = captureBranch(falseTarget, 0);
+
+    // 4. Check complexity
+    if (trueStats.empty() && falseStats.empty()) {
+        auto newOp = std::make_unique<A3ExprOperation>();
+        newOp->objType = A3ExprType::OPERATION;
+        newOp->location = e->location;
+        newOp->subType = (e->subType == A2ExprOpType::T_COND) ? A3ExprOpType::T_COND : 
+                         (e->subType == A2ExprOpType::B_LOGIC_AND) ? A3ExprOpType::B_LOGIC_AND : A3ExprOpType::B_LOGIC_OR;
+        
+        newOp->operand0 = std::move(condExpr);
+        
+        if (e->subType == A2ExprOpType::T_COND) {
+            newOp->operand1 = std::move(trueExpr);
+            newOp->operand2 = std::move(falseExpr);
+        } else if (e->subType == A2ExprOpType::B_LOGIC_AND) {
+            newOp->operand1 = std::move(trueExpr);
+            // op2 unused
+        } else { // OR
+            newOp->operand1 = std::move(falseExpr); // OR takes false branch as operand1 in B_LOGIC_OR (A || B)
+        }
+        
+        // Result Type
+        auto t = lowerType(e->exprType);
+        int idx = findType(t.get());
+        if (idx == -1) { idx = typePool.size(); typePool.push_back(std::move(t)); }
+        newOp->exprType = typePool[idx].get();
+        return newOp;
+    }
+
+    // 5. Complex case: IF-ELSE
+    // decl res var
+    auto resType = lowerType(e->exprType);
+    std::string resName = genTempVar(resType.get(), e->location);
+
+    // Create assignments
+    auto makeAssign = [&](std::unique_ptr<A3Expr> val) {
+        auto assign = std::make_unique<A3StatAssign>();
+        assign->objType = A3StatType::ASSIGN;
+        assign->location = val->location;
+        assign->uid = uidCount++;
+        
+        auto left = std::make_unique<A3ExprName>();
+        left->objType = A3ExprType::VAR_NAME;
+        left->decl = findVar(resName);
+        left->exprType = left->decl->type.get();
+        
+        assign->left = std::move(left);
+        assign->right = std::move(val);
+        return assign;
+    };
+
+    // Construct If Stats
+    auto ifStat = std::make_unique<A3StatIf>();
+    ifStat->objType = A3StatType::IF;
+    ifStat->location = e->location;
+    ifStat->uid = uidCount++;
+    ifStat->cond = std::move(condExpr);
+    
+    // True Block
+    auto trueBlock = std::make_unique<A3StatScope>();
+    trueBlock->objType = A3StatType::SCOPE;
+    trueBlock->uid = uidCount++;
+    for (auto& s : trueStats) trueBlock->body.push_back(std::move(s));
+    trueBlock->body.push_back(makeAssign(std::move(trueExpr)));
+    ifStat->thenBody = std::move(trueBlock);
+
+    // False Block
+    auto falseBlock = std::make_unique<A3StatScope>();
+    falseBlock->objType = A3StatType::SCOPE;
+    falseBlock->uid = uidCount++;
+    for (auto& s : falseStats) falseBlock->body.push_back(std::move(s));
+    falseBlock->body.push_back(makeAssign(std::move(falseExpr)));
+    ifStat->elseBody = std::move(falseBlock);
+
+    statBuf.push_back(std::move(ifStat));
+
+    // Return Res Var
+    auto resRef = std::make_unique<A3ExprName>();
+    resRef->objType = A3ExprType::VAR_NAME;
+    resRef->decl = findVar(resName);
+    resRef->location = e->location;
+    resRef->exprType = resRef->decl->type.get();
+    
+    return resRef;
 }
 
 // lowering expression call

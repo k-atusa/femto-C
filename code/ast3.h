@@ -518,6 +518,8 @@ class A3Gen {
     std::unique_ptr<A3Expr> lowerExprLitString(A2ExprLiteral* l);
     std::unique_ptr<A3Expr> lowerExprLitData(A2ExprLiteralData* e, std::string* setName);
     std::unique_ptr<A3Expr> lowerExprOp(A2ExprOperation* e);
+    std::unique_ptr<A3Expr> lowerExprOpSlice(A2ExprOperation* e);
+    std::unique_ptr<A3Expr> lowerExprOpCond(A2ExprOperation* e);
     std::vector<std::unique_ptr<A3Expr>> lowerExprCall(A3Type* ftype, std::vector<std::unique_ptr<A2Expr>>& a2Args, bool isVaArg, bool isRetArray, std::string* retName);
 
     std::unique_ptr<A3Stat> lowerStat(A2Stat* s);
