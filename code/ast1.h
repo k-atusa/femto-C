@@ -182,16 +182,16 @@ class A1ExprLiteral : public A1Expr { // literal value
 
     A1ExprLiteral(): A1Expr(A1ExprType::LITERAL) {}
     A1ExprLiteral(Literal v): A1Expr(A1ExprType::LITERAL), value(v) {}
-    virtual ~A1ExprLiteral() = default;
+    ~A1ExprLiteral() override = default;
 
-    virtual std::unique_ptr<A1Expr> Clone() {
+    std::unique_ptr<A1Expr> Clone() override {
         std::unique_ptr<A1ExprLiteral> newNode = std::make_unique<A1ExprLiteral>();
         newNode->location = location;
         newNode->value = value;
         return newNode;
     }
 
-    virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("A1ExprLiteral {}", value.toString()); }
+    std::string toString(int indent) override { return std::string(indent * 2, ' ') + std::format("A1ExprLiteral {}", value.toString()); }
 };
 
 class A1ExprLiteralData : public A1Expr { // literal data chunk
@@ -199,9 +199,9 @@ class A1ExprLiteralData : public A1Expr { // literal data chunk
     std::vector<std::unique_ptr<A1Expr>> elements;
 
     A1ExprLiteralData(): A1Expr(A1ExprType::LITERAL_DATA) {}
-    virtual ~A1ExprLiteralData() = default;
+    ~A1ExprLiteralData() override = default;
 
-    virtual std::unique_ptr<A1Expr> Clone() {
+    std::unique_ptr<A1Expr> Clone() override {
         std::unique_ptr<A1ExprLiteralData> newNode = std::make_unique<A1ExprLiteralData>();
         newNode->location = location;
         for (auto& element : elements) {
@@ -210,7 +210,7 @@ class A1ExprLiteralData : public A1Expr { // literal data chunk
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1ExprLiteralData");
         for (auto& element : elements) {
             result += "\n" + element->toString(indent + 1);
@@ -225,16 +225,16 @@ class A1ExprName : public A1Expr { // name
 
     A1ExprName(): A1Expr(A1ExprType::NAME), name("") {}
     A1ExprName(const std::string& n): A1Expr(A1ExprType::NAME), name(n) {}
-    virtual ~A1ExprName() = default;
+    ~A1ExprName() override = default;
 
-    virtual std::unique_ptr<A1Expr> Clone() {
+    std::unique_ptr<A1Expr> Clone() override {
         std::unique_ptr<A1ExprName> newNode = std::make_unique<A1ExprName>();
         newNode->location = location;
         newNode->name = name;
         return newNode;
     }
 
-    virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("A1ExprName {}", name); }
+    std::string toString(int indent) override { return std::string(indent * 2, ' ') + std::format("A1ExprName {}", name); }
 };
 
 enum class A1ExprOpType {
@@ -266,9 +266,9 @@ class A1ExprOperation : public A1Expr { // operation
 
     A1ExprOperation(): A1Expr(A1ExprType::OPERATION), subType(A1ExprOpType::NONE), typeOperand(), operand0(), operand1(), operand2() {}
     A1ExprOperation(A1ExprOpType t): A1Expr(A1ExprType::OPERATION), subType(t), typeOperand(), operand0(), operand1(), operand2() {}
-    virtual ~A1ExprOperation() = default;
+    ~A1ExprOperation() override = default;
 
-    virtual std::unique_ptr<A1Expr> Clone() {
+    std::unique_ptr<A1Expr> Clone() override {
         std::unique_ptr<A1ExprOperation> newNode = std::make_unique<A1ExprOperation>();
         newNode->location = location;
         newNode->subType = subType;
@@ -279,7 +279,7 @@ class A1ExprOperation : public A1Expr { // operation
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1ExprOperation {}", (int)subType);
         if (typeOperand) result += "\n" + typeOperand->toString(indent + 1);
         if (operand0) result += "\n" + operand0->toString(indent + 1);
@@ -295,9 +295,9 @@ class A1ExprFuncCall : public A1Expr { // function call
     std::vector<std::unique_ptr<A1Expr>> args;
 
     A1ExprFuncCall(): A1Expr(A1ExprType::FUNC_CALL), func(), args() {}
-    virtual ~A1ExprFuncCall() = default;
+    ~A1ExprFuncCall() override = default;
 
-    virtual std::unique_ptr<A1Expr> Clone() {
+    std::unique_ptr<A1Expr> Clone() override {
         std::unique_ptr<A1ExprFuncCall> newNode = std::make_unique<A1ExprFuncCall>();
         newNode->location = location;
         newNode->func = func->Clone();
@@ -307,7 +307,7 @@ class A1ExprFuncCall : public A1Expr { // function call
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1ExprFuncCall");
         if (func) result += "\n" + func->toString(indent + 1);
         for (auto& arg : args) {
@@ -324,16 +324,16 @@ class A1StatRaw : public A1Stat { // raw code statement
 
     A1StatRaw(): A1Stat(A1StatType::NONE), code() {}
     A1StatRaw(A1StatType tp): A1Stat(tp), code() {}
-    virtual ~A1StatRaw() = default;
+    ~A1StatRaw() override = default;
 
-    virtual std::unique_ptr<A1Stat> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Stat> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1StatRaw> newNode = std::make_unique<A1StatRaw>(objType);
         newNode->location = location;
         newNode->code = code;
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1StatRaw {} {}", (int)objType, code);
         return result;
     }
@@ -344,16 +344,16 @@ class A1StatExpr : public A1Stat { // expression statement
     std::unique_ptr<A1Expr> expr;
 
     A1StatExpr(): A1Stat(A1StatType::EXPR), expr() {}
-    virtual ~A1StatExpr() = default;
+    ~A1StatExpr() override = default;
 
-    virtual std::unique_ptr<A1Stat> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Stat> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1StatExpr> newNode = std::make_unique<A1StatExpr>();
         newNode->location = location;
         newNode->expr = expr->Clone();
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1StatExpr");
         if (expr) result += "\n" + expr->toString(indent + 1);
         return result;
@@ -365,16 +365,16 @@ class A1StatDecl : public A1Stat { // declaration statement
     std::unique_ptr<A1Decl> decl;
 
     A1StatDecl(): A1Stat(A1StatType::DECL), decl() {}
-    virtual ~A1StatDecl() = default;
+    ~A1StatDecl() override = default;
 
-    virtual std::unique_ptr<A1Stat> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Stat> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1StatDecl> newNode = std::make_unique<A1StatDecl>();
         newNode->location = location;
         newNode->decl = decl->Clone(parent);
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1StatDecl");
         if (decl) result += "\n" + decl->toString(indent + 1);
         return result;
@@ -398,9 +398,9 @@ class A1StatAssign : public A1Stat { // assignment statement
     std::unique_ptr<A1Expr> right;
 
     A1StatAssign(): A1Stat(A1StatType::ASSIGN), subType(A1StatAssignType::NONE), left(), right() {}
-    virtual ~A1StatAssign() = default;
+    ~A1StatAssign() override = default;
 
-    virtual std::unique_ptr<A1Stat> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Stat> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1StatAssign> newNode = std::make_unique<A1StatAssign>();
         newNode->location = location;
         newNode->subType = subType;
@@ -409,7 +409,7 @@ class A1StatAssign : public A1Stat { // assignment statement
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1StatAssign {}", (int)subType);
         if (left) result += "\n" + left->toString(indent + 1);
         if (right) result += "\n" + right->toString(indent + 1);
@@ -423,16 +423,16 @@ class A1StatCtrl : public A1Stat { // control statement (return, defer, break, c
 
     A1StatCtrl(): A1Stat(A1StatType::NONE), body() {}
     A1StatCtrl(A1StatType tp): A1Stat(tp), body() {}
-    virtual ~A1StatCtrl() = default;
+    ~A1StatCtrl() override = default;
 
-    virtual std::unique_ptr<A1Stat> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Stat> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1StatCtrl> newNode = std::make_unique<A1StatCtrl>(objType);
         newNode->location = location;
         newNode->body = body->Clone();
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1StatCtrl {}", (int)objType);
         if (body) result += "\n" + body->toString(indent + 1);
         return result;
@@ -446,9 +446,9 @@ class A1StatScope : public A1StatCtrl { // scope statement
 
     A1StatScope(): A1StatCtrl(A1StatType::SCOPE), parent(nullptr), body() {}
     A1StatScope(A1StatScope* p): A1StatCtrl(A1StatType::SCOPE), parent(p), body() {}
-    virtual ~A1StatScope() = default;
+    ~A1StatScope() override = default;
 
-    virtual std::unique_ptr<A1Stat> Clone(A1StatScope* p) {
+    std::unique_ptr<A1Stat> Clone(A1StatScope* p) override {
         std::unique_ptr<A1StatScope> newNode = std::make_unique<A1StatScope>();
         newNode->location = location;
         newNode->parent = p;
@@ -458,7 +458,7 @@ class A1StatScope : public A1StatCtrl { // scope statement
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1StatScope");
         for (auto& stat : body) {
             result += "\n" + stat->toString(indent + 1);
@@ -477,9 +477,9 @@ class A1StatIf : public A1StatCtrl { // if statement
     std::unique_ptr<A1Stat> elseBody;
 
     A1StatIf(): A1StatCtrl(A1StatType::IF), cond(), thenBody(), elseBody() {}
-    virtual ~A1StatIf() = default;
+    ~A1StatIf() override = default;
 
-    virtual std::unique_ptr<A1Stat> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Stat> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1StatIf> newNode = std::make_unique<A1StatIf>();
         newNode->location = location;
         newNode->cond = cond->Clone();
@@ -488,7 +488,7 @@ class A1StatIf : public A1StatCtrl { // if statement
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1StatIf");
         if (cond) result += "\n" + cond->toString(indent + 1);
         if (thenBody) result += "\n" + thenBody->toString(indent + 1);
@@ -503,9 +503,9 @@ class A1StatWhile : public A1StatCtrl { // while statement
     std::unique_ptr<A1Stat> body;
 
     A1StatWhile(): A1StatCtrl(A1StatType::WHILE), cond(), body() {}
-    virtual ~A1StatWhile() = default;
+    ~A1StatWhile() override = default;
 
-    virtual std::unique_ptr<A1Stat> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Stat> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1StatWhile> newNode = std::make_unique<A1StatWhile>();
         newNode->location = location;
         newNode->cond = cond->Clone();
@@ -513,7 +513,7 @@ class A1StatWhile : public A1StatCtrl { // while statement
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1StatWhile");
         if (cond) result += "\n" + cond->toString(indent + 1);
         if (body) result += "\n" + body->toString(indent + 1);
@@ -529,9 +529,9 @@ class A1StatFor : public A1StatCtrl { // for statement
     std::unique_ptr<A1Stat> body;
 
     A1StatFor(): A1StatCtrl(A1StatType::FOR), cond(), step(), body() {}
-    virtual ~A1StatFor() = default;
+    ~A1StatFor() override = default;
 
-    virtual std::unique_ptr<A1Stat> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Stat> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1StatFor> newNode = std::make_unique<A1StatFor>();
         newNode->location = location;
         newNode->cond = cond->Clone();
@@ -540,7 +540,7 @@ class A1StatFor : public A1StatCtrl { // for statement
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1StatFor");
         if (cond) result += "\n" + cond->toString(indent + 1);
         if (step) result += "\n" + step->toString(indent + 1);
@@ -557,9 +557,9 @@ class A1StatSwitch : public A1StatCtrl { // switch statement
     std::vector<std::unique_ptr<A1Stat>> defaultBody;
 
     A1StatSwitch(): A1StatCtrl(A1StatType::SWITCH), cond(), caseConds(), caseBodies(), defaultBody() {}
-    virtual ~A1StatSwitch() = default;
+    ~A1StatSwitch() override = default;
 
-    virtual std::unique_ptr<A1Stat> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Stat> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1StatSwitch> newNode = std::make_unique<A1StatSwitch>();
         newNode->location = location;
         newNode->cond = cond->Clone();
@@ -577,7 +577,7 @@ class A1StatSwitch : public A1StatCtrl { // switch statement
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1StatSwitch");
         if (cond) result += "\n" + cond->toString(indent + 1);
         for (size_t i = 0; i < caseConds.size(); i++) {
@@ -603,9 +603,9 @@ class A1DeclRaw : public A1Decl { // raw code
 
     A1DeclRaw(): A1Decl(A1DeclType::NONE), code() {}
     A1DeclRaw(A1DeclType t): A1Decl(t), code() {}
-    virtual ~A1DeclRaw() = default;
+    ~A1DeclRaw() override = default;
 
-    virtual std::unique_ptr<A1Decl> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Decl> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1DeclRaw> newNode = std::make_unique<A1DeclRaw>(objType);
         newNode->location = location;
         newNode->name = name;
@@ -615,7 +615,7 @@ class A1DeclRaw : public A1Decl { // raw code
         return newNode;
     }
 
-    virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("A1DeclRaw {} {}", (int)objType, code); }
+    std::string toString(int indent) override { return std::string(indent * 2, ' ') + std::format("A1DeclRaw {} {}", (int)objType, code); }
 };
 
 class A1DeclInclude : public A1Decl { // include
@@ -625,9 +625,9 @@ class A1DeclInclude : public A1Decl { // include
     std::vector<std::unique_ptr<A1Type>> argTypes;
 
     A1DeclInclude(): A1Decl(A1DeclType::INCLUDE), tgtPath(), tgtUname(), argTypes() {}
-    virtual ~A1DeclInclude() = default;
+    ~A1DeclInclude() override = default;
 
-    virtual std::unique_ptr<A1Decl> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Decl> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1DeclInclude> newNode = std::make_unique<A1DeclInclude>();
         newNode->location = location;
         newNode->name = name;
@@ -641,7 +641,7 @@ class A1DeclInclude : public A1Decl { // include
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1DeclInclude {} {}", tgtPath, tgtUname);
         for (size_t i = 0; i < argTypes.size(); i++) {
             result += "\n" + std::string(indent * 2, ' ') + std::format("arg{}: {}", i, argTypes[i]->toString(indent + 1));
@@ -654,9 +654,9 @@ class A1DeclTypedef : public A1Decl { // typedef
     public:
 
     A1DeclTypedef(): A1Decl(A1DeclType::TYPEDEF) {}
-    virtual ~A1DeclTypedef() = default;
+    ~A1DeclTypedef() override = default;
 
-    virtual std::unique_ptr<A1Decl> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Decl> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1DeclTypedef> newNode = std::make_unique<A1DeclTypedef>();
         newNode->location = location;
         newNode->name = name;
@@ -665,7 +665,7 @@ class A1DeclTypedef : public A1Decl { // typedef
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1DeclTypedef {}", name);
         result += "\n" + type->toString(indent + 1);
         return result;
@@ -676,9 +676,9 @@ class A1DeclTemplate : public A1Decl { // template
     public:
 
     A1DeclTemplate(): A1Decl(A1DeclType::TEMPLATE) {}
-    virtual ~A1DeclTemplate() = default;
+    ~A1DeclTemplate() override = default;
 
-    virtual std::unique_ptr<A1Decl> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Decl> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1DeclTemplate> newNode = std::make_unique<A1DeclTemplate>();
         newNode->location = location;
         newNode->name = name;
@@ -686,7 +686,7 @@ class A1DeclTemplate : public A1Decl { // template
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1DeclTemplate {} {}", (int)objType, name);
         return result;
     }
@@ -703,9 +703,9 @@ class A1DeclVar : public A1Decl { // variable declaration
 
     A1DeclVar(): A1Decl(A1DeclType::VAR), init(), isDefine(false), isConst(false), isVolatile(false), isExtern(false), isParam(false) {}
     A1DeclVar(std::unique_ptr<A1Type> t, std::string nm): A1Decl(A1DeclType::VAR), init(), isDefine(false), isConst(false), isVolatile(false), isExtern(false), isParam(false) { name = nm; type = std::move(t); }
-    virtual ~A1DeclVar() = default;
+    ~A1DeclVar() override = default;
 
-    virtual std::unique_ptr<A1Decl> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Decl> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1DeclVar> newNode = std::make_unique<A1DeclVar>();
         newNode->location = location;
         newNode->name = name;
@@ -720,7 +720,7 @@ class A1DeclVar : public A1Decl { // variable declaration
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1DeclVar {} {}", (int)objType, name);
         if (init) result += "\n" + init->toString(indent + 1);
         return result;
@@ -738,9 +738,9 @@ class A1DeclFunc : public A1Decl { // function declaration
     bool isVaArg;
 
     A1DeclFunc(): A1Decl(A1DeclType::FUNC), structNm(), funcNm(), paramTypes(), paramNames(), retType(), body(), isVaArg(false) {}
-    virtual ~A1DeclFunc() = default;
+    ~A1DeclFunc() override = default;
 
-    virtual std::unique_ptr<A1Decl> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Decl> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1DeclFunc> newNode = std::make_unique<A1DeclFunc>();
         newNode->location = location;
         newNode->name = name;
@@ -758,7 +758,7 @@ class A1DeclFunc : public A1Decl { // function declaration
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1DeclFunc {} {}", (int)objType, name);
         for (size_t i = 0; i < paramTypes.size(); i++) {
             result += "\n" + std::string(indent * 2, ' ') + std::format("param {}:", i);
@@ -779,9 +779,9 @@ class A1DeclStruct : public A1Decl { // struct declaration
     std::vector<int> memOffsets;
 
     A1DeclStruct(): A1Decl(A1DeclType::STRUCT), structSize(-1), structAlign(-1), memTypes(), memNames(), memOffsets() {}
-    virtual ~A1DeclStruct() = default;
+    ~A1DeclStruct() override = default;
 
-    virtual std::unique_ptr<A1Decl> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Decl> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1DeclStruct> newNode = std::make_unique<A1DeclStruct>();
         newNode->location = location;
         newNode->name = name;
@@ -797,7 +797,7 @@ class A1DeclStruct : public A1Decl { // struct declaration
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1DeclStruct {} {}", (int)objType, name);
         for (size_t i = 0; i < memTypes.size(); i++) {
             result += "\n" + std::string(indent * 2, ' ') + std::format("member {}:", i);
@@ -814,9 +814,9 @@ class A1DeclEnum : public A1Decl { // enum declaration
     std::vector<int64_t> memValues;
 
     A1DeclEnum(): A1Decl(A1DeclType::ENUM), enumSize(-1), memNames(), memValues() {}
-    virtual ~A1DeclEnum() = default;
+    ~A1DeclEnum() override = default;
 
-    virtual std::unique_ptr<A1Decl> Clone(A1StatScope* parent) {
+    std::unique_ptr<A1Decl> Clone(A1StatScope* parent) override {
         std::unique_ptr<A1DeclEnum> newNode = std::make_unique<A1DeclEnum>();
         newNode->location = location;
         newNode->name = name;
@@ -828,7 +828,7 @@ class A1DeclEnum : public A1Decl { // enum declaration
         return newNode;
     }
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A1DeclEnum {}", (int)objType, name);
         for (size_t i = 0; i < memNames.size(); i++) {
             result += "\n" + std::string(indent * 2, ' ') + std::format("member {}: {}", i, memNames[i]);

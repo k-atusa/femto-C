@@ -91,6 +91,63 @@ std::unique_ptr<A3Expr> createArraySizeExpr(A3Type* t, A3Type* intType, Location
     return mul;
 }
 
+void checkArrayAccess(A3Type* arrType, A3Expr* st, A3Expr* ed, bool isSlicing, std::string loc) {
+    bool stChk = false;
+    bool edChk = false;
+    bool arrChk = false;
+    int64_t stVal = -1;
+    int64_t edVal = -1;
+    int64_t arrVal = -1;
+    if (st != nullptr && st->objType == A3ExprType::LITERAL) {
+        auto& lit = ((A3ExprLiteral*)st)->value;
+        if (lit.objType == LiteralType::INT) {
+            stChk = true;
+            stVal = std::get<int64_t>(lit.value);
+        }
+    }
+    if (ed != nullptr && ed->objType == A3ExprType::LITERAL) {
+        auto& lit = ((A3ExprLiteral*)ed)->value;
+        if (lit.objType == LiteralType::INT) {
+            edChk = true;
+            edVal = std::get<int64_t>(lit.value);
+        }
+    }
+    if (arrType->objType == A3TypeType::ARRAY) {
+        arrChk = true;
+        arrVal = arrType->arrLen;
+    }
+    if (isSlicing) { // check bounds for slicing
+        if (arrChk && ((stChk && stVal > arrVal) || (edChk && edVal > arrVal)))
+            throw std::runtime_error(std::format("E1901 slicing out of array bound ({}[{}:{}]) at {}", arrVal, stVal, edVal, loc)); // E1901
+        if ((stChk && stVal < 0) || (edChk && edVal < 0))
+            throw std::runtime_error(std::format("E1902 negative index for slicing ([{}:{}]) at {}", stVal, edVal, loc)); // E1902
+        if (stChk && edChk && stVal > edVal)
+            throw std::runtime_error(std::format("E1903 invalid range for slicing ([{}:{}]) at {}", stVal, edVal, loc)); // E1903
+    } else { // check bounds for indexing
+        if (arrChk && (stChk && stVal >= arrVal))
+            throw std::runtime_error(std::format("E1904 indexing out of array bound ({}[{}]) at {}", arrVal, stVal, loc)); // E1904
+        if (stChk && stVal < 0)
+            throw std::runtime_error(std::format("E1905 negative index for indexing ([{}]) at {}", stVal, loc)); // E1905
+    }
+}
+
+bool hasExprSideEffect(A3Expr* e) {
+    switch (e->objType) {
+        case A3ExprType::LITERAL: case A3ExprType::VAR_NAME: case A3ExprType::FUNC_NAME:
+            return false;
+        case A3ExprType::OPERATION:
+        {
+            auto op = (A3ExprOperation*)e;
+            if (op->operand0 != nullptr && hasExprSideEffect(op->operand0.get())) return true;
+            if (op->operand1 != nullptr && hasExprSideEffect(op->operand1.get())) return true;
+            if (op->operand2 != nullptr && hasExprSideEffect(op->operand2.get())) return true;
+            return false;
+        }
+        default: // calls
+            return true;
+    }
+}
+
 // initialize type pool
 std::unique_ptr<A3Type> getPrimitiveType(const std::string& name, int size, int align) {
     auto type = std::make_unique<A3Type>();
@@ -164,7 +221,7 @@ std::string A3Gen::genTempVar(A3Type* t, Location l) {
     // generate temp name, check copy size
     std::string tName = genName();
     if (t->typeSize >= bigCopyAlert) {
-        prt.Log(std::format("W1901 large temporary variable ({} bytes) at {}", t->typeSize, getLocString(l)), 5); // W1901
+        prt.Log(std::format("W1906 large temporary variable ({} bytes) at {}", t->typeSize, getLocString(l)), 5); // W1906
     }
 
     // register type
@@ -199,16 +256,17 @@ std::string A3Gen::genTempVar(A3Type* t, Location l) {
 std::string A3Gen::setTempVar(A3Type* t, std::unique_ptr<A3Expr> v) {
     std::string tName = genTempVar(t, v->location);
     if (!isTypeEqual(t, v->exprType)) {
-        throw std::runtime_error(std::format("E1902 tempVar type mismatch at {}", getLocString(v->location))); // E1902
+        throw std::runtime_error(std::format("E1907 tempVar type mismatch at {}", getLocString(v->location))); // E1907
     }
-    statBuf.push_back(genAssignStat(getTempVar(tName, v->location), std::move(v)));
+    auto nameRef = getTempVar(tName, v->location);
+    statBuf.push_back(genAssignStat(std::move(nameRef), std::move(v)));
     return tName;
 }
 
 std::unique_ptr<A3ExprName> A3Gen::getTempVar(std::string name, Location l) {
     // find var
     auto var = findVar(name);
-    if (!var) throw std::runtime_error(std::format("E1903 undefined variable {} at {}", name, getLocString(l))); // E1903
+    if (!var) throw std::runtime_error(std::format("E1908 undefined variable {} at {}", name, getLocString(l))); // E1908
 
     // create name expr
     auto nameExpr = std::make_unique<A3ExprName>();
@@ -220,19 +278,13 @@ std::unique_ptr<A3ExprName> A3Gen::getTempVar(std::string name, Location l) {
 }
 
 // generate reference to variable
-std::unique_ptr<A3ExprOperation> A3Gen::refVar(std::string name) {
+std::unique_ptr<A3ExprOperation> A3Gen::refVar(std::string name, Location l) {
     // take address of var
     auto addrOp = std::make_unique<A3ExprOperation>();
     addrOp->objType = A3ExprType::OPERATION;
     addrOp->subType = A3ExprOpType::U_REF;
-    
-    auto nameRef = std::make_unique<A3ExprName>();
-    nameRef->objType = A3ExprType::VAR_NAME;
-    nameRef->decl = findVar(name);
-    nameRef->location = nameRef->decl->location;
-    nameRef->exprType = nameRef->decl->type.get();
-    addrOp->location = nameRef->location;
-    addrOp->operand0 = std::move(nameRef);
+    addrOp->operand0 = getTempVar(name, l);
+    addrOp->location = l;
 
     // set type of &temp (ptr)
     auto ptrType = std::make_unique<A3Type>();
@@ -615,40 +667,42 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprLitData(A2ExprLiteralData* e, std::strin
 
 // lowering expression operation
 std::unique_ptr<A3Expr> A3Gen::lowerExprOp(A2ExprOperation* e) {
+    bool lower0 = false;
+    bool lower1 = false;
     auto newOp = std::make_unique<A3ExprOperation>();
     newOp->objType = A3ExprType::OPERATION;
     newOp->location = e->location;
 
     switch (e->subType) {
         // operations having same logic
-        case A2ExprOpType::B_DOT: newOp->subType = A3ExprOpType::B_DOT; break;
-        case A2ExprOpType::B_ARROW: newOp->subType = A3ExprOpType::B_ARROW; break;
-        case A2ExprOpType::B_INDEX: newOp->subType = A3ExprOpType::B_INDEX; break;
+        case A2ExprOpType::B_DOT: newOp->subType = A3ExprOpType::B_DOT; lower0 = true; lower1 = true; break;
+        case A2ExprOpType::B_ARROW: newOp->subType = A3ExprOpType::B_ARROW; lower0 = true; lower1 = true; break;
+        case A2ExprOpType::B_INDEX: newOp->subType = A3ExprOpType::B_INDEX; lower0 = true; lower1 = true; break;
         
-        case A2ExprOpType::U_PLUS: newOp->subType = A3ExprOpType::U_PLUS; break;
-        case A2ExprOpType::U_MINUS: newOp->subType = A3ExprOpType::U_MINUS; break;
-        case A2ExprOpType::U_BIT_NOT: newOp->subType = A3ExprOpType::U_BIT_NOT; break;
-        case A2ExprOpType::U_DEREF: newOp->subType = A3ExprOpType::U_DEREF; break;
+        case A2ExprOpType::U_PLUS: newOp->subType = A3ExprOpType::U_PLUS; lower0 = true; break;
+        case A2ExprOpType::U_MINUS: newOp->subType = A3ExprOpType::U_MINUS; lower0 = true; break;
+        case A2ExprOpType::U_BIT_NOT: newOp->subType = A3ExprOpType::U_BIT_NOT; lower0 = true; break;
+        case A2ExprOpType::U_DEREF: newOp->subType = A3ExprOpType::U_DEREF; lower0 = true; break;
 
-        case A2ExprOpType::B_MUL: newOp->subType = A3ExprOpType::B_MUL; break;
-        case A2ExprOpType::B_DIV: newOp->subType = A3ExprOpType::B_DIV; break;
-        case A2ExprOpType::B_MOD: newOp->subType = A3ExprOpType::B_MOD; break;
+        case A2ExprOpType::B_MUL: newOp->subType = A3ExprOpType::B_MUL; lower0 = true; lower1 = true; break;
+        case A2ExprOpType::B_DIV: newOp->subType = A3ExprOpType::B_DIV; lower0 = true; lower1 = true; break;
+        case A2ExprOpType::B_MOD: newOp->subType = A3ExprOpType::B_MOD; lower0 = true; lower1 = true; break;
         
-        case A2ExprOpType::B_SHL: newOp->subType = A3ExprOpType::B_SHL; break;
-        case A2ExprOpType::B_SHR: newOp->subType = A3ExprOpType::B_SHR; break;
+        case A2ExprOpType::B_SHL: newOp->subType = A3ExprOpType::B_SHL; lower0 = true; lower1 = true; break;
+        case A2ExprOpType::B_SHR: newOp->subType = A3ExprOpType::B_SHR; lower0 = true; lower1 = true; break;
         
-        case A2ExprOpType::B_LT: newOp->subType = A3ExprOpType::B_LT; break;
-        case A2ExprOpType::B_LE: newOp->subType = A3ExprOpType::B_LE; break;
-        case A2ExprOpType::B_GT: newOp->subType = A3ExprOpType::B_GT; break;
-        case A2ExprOpType::B_GE: newOp->subType = A3ExprOpType::B_GE; break;
-        case A2ExprOpType::B_EQ: newOp->subType = A3ExprOpType::B_EQ; break;
-        case A2ExprOpType::B_NE: newOp->subType = A3ExprOpType::B_NE; break;
+        case A2ExprOpType::B_LT: newOp->subType = A3ExprOpType::B_LT; lower0 = true; lower1 = true; break;
+        case A2ExprOpType::B_LE: newOp->subType = A3ExprOpType::B_LE; lower0 = true; lower1 = true; break;
+        case A2ExprOpType::B_GT: newOp->subType = A3ExprOpType::B_GT; lower0 = true; lower1 = true; break;
+        case A2ExprOpType::B_GE: newOp->subType = A3ExprOpType::B_GE; lower0 = true; lower1 = true; break;
+        case A2ExprOpType::B_EQ: newOp->subType = A3ExprOpType::B_EQ; lower0 = true; lower1 = true; break;
+        case A2ExprOpType::B_NE: newOp->subType = A3ExprOpType::B_NE; lower0 = true; lower1 = true; break;
         
-        case A2ExprOpType::B_BIT_AND: newOp->subType = A3ExprOpType::B_BIT_AND; break;
-        case A2ExprOpType::B_BIT_XOR: newOp->subType = A3ExprOpType::B_BIT_XOR; break;
-        case A2ExprOpType::B_BIT_OR: newOp->subType = A3ExprOpType::B_BIT_OR; break;
-        case A2ExprOpType::U_LOGIC_NOT: newOp->subType = A3ExprOpType::U_LOGIC_NOT; break;
-        case A2ExprOpType::B_MAKE: newOp->subType = A3ExprOpType::B_MAKE; break;
+        case A2ExprOpType::B_BIT_AND: newOp->subType = A3ExprOpType::B_BIT_AND; lower0 = true; lower1 = true; break;
+        case A2ExprOpType::B_BIT_XOR: newOp->subType = A3ExprOpType::B_BIT_XOR; lower0 = true; lower1 = true; break;
+        case A2ExprOpType::B_BIT_OR: newOp->subType = A3ExprOpType::B_BIT_OR; lower0 = true; lower1 = true; break;
+        case A2ExprOpType::U_LOGIC_NOT: newOp->subType = A3ExprOpType::U_LOGIC_NOT; lower0 = true; break;
+        case A2ExprOpType::B_MAKE: newOp->subType = A3ExprOpType::B_MAKE; lower0 = true; break;
 
         // number operations + pointer arithmetics
         case A2ExprOpType::B_ADD:
@@ -657,6 +711,8 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOp(A2ExprOperation* e) {
             } else {
                 newOp->subType = A3ExprOpType::B_ADD;
             }
+            lower0 = true;
+            lower1 = true;
             break;
         case A2ExprOpType::B_SUB:
             if (e->operand0->exprType->objType == A2TypeType::POINTER || e->operand1->exprType->objType == A2TypeType::POINTER) {
@@ -664,19 +720,16 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOp(A2ExprOperation* e) {
             } else {
                 newOp->subType = A3ExprOpType::B_SUB;
             }
+            lower0 = true;
+            lower1 = true;
             break;
 
         // cast type, register
         case A2ExprOpType::B_CAST:
         {
             newOp->subType = A3ExprOpType::B_CAST;
-            auto t = lowerType(e->typeOperand.get());
-            int idx = findType(t.get());
-            if (idx == -1) {
-                idx = typePool.size();
-                typePool.push_back(std::move(t));
-            }
-            newOp->typeOperand = typePool[idx]->clone();
+            newOp->typeOperand = lowerType(e->typeOperand.get());
+            lower0 = true;
         }
         break;
 
@@ -692,7 +745,7 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOp(A2ExprOperation* e) {
             if (e->operand0->exprType->objType == A2TypeType::ARRAY) {
                 newOp->operand0 = mkLiteral(Literal((int64_t)e->operand0->exprType->arrLen), typePool[0].get(), e->location);
             } else {
-                newOp->operand0 = lowerExpr(e->operand0.get(), "");
+                lower0 = true;
             }
             break;
 
@@ -708,16 +761,17 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOp(A2ExprOperation* e) {
         case A2ExprOpType::U_REF:
             if (e->operand0->isLvalue) {
                 newOp->subType = A3ExprOpType::U_REF;
-                newOp->operand0 = lowerExpr(e->operand0.get(), "");
+                lower0 = true;
             } else {
                 auto val = lowerExpr(e->operand0.get(), "");
                 if (val->objType == A3ExprType::VAR_NAME) { // var_name has address
                     newOp->subType = A3ExprOpType::U_REF;
                     newOp->operand0 = std::move(val);
                 } else { // make temporary variable
-                    std::string tName = setTempVar(val->exprType, std::move(val));
+                    auto t = val->exprType;
+                    std::string tName = setTempVar(t, std::move(val));
                     newOp->subType = A3ExprOpType::U_REF;
-                    newOp->operand0 = refVar(tName);
+                    newOp->operand0 = refVar(tName, e->location);
                 }
             }
             break;
@@ -726,7 +780,9 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOp(A2ExprOperation* e) {
             throw std::runtime_error(std::format("E2105 unsupported operation in ast3 {}", (int)e->subType)); // E2105
     }
 
-    // set result type of operation node
+    // set rest members of operation node
+    if (lower0) newOp->operand0 = lowerExpr(e->operand0.get(), "");
+    if (lower1) newOp->operand1 = lowerExpr(e->operand1.get(), "");
     auto t = lowerType(e->exprType);
     int idx = findType(t.get());
     if (idx == -1) {
@@ -734,6 +790,8 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOp(A2ExprOperation* e) {
         typePool.push_back(std::move(t));
     }
     newOp->exprType = typePool[idx].get();
+    if (newOp->subType == A3ExprOpType::B_INDEX) // check bounds
+        checkArrayAccess(newOp->operand0->exprType, newOp->operand1.get(), nullptr, false, getLocString(e->location));
     return newOp;
 }
 
@@ -747,13 +805,18 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOpSlice(A2ExprOperation* e) {
     if (e->operand1) { // 1-1-1. cast startExpr to int
         startExpr = lowerExpr(e->operand1.get(), "");
         if (startExpr->exprType->objType != A3TypeType::PRIMITIVE || startExpr->exprType->name != "int") {
-            std::unique_ptr<A3ExprOperation> castOp = std::make_unique<A3ExprOperation>();
-            castOp->objType = A3ExprType::OPERATION;
-            castOp->location = e->location;
-            castOp->subType = A3ExprOpType::B_CAST;
-            castOp->operand0 = std::move(startExpr);
-            castOp->exprType = typePool[0].get();
-            startExpr = std::move(castOp);
+            if (startExpr->objType == A3ExprType::LITERAL) {
+                startExpr->exprType = typePool[0].get(); // simple cast for literal
+            } else {
+                std::unique_ptr<A3ExprOperation> castOp = std::make_unique<A3ExprOperation>();
+                castOp->objType = A3ExprType::OPERATION;
+                castOp->location = e->location;
+                castOp->subType = A3ExprOpType::B_CAST;
+                castOp->operand0 = std::move(startExpr);
+                castOp->typeOperand = typePool[0]->clone();
+                castOp->exprType = typePool[0].get();
+                startExpr = std::move(castOp);
+            }
         }
     } else { // 1-2. nullptr -> literal 0
         startExpr = mkLiteral(Literal((int64_t)0), typePool[0].get(), e->location);
@@ -762,13 +825,18 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOpSlice(A2ExprOperation* e) {
     if (e->operand2) { // 1-1-2. cast endExpr to int
         endExpr = lowerExpr(e->operand2.get(), "");
         if (endExpr->exprType->objType != A3TypeType::PRIMITIVE || endExpr->exprType->name != "int") {
-            std::unique_ptr<A3ExprOperation> castOp = std::make_unique<A3ExprOperation>();
-            castOp->objType = A3ExprType::OPERATION;
-            castOp->location = e->location;
-            castOp->subType = A3ExprOpType::B_CAST;
-            castOp->operand0 = std::move(endExpr);
-            castOp->exprType = typePool[0].get();
-            endExpr = std::move(castOp);
+            if (endExpr->objType == A3ExprType::LITERAL) {
+                endExpr->exprType = typePool[0].get(); // simple cast for literal
+            } else {
+                std::unique_ptr<A3ExprOperation> castOp = std::make_unique<A3ExprOperation>();
+                castOp->objType = A3ExprType::OPERATION;
+                castOp->location = e->location;
+                castOp->subType = A3ExprOpType::B_CAST;
+                castOp->operand0 = std::move(endExpr);
+                castOp->typeOperand = typePool[0]->clone();
+                castOp->exprType = typePool[0].get();
+                endExpr = std::move(castOp);
+            }
         }
 
     } else if (arrExpr->exprType->objType == A3TypeType::ARRAY) { // 1-3-1. array -> literal k
@@ -776,7 +844,8 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOpSlice(A2ExprOperation* e) {
 
     } else if (arrExpr->exprType->objType == A3TypeType::SLICE) { // 1-3-2. slice -> temp var
         if (arrExpr->objType != A3ExprType::VAR_NAME) { // make complex expr to var_name
-            std::string tName = setTempVar(arrExpr->exprType, std::move(arrExpr));
+            auto t = arrExpr->exprType;
+            std::string tName = setTempVar(t, std::move(arrExpr));
             arrExpr = getTempVar(tName, e->location);
         }
 
@@ -799,13 +868,16 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOpSlice(A2ExprOperation* e) {
         throw std::runtime_error(std::format("E2106 invalid slicing target type at {}", getLocString(e->location))); // E2106
     }
 
-    // 2. make startExpr var_name or literal, 3. make arrExpr l-value (var_name)
+    // 2-1. check bounds, 2-2. make startExpr var_name or literal, 2-3. make arrExpr l-value (var_name)
+    checkArrayAccess(arrExpr->exprType, startExpr.get(), endExpr.get(), true, getLocString(e->location));
     if (startExpr->objType != A3ExprType::VAR_NAME && startExpr->objType != A3ExprType::LITERAL) {
-        std::string tName = setTempVar(startExpr->exprType, std::move(startExpr));
+        auto t = startExpr->exprType;
+        std::string tName = setTempVar(t, std::move(startExpr));
         startExpr = getTempVar(tName, e->location);
     }
     if (arrExpr->objType != A3ExprType::VAR_NAME) {
-        std::string tName = setTempVar(arrExpr->exprType, std::move(arrExpr));
+        auto t = arrExpr->exprType;
+        std::string tName = setTempVar(t, std::move(arrExpr));
         arrExpr = getTempVar(tName, e->location);
     }
 
@@ -867,7 +939,6 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOpSlice(A2ExprOperation* e) {
     subOp->operand1 = std::move(startExpr);
     subOp->exprType = typePool[0].get(); // int
 
-    // Make: make(ptr, len)
     auto makeOp = std::make_unique<A3ExprOperation>();
     makeOp->objType = A3ExprType::OPERATION;
     makeOp->subType = A3ExprOpType::B_MAKE;
@@ -903,10 +974,10 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOpCond(A2ExprOperation* e) {
             opExpr->objType = A3ExprType::OPERATION;
             opExpr->subType = A3ExprOpType::T_COND;
             opExpr->location = e->location;
+            opExpr->exprType = trueExpr->exprType;
             opExpr->operand0 = std::move(condExpr);
             opExpr->operand1 = std::move(trueExpr);
             opExpr->operand2 = std::move(falseExpr);
-            opExpr->exprType = trueExpr->exprType;
             return opExpr;
         }
         std::string resName = genTempVar(lowerType(e->exprType).get(), e->location);
@@ -1014,8 +1085,9 @@ std::vector<std::unique_ptr<A3Expr>> A3Gen::lowerExprCall(A3Type* ftype, std::ve
     // 1. convert fixed arguments
     for (int i = 0; i < fixArgCount; i++) {
         auto argExpr = lowerExpr(a2Args[i].get(), ""); // lower expression
-        if (argExpr->objType != A3ExprType::LITERAL && argExpr->objType != A3ExprType::VAR_NAME) { // side-effect, assign to temp
-            auto tName = setTempVar(argExpr->exprType, std::move(argExpr));
+        if (hasExprSideEffect(argExpr.get())) { // assign to temp if side-effect
+            auto t = argExpr->exprType;
+            auto tName = setTempVar(t, std::move(argExpr));
             a3Args.push_back(getTempVar(tName, a2Args[i]->location));
         } else { // no side-effect
             a3Args.push_back(std::move(argExpr));
@@ -1037,24 +1109,27 @@ std::vector<std::unique_ptr<A3Expr>> A3Gen::lowerExprCall(A3Type* ftype, std::ve
 
                 case A3TypeType::ARRAY: // gen temp var, memcpy, take address
                 {
-                    auto tName = genTempVar(argExpr->exprType, argExpr->location);
+                    auto l = argExpr->location;
+                    auto tName = genTempVar(argExpr->exprType, l);
                     auto memCpy = std::make_unique<A3StatMem>(); // memcpy(dst=temp, src=argExpr, size=typeSize)
                     memCpy->objType = A3StatType::MEMCPY;
-                    memCpy->location = argExpr->location;
+                    memCpy->location = l;
                     memCpy->uid = uidCount++;
-                    memCpy->dst = getTempVar(tName, argExpr->location);
-                    memCpy->size = createArraySizeExpr(argExpr->exprType, typePool[0].get(), argExpr->location);
+                    memCpy->dst = getTempVar(tName, l);
+                    memCpy->size = createArraySizeExpr(argExpr->exprType, typePool[0].get(), l);
                     memCpy->sizeHint = argExpr->exprType->typeSize;
                     memCpy->src = std::move(argExpr);
                     statBuf.push_back(std::move(memCpy));
-                    ptrExpr = refVar(tName); // take address of temp
+                    ptrExpr = refVar(tName, l); // take address of temp
                 }
                 break;
 
                 default: // value type, set temp var, take address
                 {
-                    auto tName = setTempVar(argExpr->exprType, std::move(argExpr));
-                    ptrExpr = refVar(tName); // take address of temp
+                    auto t = argExpr->exprType;
+                    auto l = argExpr->location;
+                    auto tName = setTempVar(t, std::move(argExpr));
+                    ptrExpr = refVar(tName, l); // take address of temp
                 }
                 break;
             }

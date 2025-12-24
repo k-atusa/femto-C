@@ -192,9 +192,9 @@ class A2ExprLiteral : public A2Expr { // literal value
 
     A2ExprLiteral(): A2Expr(A2ExprType::LITERAL), value() {}
     A2ExprLiteral(Literal v): A2Expr(A2ExprType::LITERAL), value(v) {}
-    virtual ~A2ExprLiteral() = default;
+    ~A2ExprLiteral() override = default;
 
-    virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("A2ExprLiteral {}", value.toString()); }
+    std::string toString(int indent) override { return std::string(indent * 2, ' ') + std::format("A2ExprLiteral {}", value.toString()); }
 };
 
 class A2ExprLiteralData : public A2Expr { // literal data chunk
@@ -202,9 +202,9 @@ class A2ExprLiteralData : public A2Expr { // literal data chunk
     std::vector<std::unique_ptr<A2Expr>> elements;
 
     A2ExprLiteralData(): A2Expr(A2ExprType::LITERAL_DATA) {}
-    virtual ~A2ExprLiteralData() = default;
+    ~A2ExprLiteralData() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2ExprLiteralData");
         for (auto& element : elements) {
             result += "\n" + element->toString(indent + 1);
@@ -243,9 +243,9 @@ class A2ExprOperation : public A2Expr { // operation
 
     A2ExprOperation(): A2Expr(A2ExprType::OPERATION), subType(A2ExprOpType::NONE), typeOperand(), operand0(), operand1(), operand2(), accessPos(-1) {}
     A2ExprOperation(A2ExprOpType t): A2Expr(A2ExprType::OPERATION), subType(t), typeOperand(), operand0(), operand1(), operand2(), accessPos(-1) {}
-    virtual ~A2ExprOperation() = default;
+    ~A2ExprOperation() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2ExprOperation {} {}", (int)subType, accessPos);
         if (typeOperand) result += "\n" + typeOperand->toString(indent + 1);
         if (operand0) result += "\n" + operand0->toString(indent + 1);
@@ -261,9 +261,9 @@ class A2ExprName: public A2Expr { // variable or function name
 
     A2ExprName(): A2Expr(A2ExprType::NONE), decl(nullptr) {}
     A2ExprName(A2ExprType tp, A2Decl* d): A2Expr(tp), decl(d) {}
-    virtual ~A2ExprName() = default;
+    ~A2ExprName() override = default;
 
-    virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("A2ExprName {}", decl->name); }
+    std::string toString(int indent) override { return std::string(indent * 2, ' ') + std::format("A2ExprName {}", decl->name); }
 };
 
 class A2ExprFuncCall : public A2Expr { // static function call
@@ -272,9 +272,9 @@ class A2ExprFuncCall : public A2Expr { // static function call
     std::vector<std::unique_ptr<A2Expr>> args;
 
     A2ExprFuncCall(): A2Expr(A2ExprType::FUNC_CALL), func(nullptr), args() {}
-    virtual ~A2ExprFuncCall() = default;
+    ~A2ExprFuncCall() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2ExprFuncCall");
         if (func) result += "\n" + func->toString(indent + 1);
         for (auto& arg : args) {
@@ -290,9 +290,9 @@ class A2ExprFptrCall : public A2Expr { // function pointer call
     std::vector<std::unique_ptr<A2Expr>> args;
 
     A2ExprFptrCall(): A2Expr(A2ExprType::FPTR_CALL), fptr(), args() {}
-    virtual ~A2ExprFptrCall() = default;
+    ~A2ExprFptrCall() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2ExprFptrCall");
         if (fptr) result += "\n" + fptr->toString(indent + 1);
         for (auto& arg : args) {
@@ -309,9 +309,9 @@ class A2StatRaw : public A2Stat { // raw code statement
 
     A2StatRaw(): A2Stat(A2StatType::NONE), code() {}
     A2StatRaw(A2StatType tp): A2Stat(tp), code() {}
-    virtual ~A2StatRaw() = default;
+    ~A2StatRaw() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2StatRaw {} {}", (int)objType, code);
         return result;
     }
@@ -322,9 +322,9 @@ class A2StatExpr : public A2Stat { // expression statement
     std::unique_ptr<A2Expr> expr;
 
     A2StatExpr(): A2Stat(A2StatType::EXPR), expr() {}
-    virtual ~A2StatExpr() = default;
+    ~A2StatExpr() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2StatExpr");
         if (expr) result += "\n" + expr->toString(indent + 1);
         return result;
@@ -336,9 +336,9 @@ class A2StatDecl : public A2Stat { // declaration statement
     std::unique_ptr<A2Decl> decl;
 
     A2StatDecl(): A2Stat(A2StatType::DECL), decl() {}
-    virtual ~A2StatDecl() = default;
+    ~A2StatDecl() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2StatDecl");
         if (decl) result += "\n" + decl->toString(indent + 1);
         return result;
@@ -351,9 +351,9 @@ class A2StatAssign : public A2Stat { // assignment statement
     std::unique_ptr<A2Expr> right;
 
     A2StatAssign(): A2Stat(A2StatType::ASSIGN), left(), right() {}
-    virtual ~A2StatAssign() = default;
+    ~A2StatAssign() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2StatAssign");
         if (left) result += "\n" + left->toString(indent + 1);
         if (right) result += "\n" + right->toString(indent + 1);
@@ -369,9 +369,9 @@ class A2StatLoop : public A2Stat { // while & for statement
     std::unique_ptr<A2Stat> body;
 
     A2StatLoop(): A2Stat(A2StatType::LOOP), cond(), step(), body() {}
-    virtual ~A2StatLoop() = default;
+    ~A2StatLoop() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2StatLoop");
         if (cond) result += "\n" + cond->toString(indent + 1);
         if (step) result += "\n" + step->toString(indent + 1);
@@ -388,9 +388,9 @@ class A2StatCtrl : public A2Stat { // control statement (return, break, continue
 
     A2StatCtrl(): A2Stat(A2StatType::NONE), body(), loop() {}
     A2StatCtrl(A2StatType tp): A2Stat(tp), body(), loop() {}
-    virtual ~A2StatCtrl() = default;
+    ~A2StatCtrl() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2StatCtrl {}", (int)objType);
         if (body) result += "\n" + body->toString(indent + 1);
         if (loop) result += "\n" + loop->toString(indent + 1);
@@ -405,9 +405,9 @@ class A2StatScope : public A2Stat { // scope statement
     std::vector<std::unique_ptr<A2Expr>> defers;
 
     A2StatScope(): A2Stat(A2StatType::SCOPE), parent(nullptr), body(), defers() {}
-    virtual ~A2StatScope() = default;
+    ~A2StatScope() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2StatScope");
         for (auto& stat : body) {
             result += "\n" + stat->toString(indent + 1);
@@ -423,9 +423,9 @@ class A2StatIf : public A2Stat { // if statement
     std::unique_ptr<A2Stat> elseBody;
 
     A2StatIf(): A2Stat(A2StatType::IF), cond(), thenBody(), elseBody() {}
-    virtual ~A2StatIf() = default;
+    ~A2StatIf() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2StatIf");
         if (cond) result += "\n" + cond->toString(indent + 1);
         if (thenBody) result += "\n" + thenBody->toString(indent + 1);
@@ -443,9 +443,9 @@ class A2StatSwitch : public A2Stat { // switch statement
     std::vector<std::unique_ptr<A2Stat>> defaultBody;
 
     A2StatSwitch(): A2Stat(A2StatType::SWITCH), cond(), caseConds(), caseFalls(), caseBodies(), defaultBody() {}
-    virtual ~A2StatSwitch() = default;
+    ~A2StatSwitch() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2StatSwitch");
         if (cond) result += "\n" + cond->toString(indent + 1);
         for (size_t i = 0; i < caseConds.size(); i++) {
@@ -471,9 +471,9 @@ class A2DeclRaw : public A2Decl { // raw code
 
     A2DeclRaw(): A2Decl(A2DeclType::NONE), code() {}
     A2DeclRaw(A2DeclType t): A2Decl(t), code() {}
-    virtual ~A2DeclRaw() = default;
+    ~A2DeclRaw() override = default;
 
-    virtual std::string toString(int indent) { return std::string(indent * 2, ' ') + std::format("A2DeclRaw {} {}", (int)objType, code); }
+    std::string toString(int indent) override { return std::string(indent * 2, ' ') + std::format("A2DeclRaw {} {}", (int)objType, code); }
 };
 
 class A2DeclVar : public A2Decl { // variable declaration
@@ -487,9 +487,9 @@ class A2DeclVar : public A2Decl { // variable declaration
 
     A2DeclVar(): A2Decl(A2DeclType::VAR), init(), isDefine(false), isConst(false), isVolatile(false), isExtern(false), isParam(false) {}
     A2DeclVar(std::unique_ptr<A2Type> t, std::string nm): A2Decl(A2DeclType::VAR), init(), isDefine(false), isConst(false), isVolatile(false), isExtern(false), isParam(false) { name = nm; type = std::move(t); }
-    virtual ~A2DeclVar() = default;
+    ~A2DeclVar() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2DeclVar {} {}", (int)objType, name);
         if (init) result += "\n" + init->toString(indent + 1);
         return result;
@@ -507,9 +507,9 @@ class A2DeclFunc : public A2Decl { // function declaration
     bool isVaArg;
 
     A2DeclFunc(): A2Decl(A2DeclType::FUNC), structNm(), funcNm(), paramTypes(), paramNames(), retType(), body(), isVaArg(false) {}
-    virtual ~A2DeclFunc() = default;
+    ~A2DeclFunc() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2DeclFunc {} {}", (int)objType, name);
         for (size_t i = 0; i < paramTypes.size(); i++) {
             result += "\n" + std::string(indent * 2, ' ') + std::format("param {}:", i);
@@ -528,9 +528,9 @@ class A2DeclStruct : public A2Decl { // struct declaration
     std::vector<int> memOffsets;
 
     A2DeclStruct(): A2Decl(A2DeclType::STRUCT), memTypes(), memNames(), memOffsets() {}
-    virtual ~A2DeclStruct() = default;
+    ~A2DeclStruct() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2DeclStruct {} {}", (int)objType, name);
         for (size_t i = 0; i < memTypes.size(); i++) {
             result += "\n" + std::string(indent * 2, ' ') + std::format("member {}:", i);
@@ -546,9 +546,9 @@ class A2DeclEnum : public A2Decl { // enum declaration
     std::vector<int64_t> memValues;
 
     A2DeclEnum(): A2Decl(A2DeclType::ENUM), memNames(), memValues() {}
-    virtual ~A2DeclEnum() = default;
+    ~A2DeclEnum() override = default;
 
-    virtual std::string toString(int indent) {
+    std::string toString(int indent) override {
         std::string result = std::string(indent * 2, ' ') + std::format("A2DeclEnum {}", (int)objType, name);
         for (size_t i = 0; i < memNames.size(); i++) {
             result += "\n" + std::string(indent * 2, ' ') + std::format("member {}: {}", i, memNames[i]);

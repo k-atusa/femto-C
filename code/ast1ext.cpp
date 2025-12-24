@@ -179,6 +179,7 @@ bool A1Ext::completeType(A1Module& mod, A1Type& tgt) {
                 }
             }
             break;
+        default: // no change
     }
     return modified;
 }
@@ -225,6 +226,7 @@ void A1Ext::standardizeType(A1Module& mod, A1Type& tgt) {
             tgt.objType = A1TypeType::TEMPLATE;
             tgt.incName = mod.uname + "/" + tgt.incName;
             break;
+        default: // no change
     }
     if (tgt.typeSize < 0 || tgt.typeAlign < 0) {
         throw std::runtime_error(std::format("E0806 cannot standardize type {}", tgt.name)); // E0806
@@ -360,7 +362,7 @@ std::string A1Ext::complete(std::unique_ptr<A1Module> mod, std::vector<std::uniq
     }
 
     // finish completing
-    modules.push_back(std::move(mod));
     prt.Log(std::format("finished completing source {} as {}", mod->path, mod->uname), 3);
+    modules.push_back(std::move(mod));
     return "";
 }

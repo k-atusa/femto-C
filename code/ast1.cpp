@@ -186,6 +186,7 @@ A1Decl* A1Module::findDeclaration(const std::string& name, bool checkExported) {
                     }
                 }
             }
+        default: // goto nullptr
     }
     return nullptr; // others are not exported
 }
@@ -572,6 +573,7 @@ Literal A1Gen::foldNode(A1Expr& tgt, A1StatScope& current, A1Module& mod) {
                         }
                     }
                     break;
+                default: // goto Literal()
             }
 
         } else if (opnum == 2 && opNode->subType != A1ExprOpType::B_DOT) { // try to fold binary
@@ -750,6 +752,7 @@ Literal A1Gen::foldNode(A1Expr& tgt, A1StatScope& current, A1Module& mod) {
                         }
                     }
                     break;
+                default: // goto Literal()
             }
 
         } else if (opNode->subType == A1ExprOpType::B_DOT) { // enum value or include name
@@ -1922,7 +1925,7 @@ std::unique_ptr<A1StatDecl> A1Gen::parseTopLevel(TokenProvider& tp, A1StatScope&
                 if (tp.match({TokenType::IDENTIFIER, TokenType::OP_SEMICOLON}) || tp.match({TokenType::IDENTIFIER, TokenType::OP_ASSIGN})) { // var declaration
                     std::unique_ptr<A1DeclVar> varDecl = parseVarDecl(tp, current, mod, std::move(vtype), isDefine, isConst, isVolatile, isExtern, isExported);
                     if (varDecl->init != nullptr && varDecl->init->objType != A1ExprType::LITERAL) {
-                        throw std::runtime_error(std::format("E0646 variable should be initialized with constexpr at {}", getLocString(vtype->location))); // E0646
+                        throw std::runtime_error(std::format("E0646 variable should be initialized with constexpr at {}", getLocString(varDecl->location))); // E0646
                     }
                     std::string nmValidity = mod.isNameUsable(varDecl->name, varDecl->location);
                     if (!nmValidity.empty()) {
@@ -2012,6 +2015,7 @@ bool A1Gen::completeType(A1Module& mod, A1Type& tgt) {
                 }
             }
             break;
+        default: // goto return
     }
     return modified;
 }

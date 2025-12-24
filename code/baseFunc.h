@@ -78,7 +78,3 @@ std::vector<char> uniToByte(int uni); // convert unicode point to bytes
 int byteToUni(std::vector<char> bytes); // convert bytes to unicode point
 
 #endif // BASE_FUNC_H
-
-/*
-clang++ --analyze -std=c++23 -Icode -Xanalyzer -analyzer-output=text -Xanalyzer -analyzer-checker=core -Xanalyzer -analyzer-checker=cplusplus -Xanalyzer -analyzer-checker=unix -Xanalyzer -analyzer-checker=security -Xanalyzer -analyzer-checker=deadcode code/*.cpp
-*/
