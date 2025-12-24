@@ -961,137 +961,104 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOpSlice(A2ExprOperation* e) {
 
 // lowering conditional operation
 std::unique_ptr<A3Expr> A3Gen::lowerExprOpCond(A2ExprOperation* e) {
-    // 1. condition
-    auto condExpr = lowerExpr(e->operand0.get(), "");
-    
-    // 2. define targets
-    A2Expr* trueTarget = nullptr;
-    A2Expr* falseTarget = nullptr;
-    
-    // implicit conversions for logic ops
-    // AND: op0 ? op1 : 0
-    // OR: op0 ? 1 : op1
-    // COND: op0 ? op1 : op2
-    
     if (e->subType == A2ExprOpType::T_COND) {
-        trueTarget = e->operand1.get();
-        falseTarget = e->operand2.get();
-    } else if (e->subType == A2ExprOpType::B_LOGIC_AND) {
-        trueTarget = e->operand1.get();
-        // falseTarget is null -> 0
-    } else if (e->subType == A2ExprOpType::B_LOGIC_OR) {
-        // trueTarget is null -> 1
-        falseTarget = e->operand1.get();
-    }
-
-    // Helper to capture branch stats
-    auto captureBranch = [&](A2Expr* target, int implicitVal) -> std::pair<std::unique_ptr<A3Expr>, std::vector<std::unique_ptr<A3Stat>>> {
-        std::vector<std::unique_ptr<A3Stat>> oldBuf;
-        std::swap(statBuf, oldBuf); // clear global
-        
-        std::unique_ptr<A3Expr> res;
-        if (target) {
-            res = lowerExpr(target, "");
-        } else {
-            auto lit = std::make_unique<A3ExprLiteral>();
-            lit->objType = A3ExprType::LITERAL;
-            lit->location = e->location;
-            lit->value = Literal((int64_t)implicitVal);
-            lit->exprType = typePool[0].get(); // int
-            res = std::move(lit);
+        // 1. lower condition, save stats
+        std::unique_ptr<A3Expr> condExpr = lowerExpr(e->operand0.get(), "");
+        int statPos = statBuf.size();
+        std::vector<std::unique_ptr<A3Stat>> trueBuf;
+        std::vector<std::unique_ptr<A3Stat>> falseBuf;
+        std::unique_ptr<A3Expr> trueExpr = lowerExpr(e->operand1.get(), "");
+        for (int i = statPos; i < statBuf.size(); i++) {
+            trueBuf.push_back(std::move(statBuf[i]));
         }
-        
-        std::vector<std::unique_ptr<A3Stat>> newStats = std::move(statBuf);
-        statBuf = std::move(oldBuf); // restore
-        return {std::move(res), std::move(newStats)};
-    };
-
-    auto [trueExpr, trueStats] = captureBranch(trueTarget, 1);
-    auto [falseExpr, falseStats] = captureBranch(falseTarget, 0);
-
-    // 4. Check complexity
-    if (trueStats.empty() && falseStats.empty()) {
-        auto newOp = std::make_unique<A3ExprOperation>();
-        newOp->objType = A3ExprType::OPERATION;
-        newOp->location = e->location;
-        newOp->subType = (e->subType == A2ExprOpType::T_COND) ? A3ExprOpType::T_COND : 
-                         (e->subType == A2ExprOpType::B_LOGIC_AND) ? A3ExprOpType::B_LOGIC_AND : A3ExprOpType::B_LOGIC_OR;
-        
-        newOp->operand0 = std::move(condExpr);
-        
-        if (e->subType == A2ExprOpType::T_COND) {
-            newOp->operand1 = std::move(trueExpr);
-            newOp->operand2 = std::move(falseExpr);
-        } else if (e->subType == A2ExprOpType::B_LOGIC_AND) {
-            newOp->operand1 = std::move(trueExpr);
-            // op2 unused
-        } else { // OR
-            newOp->operand1 = std::move(falseExpr); // OR takes false branch as operand1 in B_LOGIC_OR (A || B)
+        statBuf.resize(statPos);
+        std::unique_ptr<A3Expr> falseExpr = lowerExpr(e->operand2.get(), "");
+        for (int i = statPos; i < statBuf.size(); i++) {
+            falseBuf.push_back(std::move(statBuf[i]));
         }
+        statBuf.resize(statPos);
+
+        // 2-1. return if both empty
+        if (trueBuf.size() == 0 && falseBuf.size() == 0) {
+            std::unique_ptr<A3ExprOperation> opExpr = std::make_unique<A3ExprOperation>();
+            opExpr->objType = A3ExprType::OPERATION;
+            opExpr->subType = A3ExprOpType::T_COND;
+            opExpr->location = e->location;
+            opExpr->operand0 = std::move(condExpr);
+            opExpr->operand1 = std::move(trueExpr);
+            opExpr->operand2 = std::move(falseExpr);
+            opExpr->exprType = trueExpr->exprType;
+            return opExpr;
+        }
+
+        // 2-2. make result temp var
+        auto resType = lowerType(e->exprType);
+        int idx = findType(resType.get());
+        if (idx == -1) { idx = typePool.size(); typePool.push_back(std::move(resType)); }
+        std::string resName = genTempVar(resType.get(), e->location);
+
+        auto resDecl = findVar(resName);
+        auto left0 = std::make_unique<A3ExprName>();
+        left0->objType = A3ExprType::VAR_NAME;
+        left0->decl = resDecl;
+        left0->exprType = resDecl->type.get();
+        left0->location = e->location;
+        auto left1 = std::make_unique<A3ExprName>();
+        left1->objType = A3ExprType::VAR_NAME;
+        left1->decl = resDecl;
+        left1->exprType = resDecl->type.get();
+        left1->location = e->location;
+        auto left2 = std::make_unique<A3ExprName>();
+        left2->objType = A3ExprType::VAR_NAME;
+        left2->decl = resDecl;
+        left2->exprType = resDecl->type.get();
+        left2->location = e->location;
         
-        // Result Type
-        auto t = lowerType(e->exprType);
-        int idx = findType(t.get());
-        if (idx == -1) { idx = typePool.size(); typePool.push_back(std::move(t)); }
-        newOp->exprType = typePool[idx].get();
-        return newOp;
+        // 3-1. true branch
+        auto trueScope = std::make_unique<A3StatScope>();
+        trueScope->objType = A3StatType::SCOPE;
+        trueScope->uid = uidCount++;
+        trueScope->location = e->location;
+        trueScope->body = std::move(trueBuf);
+        auto trueAssign = std::make_unique<A3StatAssign>();
+        trueAssign->uid = uidCount++;
+        trueAssign->location = e->location;
+        trueAssign->left = std::move(left0);
+        trueAssign->right = std::move(trueExpr);
+        trueScope->body.push_back(std::move(trueAssign));
+
+        // 3-2. false branch
+        auto falseScope = std::make_unique<A3StatScope>();
+        falseScope->objType = A3StatType::SCOPE;
+        falseScope->uid = uidCount++;
+        falseScope->location = e->location;
+        falseScope->body = std::move(falseBuf);
+        auto falseAssign = std::make_unique<A3StatAssign>();
+        falseAssign->uid = uidCount++;
+        falseAssign->location = e->location;
+        falseAssign->left = std::move(left1);
+        falseAssign->right = std::move(falseExpr);
+        falseScope->body.push_back(std::move(falseAssign));
+
+        // 3-3. if-else
+        auto ifStat = std::make_unique<A3StatIf>();
+        ifStat->uid = uidCount++;
+        ifStat->location = e->location;
+        ifStat->cond = std::move(condExpr);
+        ifStat->thenBody = std::move(trueScope);
+        ifStat->elseBody = std::move(falseScope);
+
+        // 3-4. return result
+        statBuf.push_back(std::move(ifStat));
+        return std::move(left2);
+        
+    } else {
+        if (e->subType == A2ExprOpType::B_LOGIC_AND) {
+            
+        } else if (e->subType == A2ExprOpType::B_LOGIC_OR) {
+            
+        }
     }
-
-    // 5. Complex case: IF-ELSE
-    // decl res var
-    auto resType = lowerType(e->exprType);
-    std::string resName = genTempVar(resType.get(), e->location);
-
-    // Create assignments
-    auto makeAssign = [&](std::unique_ptr<A3Expr> val) {
-        auto assign = std::make_unique<A3StatAssign>();
-        assign->objType = A3StatType::ASSIGN;
-        assign->location = val->location;
-        assign->uid = uidCount++;
-        
-        auto left = std::make_unique<A3ExprName>();
-        left->objType = A3ExprType::VAR_NAME;
-        left->decl = findVar(resName);
-        left->exprType = left->decl->type.get();
-        
-        assign->left = std::move(left);
-        assign->right = std::move(val);
-        return assign;
-    };
-
-    // Construct If Stats
-    auto ifStat = std::make_unique<A3StatIf>();
-    ifStat->objType = A3StatType::IF;
-    ifStat->location = e->location;
-    ifStat->uid = uidCount++;
-    ifStat->cond = std::move(condExpr);
-    
-    // True Block
-    auto trueBlock = std::make_unique<A3StatScope>();
-    trueBlock->objType = A3StatType::SCOPE;
-    trueBlock->uid = uidCount++;
-    for (auto& s : trueStats) trueBlock->body.push_back(std::move(s));
-    trueBlock->body.push_back(makeAssign(std::move(trueExpr)));
-    ifStat->thenBody = std::move(trueBlock);
-
-    // False Block
-    auto falseBlock = std::make_unique<A3StatScope>();
-    falseBlock->objType = A3StatType::SCOPE;
-    falseBlock->uid = uidCount++;
-    for (auto& s : falseStats) falseBlock->body.push_back(std::move(s));
-    falseBlock->body.push_back(makeAssign(std::move(falseExpr)));
-    ifStat->elseBody = std::move(falseBlock);
-
-    statBuf.push_back(std::move(ifStat));
-
-    // Return Res Var
-    auto resRef = std::make_unique<A3ExprName>();
-    resRef->objType = A3ExprType::VAR_NAME;
-    resRef->decl = findVar(resName);
-    resRef->location = e->location;
-    resRef->exprType = resRef->decl->type.get();
-    
-    return resRef;
 }
 
 // lowering expression call
