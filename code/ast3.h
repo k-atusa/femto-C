@@ -3,6 +3,7 @@
 
 #include <unordered_map>
 #include "ast2.h"
+#include "baseFunc.h"
 
 // AST3 type node
 enum class A3TypeType {
@@ -510,7 +511,9 @@ class A3Gen {
 
     std::string genTempVar(A3Type* t, Location l);
     std::string setTempVar(A3Type* t, std::unique_ptr<A3Expr> v);
+    std::unique_ptr<A3ExprName> getTempVar(std::string name, Location l);
     std::unique_ptr<A3ExprOperation> refVar(std::string name);
+    std::unique_ptr<A3StatAssign> genAssignStat(std::unique_ptr<A3Expr> left, std::unique_ptr<A3Expr> right);
 
     std::unique_ptr<A3Type> lowerType(A2Type* t);
 
