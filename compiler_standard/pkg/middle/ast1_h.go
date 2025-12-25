@@ -1,6 +1,10 @@
 package middle
 
-import "../front"
+import (
+	"strings"
+
+	"../front"
+)
 
 // AST1 type node
 type A1TypeT int
@@ -293,6 +297,7 @@ type A1StatScope struct {
 	A1StatB
 	Parent *A1StatScope
 	Body   []A1Stat
+	Decls  map[string]A1Decl
 }
 
 func (a1 *A1StatScope) Init(tp A1StatT, loc front.Loc, parent *A1StatScope) {
@@ -300,6 +305,32 @@ func (a1 *A1StatScope) Init(tp A1StatT, loc front.Loc, parent *A1StatScope) {
 	a1.Loc = loc
 	a1.Parent = parent
 	a1.Body = make([]A1Stat, 0)
+	a1.Decls = make(map[string]A1Decl)
+}
+
+func (a1 *A1StatScope) FindDecl(name string) *A1Decl {
+	if decl, ok := a1.Decls[name]; ok {
+		return &decl
+	}
+	if a1.Parent != nil {
+		return a1.Parent.FindDecl(name)
+	}
+	return nil
+}
+
+func (a1 *A1StatScope) FindLiteral(name string) *front.Literal {
+	if decl, ok := a1.Decls[name]; ok {
+		if decl.GetObjType() == D_Var1 {
+			t, ok := decl.(*A1DeclVar)
+			if ok && t.IsDefine {
+				return &t.InitExpr.(*A1ExprLiteral).Value
+			}
+		}
+	}
+	if a1.Parent != nil {
+		return a1.Parent.FindLiteral(name)
+	}
+	return nil
 }
 
 type A1StatIf struct {
@@ -570,13 +601,74 @@ func (m *A1Module) Init(path string, uname string) {
 	m.IsFinished = false
 }
 
+func (m *A1Module) FindDecl(name string, chkExported bool) *A1Decl {
+	d := m.Code.FindDecl(name)
+	if d == nil || !chkExported {
+		return d
+	}
+	switch (*d).GetObjType() {
+	case D_Var1, D_Struct1, D_Enum1, D_Typedef1:
+		nm := (*d).GetName()
+		if 'A' <= nm[0] && nm[0] <= 'Z' {
+			return d
+		}
+	case D_Func1:
+		t := (*d).(*A1DeclFunc)
+		if t.StructNm == "" {
+			if 'A' <= t.Name[0] && t.Name[0] <= 'Z' { // global function
+				return d
+			}
+		} else {
+			if 'A' <= t.StructNm[0] && t.StructNm[0] <= 'Z' && 'A' <= t.FuncNm[0] && t.FuncNm[0] <= 'Z' { // methods
+				return d
+			}
+		}
+	default:
+		return nil
+	}
+	return nil
+}
+
+func (m *A1Module) FindLiteral(name string, chkExported bool) *front.Literal {
+	if strings.Contains(name, ".") { // enum member
+		enumNm := strings.Split(name, ".")[0]
+		memberNm := strings.Split(name, ".")[1]
+		if chkExported && !('A' <= enumNm[0] && enumNm[0] <= 'Z' && 'A' <= memberNm[0] && memberNm[0] <= 'Z') {
+			return nil
+		}
+		d := m.Code.FindDecl(enumNm)
+		if (*d).GetObjType() != D_Enum1 {
+			return nil
+		}
+		e := (*d).(*A1DeclEnum)
+		for i, nm := range e.MemNames {
+			if nm == memberNm {
+				var l front.Literal
+				l.Init(e.MemValues[i])
+				return &l
+			}
+		}
+		return nil
+
+	} else { // defined literal
+		if chkExported && !('A' <= name[0] && name[0] <= 'Z') {
+			return nil
+		}
+		return m.Code.FindLiteral(name)
+	}
+}
+
+func (m *A1Module) IsNameUsable(name string) bool {
+	_, ok := m.Code.Decls[name] // fullname(enum, struct.func, ...) only
+	return !ok
+}
+
 // A1Parser represents a parser for a single project
 type A1Parser struct {
-	Logger     front.CplrMsg
+	Logger     *front.CplrMsg
 	Arch       int
 	ChunkCount int
 	Modules    []A1Module
-	SrcLocSave front.SrcLocSave
 }
 
 func (p *A1Parser) Init(arch int, level int) {
@@ -585,6 +677,7 @@ func (p *A1Parser) Init(arch int, level int) {
 	} else {
 		p.Arch = 8
 	}
+	p.Logger = &front.CplrMsg{}
 	if level > 0 {
 		p.Logger.Init(level)
 	} else {
@@ -592,5 +685,4 @@ func (p *A1Parser) Init(arch int, level int) {
 	}
 	p.ChunkCount = 0
 	p.Modules = make([]A1Module, 0, 16)
-	p.SrcLocSave.Init()
 }

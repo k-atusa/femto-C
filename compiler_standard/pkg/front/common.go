@@ -98,17 +98,34 @@ func (l *Literal) Init(v interface{}) error {
 type CplrMsg struct {
 	Level    int
 	ErrCount int
+	Prints   []string
+	Paths    []string
 }
 
 func (m *CplrMsg) Init(level int) {
 	m.Level = level
 	m.ErrCount = 0
+	m.Prints = make([]string, 0, 64)
+	m.Paths = make([]string, 0, 4)
 }
 
-func (m *CplrMsg) Log(msg string, lvl int) {
+func (m *CplrMsg) Log(msg string, lvl int, isErr bool) {
 	if lvl >= m.Level {
-		fmt.Println(msg)
+		m.Prints = append(m.Prints, msg)
+		if isErr {
+			m.ErrCount++
+		}
+		if m.ErrCount >= 16 {
+			panic("too many errors")
+		}
 	}
+}
+
+func (m *CplrMsg) GetLoc(l Loc) string {
+	if l.SrcID < 0 || l.SrcID >= len(m.Paths) {
+		return "unknown"
+	}
+	return fmt.Sprintf("%s:%d.%d", m.Paths[l.SrcID], l.Line, l.Col)
 }
 
 // convert unicode(int) to bytes
@@ -131,20 +148,4 @@ func ByteToUni(bytes []byte) int {
 		return -1
 	}
 	return int(r)
-}
-
-// saves source path, provides location string
-type SrcLocSave struct {
-	Paths []string
-}
-
-func (s *SrcLocSave) Init() {
-	s.Paths = make([]string, 0)
-}
-
-func (s *SrcLocSave) GetLoc(l Loc) string {
-	if l.SrcID < 0 || l.SrcID >= len(s.Paths) {
-		return "unknown"
-	}
-	return fmt.Sprintf("%s:%d.%d", s.Paths[l.SrcID], l.Line, l.Col)
 }
