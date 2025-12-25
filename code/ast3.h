@@ -389,6 +389,8 @@ class A3DeclFunc : public A3Decl { // function declaration
     std::unique_ptr<A3Type> retType;
     std::unique_ptr<A3StatScope> body; // have param init codes
     bool isVaArg; // for A3 only
+    A3DeclVar* stateVar;
+    A3DeclVar* retVar;
 
     ~A3DeclFunc() override = default;
     std::string toString(int indent) override {
@@ -438,9 +440,12 @@ class A3DeclEnum : public A3Decl { // enum declaration
 // AST3 convert context
 class A3ScopeInfo {
     public:
-    A3StatScope* scope;
-    A3StatCtrl* lbl;
+    A3StatScope* scopeTgt;
+    A3StatCtrl* scopeLbl;
+    A3StatWhile* whileTgt;
     std::unordered_map<int64_t, A3Decl*> nameMap;
+
+    A3ScopeInfo(A3StatScope* s, A3StatCtrl* l, A3StatWhile* w) : scopeTgt(s), scopeLbl(l), whileTgt(w), nameMap() {}
 };
 
 class A3Gen {
@@ -451,18 +456,17 @@ class A3Gen {
     std::unique_ptr<A3Stat> code;
 
     // convert context
+    int nameCount;
     int64_t uidCount;
     A2Gen* ast2;
     std::vector<std::string> genOrder; // code generation order of fpath
 
     std::vector<std::unique_ptr<A3Type>> typePool; // type pool
-    std::vector<std::unique_ptr<A3ScopeInfo>> scopes; // scope context
-    std::vector<A3StatScope*> jmpScopes; // scope with jumps
-    std::vector<A3StatWhile*> jmpWhiles; // while with jumps
-
     std::vector<std::unique_ptr<A3Stat>> statBuf; // preStat buffer
+    std::vector<std::unique_ptr<A3ScopeInfo>> scopes; // scope context
+    A3DeclFunc* curFunc; // current function
 
-    A3Gen(int p, int a, int64_t b, int64_t c) : prt(p), arch(a), bigCopyAlert(b), uidCount(c) {}
+    A3Gen(int p, int a, int64_t b, int64_t c) : nameCount(0), prt(p), arch(a), bigCopyAlert(b), uidCount(c) {}
 
     std::string lower(A2Gen* a);
 
@@ -470,7 +474,7 @@ class A3Gen {
 
     private:
     void initTypePool();
-    int findType(A3Type* t);
+    int findType(A3Type* t);// find type in type pool
 
     A3Decl* findDecl(int64_t uid) { // find declaration by uid in global scope
         if (scopes[0]->nameMap.count(uid)) return scopes[0]->nameMap[uid];
@@ -499,9 +503,9 @@ class A3Gen {
     std::string genName() { // generate unique name for temp var
         int count = 0;
         while (true) {
-            std::string name = std::format("_t{}_{}", uidCount, count++);
+            std::string name = std::format("_t{}_{}", nameCount, count++);
             if (findVar(name)) {
-                if (count > 16) {uidCount++; count = 0;}
+                if (count > 16) {nameCount++; count = 0;}
             } else {
                 return name;
             }
@@ -512,7 +516,9 @@ class A3Gen {
     std::string setTempVar(A3Type* t, std::unique_ptr<A3Expr> v);
     std::unique_ptr<A3ExprName> getTempVar(std::string name, Location l);
     std::unique_ptr<A3ExprOperation> refVar(std::string name, Location l);
+    std::unique_ptr<A3ExprOperation> derefVar(std::string name, Location l);
     std::unique_ptr<A3StatAssign> genAssignStat(std::unique_ptr<A3Expr> left, std::unique_ptr<A3Expr> right);
+    int64_t countJumps(A2StatType tp);
 
     std::unique_ptr<A3Type> lowerType(A2Type* t);
 
@@ -524,11 +530,12 @@ class A3Gen {
     std::unique_ptr<A3Expr> lowerExprOpCond(A2ExprOperation* e);
     std::vector<std::unique_ptr<A3Expr>> lowerExprCall(A3Type* ftype, std::vector<std::unique_ptr<A2Expr>>& a2Args, bool isVaArg, bool isRetArray, std::string* retName);
 
-    std::unique_ptr<A3Stat> lowerStat(A2Stat* s);
-    std::unique_ptr<A3StatScope> lowerStatScope(A2StatScope* s);
-    std::unique_ptr<A3StatExpr> lowerStatExpr(A2StatExpr* s);
-    std::unique_ptr<A3StatIf> lowerStatIf(A2StatIf* s);
+    std::vector<std::unique_ptr<A3Stat>> lowerStat(A2Stat* s);
+    std::vector<std::unique_ptr<A3Stat>> lowerStatCtrl(A2StatCtrl* s);
+    std::unique_ptr<A3StatScope> lowerStatScope(A2StatScope* s, A3StatWhile* w, std::vector<std::unique_ptr<A3Stat>> step);
     std::unique_ptr<A3StatWhile> lowerStatLoop(A2StatLoop* s);
+    
+    std::unique_ptr<A3Decl> lowerDecl(A2Decl* d);
 };
 
 #endif // AST3_H

@@ -1,4 +1,5 @@
 #include "ast3.h"
+#include "ast2.h"
 
 /*
 lowering 주요 변환규칙
@@ -18,7 +19,7 @@ lowering 주요 변환규칙
 - 함수 호출 시 인자에 함수 호출을 포함하는 side-effect 있는 인자는 순서에 맞춰서 미리 임시변수에 할당하고 넣을 것 -ok
 - 함수 호출 시 반환값이 배열이라면 반환값을 받을 임시변수를 선언하고 호출 마지막 인자로 전달 -ok
 
-- 배열 대입 시 memcpy로 복사 (이름 = 배열반환함수/리터럴 이면 복사생략)
+- 배열 대입 시 memcpy로 복사 (이름 = 배열반환함수/리터럴 이면 복사생략) -ok
 - 함수 본문에서, 인자로 들어오는 배열을 복사
 - 함수 본문에서, 반환값이 배열이라면 호출 마지막 인자에 복사
 - 함수 반환 리터럴 RVO
@@ -304,6 +305,26 @@ std::unique_ptr<A3ExprOperation> A3Gen::refVar(std::string name, Location l) {
     return addrOp;
 }
 
+// generate dereference to variable
+std::unique_ptr<A3ExprOperation> A3Gen::derefVar(std::string name, Location l) {
+    // take address of var
+    auto addrOp = std::make_unique<A3ExprOperation>();
+    addrOp->objType = A3ExprType::OPERATION;
+    addrOp->subType = A3ExprOpType::U_DEREF;
+    addrOp->operand0 = getTempVar(name, l);
+    addrOp->location = l;
+
+    // set type of *temp, register type
+    auto varType = addrOp->operand0->exprType->direct.get();
+    int vIdx = findType(varType);
+    if (vIdx == -1) {
+        vIdx = typePool.size();
+        typePool.push_back(varType->clone());
+    }
+    addrOp->exprType = typePool[vIdx].get();
+    return addrOp;
+}
+
 // generate assignment statement
 std::unique_ptr<A3StatAssign> A3Gen::genAssignStat(std::unique_ptr<A3Expr> left, std::unique_ptr<A3Expr> right) {
     auto assign = std::make_unique<A3StatAssign>();
@@ -313,6 +334,22 @@ std::unique_ptr<A3StatAssign> A3Gen::genAssignStat(std::unique_ptr<A3Expr> left,
     assign->left = std::move(left);
     assign->right = std::move(right);
     return assign;
+}
+
+// calculate jumps in a context
+int64_t A3Gen::countJumps(A2StatType tp) {
+    int64_t count = 0;
+    for (int i = scopes.size() - 1; i >= 0; i--) {
+        if (scopes[i]->scopeLbl != nullptr) count++;
+        if (scopes[i]->whileTgt != nullptr) break;
+    }
+    if (tp == A2StatType::BREAK) {
+        return count;
+    } else if (tp == A2StatType::CONTINUE) {
+        return count - 1;
+    } else {
+        return scopes.size() + 1;
+    }
 }
 
 // main lowering function for types
@@ -792,6 +829,8 @@ std::unique_ptr<A3Expr> A3Gen::lowerExprOp(A2ExprOperation* e) {
     newOp->exprType = typePool[idx].get();
     if (newOp->subType == A3ExprOpType::B_INDEX) // check bounds
         checkArrayAccess(newOp->operand0->exprType, newOp->operand1.get(), nullptr, false, getLocString(e->location));
+    if (newOp->subType == A3ExprOpType::B_DOT || newOp->subType == A3ExprOpType::B_ARROW) // set struct access position
+        newOp->accessPos = e->accessPos;
     return newOp;
 }
 
@@ -1223,4 +1262,595 @@ std::vector<std::unique_ptr<A3Expr>> A3Gen::lowerExprCall(A3Type* ftype, std::ve
         a3Args.push_back(getTempVar(*retName, ftype->location)); // add ret var to args
     }
     return a3Args;
+}
+
+// main lowering function for statements
+std::vector<std::unique_ptr<A3Stat>> A3Gen::lowerStat(A2Stat* s) {
+    statBuf.clear();
+    std::vector<std::unique_ptr<A3Stat>> resBuf;
+    switch (s->objType) {
+        case A2StatType::RAW_C: case A2StatType::RAW_IR:
+        {
+            A2StatRaw* raw = (A2StatRaw*)s;
+            auto stat = std::make_unique<A3StatRaw>();
+            stat->objType = (raw->objType == A2StatType::RAW_C) ? A3StatType::RAW_C : A3StatType::RAW_IR;
+            stat->location = raw->location;
+            stat->uid = uidCount++;
+            stat->code = raw->code;
+            resBuf.push_back(std::move(stat));
+        }
+        break;
+
+        case A2StatType::EXPR:
+        {
+            A2StatExpr* expr = (A2StatExpr*)s;
+            auto stat = std::make_unique<A3StatExpr>();
+            stat->objType = A3StatType::EXPR;
+            stat->location = expr->location;
+            stat->uid = uidCount++;
+            stat->expr = lowerExpr(expr->expr.get(), "");
+            for (auto& s : statBuf) { // move statBuf to resBuf
+                resBuf.push_back(std::move(s));
+            }
+            resBuf.push_back(std::move(stat));
+        }
+        break;
+
+        case A2StatType::DECL:
+        {
+            A2StatDecl* decl = (A2StatDecl*)s;
+            auto stat = std::make_unique<A3StatDecl>();
+            stat->objType = A3StatType::DECL;
+            stat->location = decl->location;
+            stat->uid = uidCount++;
+            stat->decl = lowerDecl(decl->decl.get());
+            for (auto& s : statBuf) { // move statBuf to resBuf
+                resBuf.push_back(std::move(s));
+            }
+            resBuf.push_back(std::move(stat));
+        }
+        break;
+
+        case A2StatType::ASSIGN:
+        {
+            A2StatAssign* assign = (A2StatAssign*)s;
+            auto left = lowerExpr(assign->left.get(), "");
+            std::string tgtName = "";
+            if (left->objType == A3ExprType::VAR_NAME) {
+                tgtName = ((A3ExprName*)left.get())->decl->name;
+            }
+            auto right = lowerExpr(assign->right.get(), tgtName);
+            for (auto& s : statBuf) { // move statBuf to resBuf
+                resBuf.push_back(std::move(s));
+            }
+
+            // check RVO optimization
+            bool isOpt = false;
+            if (left->exprType->objType == A3TypeType::ARRAY && left->objType == A3ExprType::VAR_NAME && right->objType == A3ExprType::VAR_NAME) {
+                if (((A3ExprName*)left.get())->decl->uid == ((A3ExprName*)right.get())->decl->uid) isOpt = true;
+            }
+
+            // memcpy array
+            if (left->exprType->objType == A3TypeType::ARRAY && !isOpt) {
+                auto stat = std::make_unique<A3StatMem>();
+                stat->objType = A3StatType::MEMCPY;
+                stat->location = assign->location;
+                stat->uid = uidCount++;
+                stat->src = std::move(right);
+                stat->dst = std::move(left);
+                stat->size = createArraySizeExpr(left->exprType, typePool[0].get(), assign->location);
+                stat->sizeHint = left->exprType->typeSize;
+                resBuf.push_back(std::move(stat));
+
+            // simple assign
+            } else if (left->exprType->objType != A3TypeType::ARRAY) {
+                auto stat = std::make_unique<A3StatAssign>();
+                stat->objType = A3StatType::ASSIGN;
+                stat->location = assign->location;
+                stat->uid = uidCount++;
+                stat->left = std::move(left);
+                stat->right = std::move(right);
+                resBuf.push_back(std::move(stat));
+            }
+        }
+        break;
+
+        case A2StatType::ASSIGN_ADD: case A2StatType::ASSIGN_SUB: case A2StatType::ASSIGN_MUL: case A2StatType::ASSIGN_DIV: case A2StatType::ASSIGN_MOD:
+        {
+            A2StatAssign* assign = (A2StatAssign*)s;
+            auto left = lowerExpr(assign->left.get(), "");
+            A3ExprOpType opType; // set operation type
+            if (assign->objType == A2StatType::ASSIGN_ADD) {
+                opType = A3ExprOpType::B_ADD;
+            } else if (assign->objType == A2StatType::ASSIGN_SUB) {
+                opType = A3ExprOpType::B_SUB;
+            } else if (assign->objType == A2StatType::ASSIGN_MUL) {
+                opType = A3ExprOpType::B_MUL;
+            } else if (assign->objType == A2StatType::ASSIGN_DIV) {
+                opType = A3ExprOpType::B_DIV;
+            } else if (assign->objType == A2StatType::ASSIGN_MOD) {
+                opType = A3ExprOpType::B_MOD;
+            }
+            if (left->exprType->objType == A3TypeType::POINTER && assign->objType == A2StatType::ASSIGN_ADD) {
+                opType = A3ExprOpType::B_PTR_ADD;
+            } else if (left->exprType->objType == A3TypeType::POINTER && assign->objType == A2StatType::ASSIGN_SUB) {
+                opType = A3ExprOpType::B_PTR_SUB;
+            }
+
+            // make left var_use
+            std::unique_ptr<A3Expr> left0;
+            std::unique_ptr<A3Expr> left1;
+            if (left->objType == A3ExprType::VAR_NAME) {
+                A3ExprName* nm = (A3ExprName*)left.get();
+                auto l0 = std::make_unique<A3ExprName>();
+                l0->objType = A3ExprType::VAR_NAME;
+                l0->decl = nm->decl;
+                l0->location = nm->location;
+                l0->exprType = nm->exprType;
+                left0 = std::move(l0);
+                auto l1 = std::make_unique<A3ExprName>();
+                l1->objType = A3ExprType::VAR_NAME;
+                l1->decl = nm->decl;
+                l1->location = nm->location;
+                l1->exprType = nm->exprType;
+                left1 = std::move(l1);
+            } else {
+                auto refLeft = std::make_unique<A3ExprOperation>();
+                refLeft->objType = A3ExprType::OPERATION;
+                refLeft->location = assign->location;
+                refLeft->subType = A3ExprOpType::U_REF;
+                refLeft->operand0 = std::move(left);
+                auto leftName = setTempVar(refLeft->exprType, std::move(refLeft));
+                left0 = derefVar(leftName, assign->location);
+                left1 = derefVar(leftName, assign->location);
+            }
+
+            // convert right, assemble stat
+            auto right = lowerExpr(assign->right.get(), "");
+            for (auto& s : statBuf) { // move statBuf to resBuf
+                resBuf.push_back(std::move(s));
+            }
+
+            auto expr = std::make_unique<A3ExprOperation>();
+            expr->objType = A3ExprType::OPERATION;
+            expr->location = assign->location;
+            expr->subType = opType;
+            expr->operand0 = std::move(left0);
+            expr->operand1 = std::move(right);
+
+            auto stat = std::make_unique<A3StatAssign>();
+            stat->objType = A3StatType::ASSIGN;
+            stat->location = assign->location;
+            stat->uid = uidCount++;
+            stat->left = std::move(left1);
+            stat->right = std::move(expr);
+            resBuf.push_back(std::move(stat));
+        }
+        break;
+
+        case A2StatType::RETURN: case A2StatType::BREAK: case A2StatType::CONTINUE:
+            return lowerStatCtrl((A2StatCtrl*)s);
+
+        case A2StatType::SCOPE:
+            resBuf.push_back(lowerStatScope((A2StatScope*)s, nullptr, {}));
+            break;
+
+        case A2StatType::IF:
+        {
+            A2StatIf* ifStat = (A2StatIf*)s;
+            auto ifRes = std::make_unique<A3StatIf>();
+            ifRes->objType = A3StatType::IF;
+            ifRes->location = ifStat->location;
+            ifRes->uid = uidCount++;
+            ifRes->cond = lowerExpr(ifStat->cond.get(), "");
+            for (auto& s : statBuf) { // move statBuf to resBuf
+                resBuf.push_back(std::move(s));
+            }
+
+            auto thenStats = lowerStat(ifStat->thenBody.get());
+            if (thenStats.size() == 1) { // if then body is a single statement
+                ifRes->thenBody = std::move(thenStats[0]);
+            } else { // if then body is a scope
+                auto thenScope = std::make_unique<A3StatScope>();
+                thenScope->objType = A3StatType::SCOPE;
+                thenScope->location = ifStat->location;
+                thenScope->uid = uidCount++;
+                thenScope->body = std::move(thenStats);
+                ifRes->thenBody = std::move(thenScope);
+            }
+
+            if (ifStat->elseBody == nullptr || ifStat->elseBody->objType == A2StatType::NONE) {
+                ifRes->elseBody = nullptr;
+            } else {
+                auto elseStats = lowerStat(ifStat->elseBody.get());
+                if (elseStats.size() == 1) { // if else body is a single statement
+                    ifRes->elseBody = std::move(elseStats[0]);
+                } else { // if else body is a scope
+                    auto elseScope = std::make_unique<A3StatScope>();
+                    elseScope->objType = A3StatType::SCOPE;
+                    elseScope->location = ifStat->location;
+                    elseScope->uid = uidCount++;
+                    elseScope->body = std::move(elseStats);
+                    ifRes->elseBody = std::move(elseScope);
+                }
+            }
+            resBuf.push_back(std::move(ifRes));
+        }
+        break;
+
+        case A2StatType::LOOP:
+            resBuf.push_back(lowerStatLoop((A2StatLoop*)s));
+            break;
+
+        case A2StatType::SWITCH:
+        {
+            A2StatSwitch* sw = (A2StatSwitch*)s;
+            auto swRes = std::make_unique<A3StatSwitch>();
+            swRes->objType = A3StatType::SWITCH;
+            swRes->location = sw->location;
+            swRes->uid = uidCount++;
+            swRes->cond = lowerExpr(sw->cond.get(), "");
+            for (auto& s : statBuf) { // move statBuf to resBuf
+                resBuf.push_back(std::move(s));
+            }
+            for (int i = 0; i < sw->caseConds.size(); i++) {
+                swRes->caseConds.push_back(sw->caseConds[i]); // fill caseConds
+                swRes->caseFalls.push_back(sw->caseFalls[i]); // fill caseFalls
+                std::vector<std::unique_ptr<A3Stat>> body;
+                for (auto& v : sw->caseBodies[i]) {
+                    auto u = lowerStat(v.get());
+                    for (auto& t : u) {
+                        body.push_back(std::move(t));
+                    }
+                }
+                swRes->caseBodies.push_back(std::move(body)); // fill caseBodies
+            }
+            std::vector<std::unique_ptr<A3Stat>> body;
+            for (auto& v : sw->defaultBody) {
+                auto u = lowerStat(v.get());
+                for (auto& t : u) {
+                    body.push_back(std::move(t));
+                }
+            }
+            swRes->defaultBody = std::move(body); // fill defaultBody
+            resBuf.push_back(std::move(swRes));
+        }
+        break;
+
+        default:
+            throw std::runtime_error(std::format("E2201 unknown statement type at {}", getLocString(s->location))); // E2201
+    }
+    return resBuf;
+}
+
+// lower control flow (return, break, continue)
+std::vector<std::unique_ptr<A3Stat>> A3Gen::lowerStatCtrl(A2StatCtrl* s) {
+    A3StatCtrl* jmpLbl = nullptr;
+    for (int i = scopes.size() - 1; i >= 0; i--) {
+        if (scopes[i]->scopeLbl != nullptr) {
+            jmpLbl = scopes[i]->scopeLbl;
+            break;
+        }
+    }
+    if (jmpLbl == nullptr || curFunc == nullptr) {
+        throw std::runtime_error(std::format("E2202 cannot find control jump target at {}", getLocString(s->location))); // E2202
+    }
+
+    std::vector<std::unique_ptr<A3Stat>> resBuf;
+    if (s->objType == A2StatType::RETURN || s->objType == A2StatType::BREAK || s->objType == A2StatType::CONTINUE) {
+        if (s->objType == A2StatType::RETURN && !(curFunc->retType->objType == A3TypeType::PRIMITIVE && curFunc->retType->name == "void")) { // set return value, memcpy array
+            auto retExpr = lowerExpr(s->body.get(), curFunc->retVar->name);
+            for (auto& s : statBuf) { // move statBuf to resBuf
+                resBuf.push_back(std::move(s));
+            }
+
+            // check RVO optimization
+            bool isOpt = false;
+            if (curFunc->retType->objType == A3TypeType::ARRAY && retExpr->objType == A3ExprType::VAR_NAME) {
+                if (curFunc->retVar->uid == ((A3ExprName*)retExpr.get())->decl->uid) isOpt = true;
+            }
+
+            // create dst (curFunc retrun value)
+            std::unique_ptr<A3ExprName> dst = std::make_unique<A3ExprName>();
+            dst->objType = A3ExprType::VAR_NAME;
+            dst->location = s->location;
+            dst->decl = curFunc->retVar;
+            dst->exprType = curFunc->retVar->type.get();
+
+            // memcpy array
+            if (curFunc->retType->objType == A3TypeType::ARRAY && !isOpt) {
+                auto stat = std::make_unique<A3StatMem>();
+                stat->objType = A3StatType::MEMCPY;
+                stat->location = s->location;
+                stat->uid = uidCount++;
+                stat->src = std::move(retExpr);
+                stat->dst = std::move(dst);
+                stat->size = createArraySizeExpr(curFunc->retType.get(), typePool[0].get(), s->location);
+                stat->sizeHint = curFunc->retType->typeSize;
+                resBuf.push_back(std::move(stat));
+
+            // simple assign
+            } else if (curFunc->retType->objType != A3TypeType::ARRAY) {
+                auto stat = std::make_unique<A3StatAssign>();
+                stat->objType = A3StatType::ASSIGN;
+                stat->location = s->location;
+                stat->uid = uidCount++;
+                stat->left = std::move(dst);
+                stat->right = std::move(retExpr);
+                resBuf.push_back(std::move(stat));
+            }
+        }
+
+        // set status variable
+        std::unique_ptr<A3ExprName> left = std::make_unique<A3ExprName>();
+        left->objType = A3ExprType::VAR_NAME;
+        left->location = s->location;
+        left->decl = curFunc->stateVar;
+        left->exprType = left->decl->type.get();
+        auto right = mkLiteral(Literal(countJumps(s->objType)), typePool[0].get(), s->location);
+        resBuf.push_back(genAssignStat(std::move(left), std::move(right)));
+
+        // jump to scope label
+        std::unique_ptr<A3StatCtrl> ctrl = std::make_unique<A3StatCtrl>();
+        ctrl->objType = A3StatType::JUMP;
+        ctrl->location = s->location;
+        ctrl->uid = uidCount++;
+        ctrl->label = jmpLbl;
+        resBuf.push_back(std::move(ctrl));
+    } else {
+        throw std::runtime_error(std::format("E2203 unknown control flow type at {}", getLocString(s->location))); // E2203
+    }
+    return resBuf;
+}
+
+// lower scope
+std::unique_ptr<A3StatScope> A3Gen::lowerStatScope(A2StatScope* s, A3StatWhile* w, std::vector<std::unique_ptr<A3Stat>> step) {
+    int scopeType = 0; // normal scope
+    if (w != nullptr) {
+        scopeType = 1; // while scope
+    } else if (s->defers.size() > 0) {
+        scopeType = 2; // defer scope
+    }
+
+    // make scope, label, info
+    auto scopeRes = std::make_unique<A3StatScope>();
+    scopeRes->objType = A3StatType::SCOPE;
+    scopeRes->location = s->location;
+    scopeRes->uid = uidCount++;
+    std::unique_ptr<A3StatCtrl> labelA = nullptr;
+    if (scopeType != 0) {
+        labelA = std::make_unique<A3StatCtrl>();
+        labelA->objType = A3StatType::LABEL;
+        labelA->location = s->location;
+        labelA->uid = uidCount++;
+    }
+    auto info = std::make_unique<A3ScopeInfo>(scopeRes.get(), labelA.get(), w);
+    scopes.push_back(std::move(info));
+
+    // convert body
+    for (auto& st : s->body) {
+        auto converted = lowerStat(st.get());
+        for (auto& c : converted) {
+            scopeRes->body.push_back(std::move(c));
+        }
+    }
+
+    // insert label, defer
+    if (scopeType != 0) {
+        scopeRes->body.push_back(std::move(labelA));
+        for (auto& d : s->defers) {
+            statBuf.clear();
+            auto converted = lowerExpr(d.get(), "");
+            for (auto& c : statBuf) {
+                scopeRes->body.push_back(std::move(c));
+            }
+            auto c = std::make_unique<A3StatExpr>();
+            c->objType = A3StatType::EXPR;
+            c->location = d->location;
+            c->uid = uidCount++;
+            c->expr = std::move(converted);
+            scopeRes->body.push_back(std::move(c));
+        }
+    }
+
+    // find parent label
+    A3StatCtrl* jmpLbl = nullptr;
+    for (int i = scopes.size() - 1; i >= 0; i--) {
+        if (scopes[i]->scopeLbl != nullptr) {
+            jmpLbl = scopes[i]->scopeLbl;
+            break;
+        }
+    }
+    if (jmpLbl == nullptr || curFunc == nullptr) {
+        throw std::runtime_error(std::format("E2204 cannot find control jump target at {}", getLocString(s->location))); // E2204
+    }
+
+    // jump logic for loop
+    if (scopeType == 1) {
+        auto checkState = getTempVar(curFunc->stateVar->name, s->location);
+    
+        // if (state == 0) {step; continue;}
+        auto zeroVal = mkLiteral(Literal((int64_t)0), typePool[0].get(), s->location);
+        auto isZero = std::make_unique<A3ExprOperation>();
+        isZero->objType = A3ExprType::OPERATION;
+        isZero->subType = A3ExprOpType::B_EQ;
+        isZero->exprType = typePool[12].get();
+        isZero->operand0 = std::move(checkState);
+        isZero->operand1 = std::move(zeroVal);
+
+        auto case0Block = std::make_unique<A3StatScope>();
+        case0Block->objType = A3StatType::SCOPE;
+        // step
+        for (auto& st: step) case0Block->body.push_back(std::move(st));
+        // continue
+        auto contStat = std::make_unique<A3StatCtrl>();
+        contStat->objType = A3StatType::CONTINUE;
+        case0Block->body.push_back(std::move(contStat));
+
+        // if (state == 1) {state--; break;}
+        checkState = getTempVar(curFunc->stateVar->name, s->location);
+        auto oneVal = mkLiteral(Literal((int64_t)1), typePool[0].get(), s->location);
+        auto isOne = std::make_unique<A3ExprOperation>();
+        isOne->objType = A3ExprType::OPERATION;
+        isOne->subType = A3ExprOpType::B_EQ;
+        isOne->exprType = typePool[12].get();
+        isOne->operand0 = std::move(checkState);
+        isOne->operand1 = std::move(oneVal);
+
+        auto case1Block = std::make_unique<A3StatScope>();
+        case1Block->objType = A3StatType::SCOPE;
+        // state--
+        auto lState = getTempVar(curFunc->stateVar->name, s->location);
+        auto rState = getTempVar(curFunc->stateVar->name, s->location);
+        auto oneLit = mkLiteral(Literal((int64_t)1), typePool[0].get(), s->location);
+        auto subOp = std::make_unique<A3ExprOperation>();
+        subOp->objType = A3ExprType::OPERATION;
+        subOp->subType = A3ExprOpType::B_SUB;
+        subOp->exprType = typePool[0].get();
+        subOp->operand0 = std::move(rState);
+        subOp->operand1 = std::move(oneLit);
+        case1Block->body.push_back(genAssignStat(std::move(lState), std::move(subOp)));
+        // break
+        auto breakStat = std::make_unique<A3StatCtrl>();
+        breakStat->objType = A3StatType::BREAK;
+        case1Block->body.push_back(std::move(breakStat));
+
+        // else {state--; jump parent}
+        auto caseElseBlock = std::make_unique<A3StatScope>();
+        caseElseBlock->objType = A3StatType::SCOPE;
+        if (scopes.size() > 1) {
+            A3StatCtrl* parentLabel = scopes[scopes.size() - 2]->scopeLbl;
+            if (parentLabel) {
+                // state--
+                lState = getTempVar(curFunc->stateVar->name, s->location);
+                rState = getTempVar(curFunc->stateVar->name, s->location);
+                oneLit = mkLiteral(Literal((int64_t)1), typePool[0].get(), s->location);
+                subOp = std::make_unique<A3ExprOperation>();
+                subOp->objType = A3ExprType::OPERATION;
+                subOp->subType = A3ExprOpType::B_SUB;
+                subOp->exprType = typePool[0].get();
+                subOp->operand0 = std::move(rState);
+                subOp->operand1 = std::move(oneLit);
+                caseElseBlock->body.push_back(genAssignStat(std::move(lState), std::move(subOp)));
+            
+                // jump parent
+                auto jmpP = std::make_unique<A3StatCtrl>();
+                jmpP->objType = A3StatType::JUMP;
+                jmpP->label = parentLabel;
+                caseElseBlock->body.push_back(std::move(jmpP));
+            }
+        }
+
+        // assemble if, else if, else
+        auto elseIfStat = std::make_unique<A3StatIf>();
+        elseIfStat->objType = A3StatType::IF;
+        elseIfStat->cond = std::move(isOne);
+        elseIfStat->thenBody = std::move(case1Block);
+        elseIfStat->elseBody = std::move(caseElseBlock);
+
+        auto topIfStat = std::make_unique<A3StatIf>();
+        topIfStat->objType = A3StatType::IF;
+        topIfStat->cond = std::move(isZero);
+        topIfStat->thenBody = std::move(case0Block);
+        topIfStat->elseBody = std::move(elseIfStat);
+
+        scopeRes->body.push_back(std::move(topIfStat));
+
+    // jump logic for scope
+    } else if (scopeType == 2) {
+        // condition: state > 0
+        auto stateVar = getTempVar(curFunc->stateVar->name, s->location);
+        auto zero = mkLiteral(Literal((int64_t)0), typePool[0].get(), s->location);
+        
+        auto cond = std::make_unique<A3ExprOperation>();
+        cond->objType = A3ExprType::OPERATION;
+        cond->subType = A3ExprOpType::B_GT;
+        cond->location = s->location;
+        cond->exprType = typePool[12].get(); // bool
+        cond->operand0 = std::move(stateVar);
+        cond->operand1 = std::move(zero);
+
+        // sody: state--; jump parent
+        auto thenBlock = std::make_unique<A3StatScope>();
+        thenBlock->objType = A3StatType::SCOPE;
+        thenBlock->uid = uidCount++;
+        
+        // state-- (state = state - 1)
+        auto lState = getTempVar(curFunc->stateVar->name, s->location);
+        auto rState = getTempVar(curFunc->stateVar->name, s->location);
+        auto one = mkLiteral(Literal((int64_t)1), typePool[0].get(), s->location);
+        auto sub = std::make_unique<A3ExprOperation>();
+        sub->objType = A3ExprType::OPERATION;
+        sub->subType = A3ExprOpType::B_SUB;
+        sub->exprType = typePool[0].get();
+        sub->operand0 = std::move(rState);
+        sub->operand1 = std::move(one);
+        thenBlock->body.push_back(genAssignStat(std::move(lState), std::move(sub)));
+
+        // jump parent
+        auto jmp = std::make_unique<A3StatCtrl>();
+        jmp->objType = A3StatType::JUMP;
+        jmp->uid = uidCount++;
+        jmp->label = jmpLbl;
+        thenBlock->body.push_back(std::move(jmp));
+
+        // if statement, insert into scope
+        auto ifStat = std::make_unique<A3StatIf>();
+        ifStat->objType = A3StatType::IF;
+        ifStat->uid = uidCount++;
+        ifStat->cond = std::move(cond);
+        ifStat->thenBody = std::move(thenBlock);
+        scopeRes->body.push_back(std::move(ifStat));
+    }
+    return scopeRes;
+}
+
+// lower loop
+std::unique_ptr<A3StatWhile> A3Gen::lowerStatLoop(A2StatLoop* s) {
+    auto cond = lowerExpr(s->cond.get(), "");
+    std::vector<std::unique_ptr<A3Stat>> preCond;
+    for (auto& s : statBuf) { // move statBuf to preCond
+        preCond.push_back(std::move(s));
+    }
+    auto step = lowerStat(s->step.get()); // lower step statement
+    auto whileStat = std::make_unique<A3StatWhile>();
+    whileStat->objType = A3StatType::WHILE;
+    whileStat->uid = uidCount++;
+
+    // lower body
+    std::unique_ptr<A3StatScope> bodyScope;
+    if (s->body->objType == A2StatType::SCOPE) {
+        bodyScope = std::move(lowerStatScope((A2StatScope*)s->body.get(), whileStat.get(), std::move(step)));
+    } else {
+        auto vScope = std::make_unique<A2StatScope>();
+        vScope->uid = uidCount++;
+        vScope->body.push_back(std::move(s->body));
+        bodyScope = std::move(lowerStatScope(vScope.get(), whileStat.get(), std::move(step)));
+    }
+
+    // lower preCond
+    if (preCond.size() > 0) {
+        whileStat->cond = mkLiteral(Literal(true), typePool[12].get(), s->location);
+        // if (!cond) break;
+        auto notCond = std::make_unique<A3ExprOperation>();
+        notCond->objType = A3ExprType::OPERATION;
+        notCond->subType = A3ExprOpType::U_LOGIC_NOT;
+        notCond->exprType = typePool[12].get();
+        notCond->operand0 = std::move(cond);
+        notCond->location = s->location;
+        auto breakStat = std::make_unique<A3StatCtrl>();
+        breakStat->objType = A3StatType::BREAK;
+        breakStat->uid = uidCount++;
+        breakStat->location = s->location;
+        auto ifStat = std::make_unique<A3StatIf>();
+        ifStat->objType = A3StatType::IF;
+        ifStat->cond = std::move(notCond);
+        ifStat->thenBody = std::move(breakStat);
+        ifStat->elseBody = nullptr;
+        bodyScope->body.insert(bodyScope->body.begin(), std::move(ifStat));
+    } else {
+        whileStat->cond = std::move(cond);
+    }
+    whileStat->body = std::move(bodyScope);
+    return whileStat;
 }
