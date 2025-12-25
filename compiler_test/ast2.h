@@ -1,6 +1,7 @@
 #ifndef AST2_H
 #define AST2_H
 
+#include <algorithm>
 #include <unordered_map>
 #include "ast1ext.h"
 

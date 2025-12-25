@@ -186,7 +186,9 @@ A1Decl* A1Module::findDeclaration(const std::string& name, bool checkExported) {
                     }
                 }
             }
+            break;
         default: // goto nullptr
+            break;
     }
     return nullptr; // others are not exported
 }
@@ -200,7 +202,7 @@ A1Decl* A1Module::findDeclaration(const std::string& name, A1DeclType type, bool
 }
 
 Literal A1Module::findLiteral(const std::string& name, bool checkExported) {
-    if (name.contains('.')) { // enum member
+    if (name.find('.') != std::string::npos) { // enum member
         size_t pos = name.find('.');
         std::string enumName = name.substr(0, pos);
         std::string memberName = name.substr(pos + 1);
@@ -574,6 +576,7 @@ Literal A1Gen::foldNode(A1Expr& tgt, A1StatScope& current, A1Module& mod) {
                     }
                     break;
                 default: // goto Literal()
+                    break;
             }
 
         } else if (opnum == 2 && opNode->subType != A1ExprOpType::B_DOT) { // try to fold binary
@@ -753,6 +756,7 @@ Literal A1Gen::foldNode(A1Expr& tgt, A1StatScope& current, A1Module& mod) {
                     }
                     break;
                 default: // goto Literal()
+                    break;
             }
 
         } else if (opNode->subType == A1ExprOpType::B_DOT) { // enum value or include name
@@ -2016,6 +2020,7 @@ bool A1Gen::completeType(A1Module& mod, A1Type& tgt) {
             }
             break;
         default: // goto return
+            break;
     }
     return modified;
 }

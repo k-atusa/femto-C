@@ -232,7 +232,7 @@ std::unique_ptr<A2Type> A2Gen::convertType(A1Type* t, A1Module* mod) {
         break;
 
         case A1TypeType::TEMPLATE:
-            if (t->incName.contains("/")) {
+            if (t->incName.find("/") != std::string::npos) {
                 int pos = t->incName.find("/");
                 std::string modNm = t->incName.substr(0, pos);
                 std::string incNm = t->incName.substr(pos + 1);

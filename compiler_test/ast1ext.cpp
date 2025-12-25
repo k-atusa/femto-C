@@ -11,7 +11,7 @@ std::string A1Ext::getOrigin(A1Type* t, A1Module* m) {
         }
         return includeNode->tgtUname;
     } else if (t->objType == A1TypeType::TEMPLATE) { // indirect incName
-        if (t->incName.contains("/")) { // uname/incName
+        if (t->incName.find("/") != std::string::npos) { // uname/incName
             int pos = t->incName.find("/");
             int idx = findModule(t->incName.substr(0, pos));
             if (idx != -1) { // from another module
@@ -180,6 +180,7 @@ bool A1Ext::completeType(A1Module& mod, A1Type& tgt) {
             }
             break;
         default: // no change
+            break;
     }
     return modified;
 }
@@ -227,6 +228,7 @@ void A1Ext::standardizeType(A1Module& mod, A1Type& tgt) {
             tgt.incName = mod.uname + "/" + tgt.incName;
             break;
         default: // no change
+            break;
     }
     if (tgt.typeSize < 0 || tgt.typeAlign < 0) {
         throw std::runtime_error(std::format("E0806 cannot standardize type {}", tgt.name)); // E0806
