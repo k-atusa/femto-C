@@ -1854,3 +1854,100 @@ std::unique_ptr<A3StatWhile> A3Gen::lowerStatLoop(A2StatLoop* s) {
     whileStat->body = std::move(bodyScope);
     return whileStat;
 }
+
+// main lowering function for declarations
+std::unique_ptr<A3Decl> A3Gen::lowerDecl(A2Decl* d) {
+    switch (d->objType) {
+        case A2DeclType::RAW_C: case A2DeclType::RAW_IR:
+        {
+            auto rawDecl = (A2DeclRaw*)d;
+            auto res = std::make_unique<A3DeclRaw>();
+            res->objType = (d->objType == A2DeclType::RAW_C) ? A3DeclType::RAW_C : A3DeclType::RAW_IR;
+            res->uid = uidCount++;
+            res->code = rawDecl->code;
+            res->location = rawDecl->location;
+            return res;
+        }
+
+        case A2DeclType::VAR:
+        {
+            auto varDecl = (A2DeclVar*)d;
+            auto res = std::make_unique<A3DeclVar>();
+            res->objType = A3DeclType::VAR;
+            res->uid = uidCount++;
+            res->name = varDecl->name;
+            res->type = lowerType(varDecl->type.get());
+            res->isExported = varDecl->isExported;
+            res->location = varDecl->location;
+            res->init = lowerExpr(varDecl->init.get(), res->name);
+            return res;
+        }
+
+        case A2DeclType::FUNC: ///// current working
+        {
+            auto funcDecl = (A2DeclFunc*)d;
+            auto res = std::make_unique<A3DeclFunc>();
+            res->objType = A3DeclType::FUNC;
+            res->uid = uidCount++;
+            res->name = funcDecl->name;
+            res->isExported = funcDecl->isExported;
+            res->location = funcDecl->location;
+            res->type = lowerType(funcDecl->type.get());
+            curFunc = res.get();
+
+            res->body = std::make_unique<A3StatScope>();
+            res->body->objType = A3StatType::SCOPE;
+            res->body->uid = uidCount++;
+            res->body->location = funcDecl->location;
+            std::string stateName = setTempVar(typePool[0].get(), mkLiteral(Literal((int64_t)0), typePool[0].get(), funcDecl->location));
+            curFunc->stateVar = findVar(stateName);
+            std::string retName = "";
+            curFunc->retVar = nullptr;
+            if (res->type->direct->objType != A3TypeType::ARRAY && !(res->type->direct->objType == A3TypeType::PRIMITIVE && res->type->direct->name == "void")) {
+                retName = genTempVar(res->type->direct.get(), funcDecl->location);
+                curFunc->retVar = findVar(retName);
+            }
+
+
+            return res;
+        }
+
+        case A2DeclType::STRUCT:
+        {
+            auto structDecl = (A2DeclStruct*)d;
+            auto res = std::make_unique<A3DeclStruct>();
+            res->objType = A3DeclType::STRUCT;
+            res->uid = uidCount++;
+            res->name = structDecl->name;
+            res->isExported = structDecl->isExported;
+            res->location = structDecl->location;
+            res->type = lowerType(structDecl->type.get());
+            for (int i = 0; i < structDecl->memNames.size(); i++) {
+                res->memNames.push_back(structDecl->memNames[i]);
+                res->memTypes.push_back(lowerType(structDecl->memTypes[i].get()));
+                res->memOffsets.push_back(structDecl->memOffsets[i]);
+            }
+            return res;
+        }
+
+        case A2DeclType::ENUM:
+        {
+            auto enumDecl = (A2DeclEnum*)d;
+            auto res = std::make_unique<A3DeclEnum>();
+            res->objType = A3DeclType::ENUM;
+            res->uid = uidCount++;
+            res->name = enumDecl->name;
+            res->isExported = enumDecl->isExported;
+            res->location = enumDecl->location;
+            res->type = lowerType(enumDecl->type.get());
+            for (int i = 0; i < enumDecl->memNames.size(); i++) {
+                res->memNames.push_back(enumDecl->memNames[i]);
+                res->memValues.push_back(enumDecl->memValues[i]);
+            }
+            return res;
+        }
+
+        default:
+            throw std::runtime_error(std::format("E2301 invalid declaration type at {}", getLocString(d->location))); // E2301
+    }
+}
