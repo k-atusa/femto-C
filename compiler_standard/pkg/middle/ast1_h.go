@@ -158,11 +158,14 @@ const (
 	B_LogicAnd1
 	B_LogicOr1
 	C_Cond1
+	U_Inc1
+	U_Dec1
 	// Integrated functions
 	U_Sizeof1
 	B_Cast1
 	B_Make1
 	U_Len1
+	U_Move1
 )
 
 type A1ExprOp struct {
@@ -685,4 +688,13 @@ func (p *A1Parser) Init(arch int, level int) {
 	}
 	p.ChunkCount = 0
 	p.Modules = make([]A1Module, 0, 16)
+}
+
+func (p *A1Parser) FindModule(path string) int {
+	for i, m := range p.Modules {
+		if m.Path == path {
+			return i
+		}
+	}
+	return -1
 }

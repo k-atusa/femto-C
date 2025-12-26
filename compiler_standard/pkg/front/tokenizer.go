@@ -53,13 +53,15 @@ const (
 	OP_RBRACE
 	OP_LBRACKET
 	OP_RBRACKET
-	// = += -= *= /= %=
+	// = += -= *= /= %= ++ --
 	OP_ASSIGN
 	OP_ASSIGN_ADD
 	OP_ASSIGN_SUB
 	OP_ASSIGN_MUL
 	OP_ASSIGN_DIV
 	OP_ASSIGN_MOD
+	OP_INC
+	OP_DEC
 	// Keywords
 	KEY_AUTO
 	KEY_INT
@@ -97,6 +99,7 @@ const (
 	IFUNC_CAST
 	IFUNC_MAKE
 	IFUNC_LEN
+	IFUNC_MOVE
 	// compiler order
 	KEY_INCLUDE
 	KEY_TYPEDEF
@@ -194,6 +197,10 @@ func isDoubleOp(c1 byte, c2 byte) TokenType {
 		return OP_ASSIGN_DIV
 	case "%=":
 		return OP_ASSIGN_MOD
+	case "++":
+		return OP_INC
+	case "--":
+		return OP_DEC
 	}
 	return PRECOMPILE
 }
@@ -324,6 +331,8 @@ func isKeyword(word string) TokenType {
 		return IFUNC_MAKE
 	case "len":
 		return IFUNC_LEN
+	case "move":
+		return IFUNC_MOVE
 	}
 	return isCplrOrd(word)
 }
