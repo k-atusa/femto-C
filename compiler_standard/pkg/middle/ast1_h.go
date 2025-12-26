@@ -10,14 +10,14 @@ import (
 type A1TypeT int
 
 const (
-	T_Auto1 A1TypeT = iota
-	T_Primitive1
-	T_Ptr1
-	T_Arr1
-	T_Slice1
-	T_Func1
-	T_Name1    // struct, enum, template name
-	T_Foreign1 // from other module
+	T1_Auto A1TypeT = iota
+	T1_Primitive
+	T1_Ptr
+	T1_Arr
+	T1_Slice
+	T1_Func
+	T1_Name    // struct, enum, template name
+	T1_Foreign // from other module
 )
 
 type A1Type struct {
@@ -74,11 +74,11 @@ func (a1 *A1Type) Clone() A1Type {
 type A1ExprT int
 
 const (
-	E_Literal1 A1ExprT = iota
-	E_LitData1
-	E_Name1
-	E_Op1
-	E_FCall1
+	E1_Literal A1ExprT = iota
+	E1_LitData
+	E1_Name
+	E1_Op
+	E1_FCall
 )
 
 type A1Expr interface {
@@ -100,7 +100,7 @@ type A1ExprLiteral struct {
 }
 
 func (a1 *A1ExprLiteral) Init(loc front.Loc, value front.Literal) {
-	a1.ObjType = E_Literal1
+	a1.ObjType = E1_Literal
 	a1.Loc = loc
 	a1.Value = value
 }
@@ -111,7 +111,7 @@ type A1ExprLitData struct {
 }
 
 func (a1 *A1ExprLitData) Init(loc front.Loc) {
-	a1.ObjType = E_LitData1
+	a1.ObjType = E1_LitData
 	a1.Loc = loc
 	a1.Elements = make([]A1Expr, 0)
 }
@@ -122,7 +122,7 @@ type A1ExprName struct {
 }
 
 func (a1 *A1ExprName) Init(loc front.Loc, name string) {
-	a1.ObjType = E_Name1
+	a1.ObjType = E1_Name
 	a1.Loc = loc
 	a1.Name = name
 }
@@ -130,42 +130,42 @@ func (a1 *A1ExprName) Init(loc front.Loc, name string) {
 type A1ExprOpT int
 
 const (
-	B_Dot1 A1ExprOpT = iota
-	B_Index1
-	C_Slice1
-	U_Plus1
-	U_Minus1
-	U_LogicNot1
-	U_BitNot1
-	U_Ref1
-	U_Deref1
-	B_Mul1
-	B_Div1
-	B_Mod1
-	B_Add1
-	B_Sub1
-	B_Shl1
-	B_Shr1
-	B_Lt1
-	B_Le1
-	B_Gt1
-	B_Ge1
-	B_Eq1
-	B_Ne1
-	B_BitAnd1
-	B_BitXor1
-	B_BitOr1
-	B_LogicAnd1
-	B_LogicOr1
-	C_Cond1
-	U_Inc1
-	U_Dec1
+	B1_Dot A1ExprOpT = iota
+	B1_Index
+	C1_Slice
+	U1_Plus
+	U1_Minus
+	U1_LogicNot
+	U1_BitNot
+	U1_Ref
+	U1_Deref
+	B1_Mul
+	B1_Div
+	B1_Mod
+	B1_Add
+	B1_Sub
+	B1_Shl
+	B1_Shr
+	B1_Lt
+	B1_Le
+	B1_Gt
+	B1_Ge
+	B1_Eq
+	B1_Ne
+	B1_BitAnd
+	B1_BitXor
+	B1_BitOr
+	B1_LogicAnd
+	B1_LogicOr
+	C1_Cond
+	U1_Inc
+	U1_Dec
 	// Integrated functions
-	U_Sizeof1
-	B_Cast1
-	B_Make1
-	U_Len1
-	U_Move1
+	U1_Sizeof
+	B1_Cast
+	B1_Make
+	U1_Len
+	U1_Move
 )
 
 type A1ExprOp struct {
@@ -178,7 +178,7 @@ type A1ExprOp struct {
 }
 
 func (a1 *A1ExprOp) Init(loc front.Loc, subType A1ExprOpT) {
-	a1.ObjType = E_Op1
+	a1.ObjType = E1_Op
 	a1.Loc = loc
 	a1.SubType = subType
 	a1.TypeOperand = nil
@@ -194,7 +194,7 @@ type A1ExprFCall struct {
 }
 
 func (a1 *A1ExprFCall) Init(loc front.Loc, funcExpr A1Expr) {
-	a1.ObjType = E_FCall1
+	a1.ObjType = E1_FCall
 	a1.Loc = loc
 	a1.Func = funcExpr
 	a1.Args = make([]A1Expr, 0)
@@ -204,26 +204,27 @@ func (a1 *A1ExprFCall) Init(loc front.Loc, funcExpr A1Expr) {
 type A1StatT int
 
 const (
-	RawC1 A1StatT = iota
-	RawIR1
-	Expr1
-	Decl1
-	Assign1
-	AssignAdd1
-	AssignSub1
-	AssignMul1
-	AssignDiv1
-	AssignMod1
-	Return1
-	Defer1
-	Break1
-	Continue1
-	Fall1
-	Scope1
-	If1
-	While1
-	For1
-	Switch1
+	S1_RawC A1StatT = iota
+	S1_RawIR
+	S1_Expr
+	S1_Decl
+	S1_Assign
+	S1_AssignAdd
+	S1_AssignSub
+	S1_AssignMul
+	S1_AssignDiv
+	S1_AssignMod
+	S1_Return
+	S1_Defer
+	S1_Break
+	S1_Continue
+	S1_Fall
+	S1_Scope
+	S1_If
+	S1_While
+	S1_For
+	S1_Foreach
+	S1_Switch
 )
 
 type A1Stat interface {
@@ -245,7 +246,7 @@ type A1StatRaw struct {
 }
 
 func (a1 *A1StatRaw) Init(loc front.Loc, code string) {
-	a1.ObjType = RawC1
+	a1.ObjType = S1_RawC
 	a1.Loc = loc
 	a1.Code = code
 }
@@ -256,7 +257,7 @@ type A1StatExpr struct {
 }
 
 func (a1 *A1StatExpr) Init(loc front.Loc, expr A1Expr) {
-	a1.ObjType = Expr1
+	a1.ObjType = S1_Expr
 	a1.Loc = loc
 	a1.Expr = expr
 }
@@ -267,7 +268,7 @@ type A1StatDecl struct {
 }
 
 func (a1 *A1StatDecl) Init(loc front.Loc, decl A1Decl) {
-	a1.ObjType = Decl1
+	a1.ObjType = S1_Decl
 	a1.Loc = loc
 	a1.Decl = decl
 }
@@ -279,7 +280,7 @@ type A1StatAssign struct {
 }
 
 func (a1 *A1StatAssign) Init(loc front.Loc, left A1Expr, right A1Expr) {
-	a1.ObjType = Assign1
+	a1.ObjType = S1_Assign
 	a1.Loc = loc
 	a1.Left = left
 	a1.Right = right
@@ -323,7 +324,7 @@ func (a1 *A1StatScope) FindDecl(name string) *A1Decl {
 
 func (a1 *A1StatScope) FindLiteral(name string) *front.Literal {
 	if decl, ok := a1.Decls[name]; ok {
-		if decl.GetObjType() == D_Var1 {
+		if decl.GetObjType() == D1_Var {
 			t, ok := decl.(*A1DeclVar)
 			if ok && t.IsDefine {
 				return &t.InitExpr.(*A1ExprLiteral).Value
@@ -344,7 +345,7 @@ type A1StatIf struct {
 }
 
 func (a1 *A1StatIf) Init(loc front.Loc, cond A1Expr, thenBody *A1StatScope, elseBody *A1StatScope) {
-	a1.ObjType = If1
+	a1.ObjType = S1_If
 	a1.Loc = loc
 	a1.Cond = cond
 	a1.ThenBody = thenBody
@@ -358,7 +359,7 @@ type A1StatWhile struct {
 }
 
 func (a1 *A1StatWhile) Init(loc front.Loc, cond A1Expr, body *A1StatScope) {
-	a1.ObjType = While1
+	a1.ObjType = S1_While
 	a1.Loc = loc
 	a1.Cond = cond
 	a1.Body = body
@@ -372,7 +373,7 @@ type A1StatFor struct {
 }
 
 func (a1 *A1StatFor) Init(loc front.Loc, cond *A1Expr, step *A1Stat, body *A1StatScope) {
-	a1.ObjType = For1
+	a1.ObjType = S1_For
 	a1.Loc = loc
 	a1.Cond = cond
 	a1.Step = step
@@ -386,7 +387,7 @@ type A1StatForeach struct {
 }
 
 func (a1 *A1StatForeach) Init(loc front.Loc, iter A1Expr, body *A1StatScope) {
-	a1.ObjType = For1
+	a1.ObjType = S1_Foreach
 	a1.Loc = loc
 	a1.Iter = iter
 	a1.Body = body
@@ -401,7 +402,7 @@ type A1StatSwitch struct {
 }
 
 func (a1 *A1StatSwitch) Init(loc front.Loc, cond A1Expr) {
-	a1.ObjType = Switch1
+	a1.ObjType = S1_Switch
 	a1.Loc = loc
 	a1.Cond = cond
 	a1.CaseConds = make([]int64, 0)
@@ -413,15 +414,15 @@ func (a1 *A1StatSwitch) Init(loc front.Loc, cond A1Expr) {
 type A1DeclT int
 
 const (
-	D_RawC1 A1DeclT = iota
-	D_RawIR1
-	D_Typedef1
-	D_Include1
-	D_Template1
-	D_Var1
-	D_Func1
-	D_Struct1
-	D_Enum1
+	D1_RawC A1DeclT = iota
+	D1_RawIR
+	D1_Typedef
+	D1_Include
+	D1_Template
+	D1_Var
+	D1_Func
+	D1_Struct
+	D1_Enum
 )
 
 type A1Decl interface {
@@ -468,7 +469,7 @@ type A1DeclInclude struct {
 }
 
 func (d *A1DeclInclude) Init(loc front.Loc, name string, tgtPath string, tgtUname string, argTypes []A1Type) {
-	d.ObjType = D_Include1
+	d.ObjType = D1_Include
 	d.Loc = loc
 	d.Name = name
 	d.Type = nil
@@ -483,7 +484,7 @@ type A1DeclTypedef struct {
 }
 
 func (d *A1DeclTypedef) Init(loc front.Loc, name string, t *A1Type, isExported bool) {
-	d.ObjType = D_Typedef1
+	d.ObjType = D1_Typedef
 	d.Loc = loc
 	d.Name = name
 	d.Type = t
@@ -495,7 +496,7 @@ type A1DeclTemplate struct {
 }
 
 func (d *A1DeclTemplate) Init(loc front.Loc, name string) {
-	d.ObjType = D_Template1
+	d.ObjType = D1_Template
 	d.Loc = loc
 	d.Name = name
 	d.Type = nil
@@ -513,7 +514,7 @@ type A1DeclVar struct {
 }
 
 func (d *A1DeclVar) Init(loc front.Loc, name string, t *A1Type, initExpr A1Expr, isExported bool) {
-	d.ObjType = D_Var1
+	d.ObjType = D1_Var
 	d.Loc = loc
 	d.Name = name
 	d.Type = t
@@ -539,7 +540,7 @@ type A1DeclFunc struct {
 }
 
 func (d *A1DeclFunc) Init(loc front.Loc, fullNm string, t *A1Type, structNm string, funcNm string, isExported bool) {
-	d.ObjType = D_Func1
+	d.ObjType = D1_Func
 	d.Loc = loc
 	d.Name = fullNm
 	d.Type = t
@@ -561,7 +562,7 @@ type A1DeclStruct struct {
 }
 
 func (d *A1DeclStruct) Init(loc front.Loc, name string, isExported bool) {
-	d.ObjType = D_Struct1
+	d.ObjType = D1_Struct
 	d.Loc = loc
 	d.Name = name
 	d.Type = nil
@@ -578,7 +579,7 @@ type A1DeclEnum struct {
 }
 
 func (d *A1DeclEnum) Init(loc front.Loc, name string, isExported bool) {
-	d.ObjType = D_Enum1
+	d.ObjType = D1_Enum
 	d.Loc = loc
 	d.Name = name
 	d.Type = nil
@@ -610,12 +611,12 @@ func (m *A1Module) FindDecl(name string, chkExported bool) *A1Decl {
 		return d
 	}
 	switch (*d).GetObjType() {
-	case D_Var1, D_Struct1, D_Enum1, D_Typedef1:
+	case D1_Var, D1_Struct, D1_Enum, D1_Typedef:
 		nm := (*d).GetName()
 		if 'A' <= nm[0] && nm[0] <= 'Z' {
 			return d
 		}
-	case D_Func1:
+	case D1_Func:
 		t := (*d).(*A1DeclFunc)
 		if t.StructNm == "" {
 			if 'A' <= t.Name[0] && t.Name[0] <= 'Z' { // global function
@@ -640,7 +641,7 @@ func (m *A1Module) FindLiteral(name string, chkExported bool) *front.Literal {
 			return nil
 		}
 		d := m.Code.FindDecl(enumNm)
-		if (*d).GetObjType() != D_Enum1 {
+		if (*d).GetObjType() != D1_Enum {
 			return nil
 		}
 		e := (*d).(*A1DeclEnum)

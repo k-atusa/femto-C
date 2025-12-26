@@ -55,47 +55,47 @@ func getPrattPrecedence(tknType front.TokenType, isUnary bool) int {
 func getBinaryOpType(tknType front.TokenType) A1ExprOpT {
 	switch tknType {
 	case front.OP_MUL:
-		return B_Mul1
+		return B1_Mul
 	case front.OP_DIV:
-		return B_Div1
+		return B1_Div
 	case front.OP_MOD:
-		return B_Mod1
+		return B1_Mod
 	case front.OP_ADD:
-		return B_Add1
+		return B1_Add
 	case front.OP_SUB:
-		return B_Sub1
+		return B1_Sub
 	case front.OP_BIT_LSHIFT:
-		return B_Shl1
+		return B1_Shl
 	case front.OP_BIT_RSHIFT:
-		return B_Shr1
+		return B1_Shr
 	case front.OP_LT:
-		return B_Lt1
+		return B1_Lt
 	case front.OP_GT:
-		return B_Gt1
+		return B1_Gt
 	case front.OP_LT_EQ:
-		return B_Le1
+		return B1_Le
 	case front.OP_GT_EQ:
-		return B_Ge1
+		return B1_Ge
 	case front.OP_EQ:
-		return B_Eq1
+		return B1_Eq
 	case front.OP_NEQ:
-		return B_Ne1
+		return B1_Ne
 	case front.OP_BIT_AND:
-		return B_BitAnd1
+		return B1_BitAnd
 	case front.OP_BIT_XOR:
-		return B_BitXor1
+		return B1_BitXor
 	case front.OP_BIT_OR:
-		return B_BitOr1
+		return B1_BitOr
 	case front.OP_LOGIC_AND:
-		return B_LogicAnd1
+		return B1_LogicAnd
 	case front.OP_LOGIC_OR:
-		return B_LogicOr1
+		return B1_LogicOr
 	case front.OP_COND:
-		return C_Cond1
+		return C1_Cond
 	case front.OP_INC:
-		return U_Inc1
+		return U1_Inc
 	case front.OP_DEC:
-		return U_Dec1
+		return U1_Dec
 	default:
 		return -1
 	}
@@ -106,10 +106,10 @@ func getOperandNum(op A1ExprOpT) int {
 	switch op {
 	case -1:
 		return 0
-	case C_Cond1, C_Slice1:
+	case C1_Cond, C1_Slice:
 		return 3
-	case U_Plus1, U_Minus1, U_LogicNot1, U_BitNot1, U_Inc1, U_Dec1,
-		U_Ref1, U_Deref1, U_Sizeof1, U_Len1, U_Move1:
+	case U1_Plus, U1_Minus, U1_LogicNot, U1_BitNot, U1_Inc, U1_Dec,
+		U1_Ref, U1_Deref, U1_Sizeof, U1_Len, U1_Move:
 		return 1
 	default:
 		return 2
@@ -120,17 +120,17 @@ func getOperandNum(op A1ExprOpT) int {
 func getAssignType(tkn front.Token) A1StatT {
 	switch tkn.ObjType {
 	case front.OP_ASSIGN:
-		return Assign1
+		return S1_Assign
 	case front.OP_ASSIGN_ADD:
-		return AssignAdd1
+		return S1_AssignAdd
 	case front.OP_ASSIGN_SUB:
-		return AssignSub1
+		return S1_AssignSub
 	case front.OP_ASSIGN_MUL:
-		return AssignMul1
+		return S1_AssignMul
 	case front.OP_ASSIGN_DIV:
-		return AssignDiv1
+		return S1_AssignDiv
 	case front.OP_ASSIGN_MOD:
-		return AssignMod1
+		return S1_AssignMod
 	default:
 		return -1
 	}
@@ -145,16 +145,16 @@ func (m *A1Module) parseType(tp front.TokenProvider, cur *A1StatScope, arch int)
 		tp.Pop()
 		tgtNm := tp.Pop()
 		decl := m.FindDecl(incNm.Text, false)
-		if decl == nil || (*decl).GetObjType() != D_Include1 {
+		if decl == nil || (*decl).GetObjType() != D1_Include {
 			return nil, fmt.Errorf("E0201 include %s not found at %s:%d.%d", incNm.Text, m.Path, incNm.Location.Line, incNm.Location.Col)
 		}
-		base.Init(T_Foreign1, incNm.Location, tgtNm.Text, incNm.Text, m.Uname)
+		base.Init(T1_Foreign, incNm.Location, tgtNm.Text, incNm.Text, m.Uname)
 
 	} else if tp.Match([]front.TokenType{front.ID}) { // typedef, template, struct, enum
 		tgtNm := tp.Pop()
 		decl := m.FindDecl(tgtNm.Text, false)
-		if decl == nil || (*decl).GetObjType() != D_Typedef1 { // template, struct, enum -> name
-			base.Init(T_Name1, tgtNm.Location, tgtNm.Text, "", m.Uname)
+		if decl == nil || (*decl).GetObjType() != D1_Typedef { // template, struct, enum -> name
+			base.Init(T1_Name, tgtNm.Location, tgtNm.Text, "", m.Uname)
 		} else { // typedef -> replace
 			base = (*decl).(*A1DeclTypedef).Type.Clone()
 		}
@@ -162,10 +162,10 @@ func (m *A1Module) parseType(tp front.TokenProvider, cur *A1StatScope, arch int)
 	} else if tp.CanPop(1) { // auto, primitive
 		tpNm := tp.Pop()
 		if tpNm.ObjType == front.KEY_AUTO {
-			base.Init(T_Auto1, tpNm.Location, "auto", "", "")
+			base.Init(T1_Auto, tpNm.Location, "auto", "", "")
 			return &base, nil
 		} else {
-			base.Init(T_Primitive1, tpNm.Location, tpNm.Text, "", "")
+			base.Init(T1_Primitive, tpNm.Location, tpNm.Text, "", "")
 		}
 		switch tpNm.Text {
 		case "int", "uint":
@@ -200,7 +200,7 @@ func (m *A1Module) parseType(tp front.TokenProvider, cur *A1StatScope, arch int)
 		switch tkn.ObjType {
 		case front.OP_MUL: // pointer
 			var ptr A1Type
-			ptr.Init(T_Ptr1, tkn.Location, "*", "", "")
+			ptr.Init(T1_Ptr, tkn.Location, "*", "", "")
 			ptr.Direct = res
 			ptr.Size = arch
 			ptr.Align = arch
@@ -213,7 +213,7 @@ func (m *A1Module) parseType(tp front.TokenProvider, cur *A1StatScope, arch int)
 			var arr A1Type
 			if tp.Match([]front.TokenType{front.OP_RBRACKET}) { // slice
 				tp.Pop()
-				arr.Init(T_Slice1, tkn.Location, "[]", "", "")
+				arr.Init(T1_Slice, tkn.Location, "[]", "", "")
 				arr.Size = arch * 2
 				arr.Align = arch
 
@@ -224,7 +224,7 @@ func (m *A1Module) parseType(tp front.TokenProvider, cur *A1StatScope, arch int)
 				if l <= 0 {
 					return nil, fmt.Errorf("E0205 negative array length at %s:%d.%d", m.Path, lenTkn.Location.Line, lenTkn.Location.Col)
 				}
-				arr.Init(T_Arr1, tkn.Location, "[N]", "", "")
+				arr.Init(T1_Arr, tkn.Location, "[N]", "", "")
 				arr.ArrLen = int(l)
 				if res.Size > 0 {
 					arr.Size = res.Size * arr.ArrLen
@@ -242,7 +242,7 @@ func (m *A1Module) parseType(tp front.TokenProvider, cur *A1StatScope, arch int)
 				if l <= 0 {
 					return nil, fmt.Errorf("E0207 negative array length at %s:%d.%d", m.Path, lenTkn.Location.Line, lenTkn.Location.Col)
 				}
-				arr.Init(T_Arr1, tkn.Location, "[N]", "", "")
+				arr.Init(T1_Arr, tkn.Location, "[N]", "", "")
 				arr.ArrLen = int(l)
 				if res.Size > 0 {
 					arr.Size = res.Size * arr.ArrLen
@@ -253,9 +253,9 @@ func (m *A1Module) parseType(tp front.TokenProvider, cur *A1StatScope, arch int)
 			}
 
 			// insert if nested array
-			if res.ObjType == T_Arr1 || res.ObjType == T_Slice1 {
+			if res.ObjType == T1_Arr || res.ObjType == T1_Slice {
 				t := res
-				for t.ObjType == T_Arr1 || t.ObjType == T_Slice1 {
+				for t.ObjType == T1_Arr || t.ObjType == T1_Slice {
 					t = t.Direct
 				}
 				arr.Direct = t
@@ -267,7 +267,7 @@ func (m *A1Module) parseType(tp front.TokenProvider, cur *A1StatScope, arch int)
 
 		case front.OP_LPAREN: // function
 			var f A1Type
-			f.Init(T_Func1, tkn.Location, "()", "", "")
+			f.Init(T1_Func, tkn.Location, "()", "", "")
 			f.Size = arch
 			f.Align = arch
 			if tp.Seek().ObjType != front.OP_RPAREN {
@@ -314,7 +314,7 @@ func (a1 *A1Parser) isTypeStart(tp front.TokenProvider, m *A1Module) bool {
 		next := tp.Pop()
 		tp.Rewind(4)
 		decl := m.FindDecl(incNm.Text, false)
-		if decl == nil || (*decl).GetObjType() != D_Include1 {
+		if decl == nil || (*decl).GetObjType() != D1_Include {
 			return false
 		}
 		pos := a1.FindModule((*decl).(*A1DeclInclude).TgtPath)
@@ -325,7 +325,7 @@ func (a1 *A1Parser) isTypeStart(tp front.TokenProvider, m *A1Module) bool {
 		if decl == nil {
 			return false
 		}
-		if ((*decl).GetObjType() == D_Struct1 || (*decl).GetObjType() == D_Enum1 || (*decl).GetObjType() == D_Typedef1) && next.ObjType != front.OP_DOT {
+		if ((*decl).GetObjType() == D1_Struct || (*decl).GetObjType() == D1_Enum || (*decl).GetObjType() == D1_Typedef) && next.ObjType != front.OP_DOT {
 			return true // struct.member, enum.member is not type
 		}
 
@@ -337,7 +337,7 @@ func (a1 *A1Parser) isTypeStart(tp front.TokenProvider, m *A1Module) bool {
 		if decl == nil {
 			return false
 		}
-		if ((*decl).GetObjType() == D_Struct1 || (*decl).GetObjType() == D_Enum1 || (*decl).GetObjType() == D_Typedef1 || (*decl).GetObjType() == D_Template1) && next.ObjType != front.OP_DOT {
+		if ((*decl).GetObjType() == D1_Struct || (*decl).GetObjType() == D1_Enum || (*decl).GetObjType() == D1_Typedef || (*decl).GetObjType() == D1_Template) && next.ObjType != front.OP_DOT {
 			return true // struct.member, enum.member is not type
 		}
 	}
