@@ -25,7 +25,7 @@ type A1Type struct {
 	Loc      front.Loc
 	Name     string
 	IncName  string   // for Foreign
-	SrcUname string   // src uname
+	SrcUname string   // src uname for struct, enum
 	Direct   *A1Type  // ptr target, array elem, func return
 	Indirect []A1Type // func args
 	ArrLen   int
@@ -130,15 +130,18 @@ func (a1 *A1ExprName) Init(loc front.Loc, name string) {
 type A1ExprOpT int
 
 const (
-	B1_Dot A1ExprOpT = iota
-	B1_Index
-	C1_Slice
-	U1_Plus
+	// unary
+	U1_Plus A1ExprOpT = iota
 	U1_Minus
 	U1_LogicNot
 	U1_BitNot
 	U1_Ref
 	U1_Deref
+	U1_Inc
+	U1_Dec
+	// binary
+	B1_Dot
+	B1_Index
 	B1_Mul
 	B1_Div
 	B1_Mod
@@ -157,10 +160,10 @@ const (
 	B1_BitOr
 	B1_LogicAnd
 	B1_LogicOr
+	// cubic
+	C1_Slice
 	C1_Cond
-	U1_Inc
-	U1_Dec
-	// Integrated functions
+	// integrated functions
 	U1_Sizeof
 	B1_Cast
 	B1_Make
@@ -172,9 +175,9 @@ type A1ExprOp struct {
 	A1ExprB
 	SubType     A1ExprOpT
 	TypeOperand *A1Type // for sizeof, cast
-	Operand0    *A1Expr
-	Operand1    *A1Expr
-	Operand2    *A1Expr
+	Operand0    A1Expr
+	Operand1    A1Expr
+	Operand2    A1Expr
 }
 
 func (a1 *A1ExprOp) Init(loc front.Loc, subType A1ExprOpT) {
@@ -288,7 +291,7 @@ func (a1 *A1StatAssign) Init(loc front.Loc, left A1Expr, right A1Expr) {
 
 type A1StatCtrl struct {
 	A1StatB
-	Body *A1Expr // return value or defer body
+	Body A1Expr // return value or defer body
 }
 
 func (a1 *A1StatCtrl) Init(tp A1StatT, loc front.Loc) {
@@ -367,12 +370,12 @@ func (a1 *A1StatWhile) Init(loc front.Loc, cond A1Expr, body *A1StatScope) {
 
 type A1StatFor struct {
 	A1StatB
-	Cond *A1Expr
-	Step *A1Stat
+	Cond A1Expr
+	Step A1Stat
 	Body *A1StatScope
 }
 
-func (a1 *A1StatFor) Init(loc front.Loc, cond *A1Expr, step *A1Stat, body *A1StatScope) {
+func (a1 *A1StatFor) Init(loc front.Loc, cond A1Expr, step A1Stat, body *A1StatScope) {
 	a1.ObjType = S1_For
 	a1.Loc = loc
 	a1.Cond = cond
@@ -595,6 +598,9 @@ type A1Module struct {
 	ChunkID    int
 	Code       *A1StatScope
 	IsFinished bool
+
+	tp  *front.TokenProvider // token provider for pass3
+	idx []int                // pass3 index
 }
 
 func (m *A1Module) Init(path string, uname string) {
@@ -603,6 +609,8 @@ func (m *A1Module) Init(path string, uname string) {
 	m.ChunkID = -1
 	m.Code = nil
 	m.IsFinished = false
+	m.tp = nil
+	m.idx = make([]int, 0, 32)
 }
 
 func (m *A1Module) FindDecl(name string, chkExported bool) *A1Decl {
@@ -675,18 +683,13 @@ type A1Parser struct {
 	Modules    []A1Module
 }
 
-func (p *A1Parser) Init(arch int, level int) {
+func (p *A1Parser) Init(arch int, log *front.CplrMsg) {
 	if arch > 0 {
 		p.Arch = arch
 	} else {
 		p.Arch = 8
 	}
-	p.Logger = &front.CplrMsg{}
-	if level > 0 {
-		p.Logger.Init(level)
-	} else {
-		p.Logger.Init(3)
-	}
+	p.Logger = log
 	p.ChunkCount = 0
 	p.Modules = make([]A1Module, 0, 16)
 }

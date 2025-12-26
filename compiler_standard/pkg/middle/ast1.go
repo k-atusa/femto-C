@@ -343,3 +343,145 @@ func (a1 *A1Parser) isTypeStart(tp front.TokenProvider, m *A1Module) bool {
 	}
 	return false
 }
+
+// fold node to literal
+func (a1 *A1Parser) foldNode(tgt A1Expr, m *A1Module, cur *A1StatScope) *front.Literal {
+	if tgt == nil {
+		return nil
+	}
+	if tgt.GetObjType() == E1_Literal { // literal node
+		return &tgt.(*A1ExprLiteral).Value
+	}
+	if tgt.GetObjType() == E1_Name { // defined literal
+		return cur.FindLiteral(tgt.(*A1ExprName).Name)
+	}
+	if tgt.GetObjType() != E1_Op {
+		return nil
+	}
+
+	// fold operands first
+	op := tgt.(*A1ExprOp)
+	o0 := a1.foldNode(op.Operand0, m, cur)
+	o1 := a1.foldNode(op.Operand1, m, cur)
+	o2 := a1.foldNode(op.Operand2, m, cur)
+	if o0 != nil {
+		var l A1ExprLiteral
+		l.Init(op.Loc, *o0)
+		op.Operand0 = &l
+	}
+	if o1 != nil {
+		var l A1ExprLiteral
+		l.Init(op.Loc, *o1)
+		op.Operand1 = &l
+	}
+	if o2 != nil {
+		var l A1ExprLiteral
+		l.Init(op.Loc, *o2)
+		op.Operand2 = &l
+	}
+
+	// fold operation
+	var res front.Literal
+	switch op.SubType {
+	case U1_Plus:
+		if o0 != nil {
+			if o0.ObjType == front.LitInt || o0.ObjType == front.LitFloat {
+				return o0
+			}
+		}
+	case U1_Minus:
+		if o0 != nil {
+			if o0.ObjType == front.LitInt {
+				res.Init(-o0.Value.(int64))
+				return &res
+			} else if o0.ObjType == front.LitFloat {
+				res.Init(-o0.Value.(float64))
+				return &res
+			}
+		}
+	case U1_LogicNot:
+		if o0 != nil && o0.ObjType == front.LitBool {
+			res.Init(!o0.Value.(bool))
+			return &res
+		}
+	case U1_BitNot:
+		if o0 != nil && o0.ObjType == front.LitInt {
+			res.Init(^o0.Value.(int64))
+			return &res
+		}
+	case B1_Mul:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt {
+				res.Init(o0.Value.(int64) * o1.Value.(int64))
+				return &res
+			} else if o0.ObjType == front.LitFloat {
+				res.Init(o0.Value.(float64) * o1.Value.(float64))
+				return &res
+			}
+		}
+	case B1_Div: /////
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt && o1.Value.(int64) != 0 {
+				if 
+				res.Init(o0.Value.(int64) / o1.Value.(int64))
+				return &res
+			} else if o0.ObjType == front.LitFloat && o1.Value.(float64) != 0.0 {
+				res.Init(o0.Value.(float64) / o1.Value.(float64))
+				return &res
+			}
+		}
+	case B1_Mod:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt && o1.Value.(int64) != 0 {
+				res.Init(o0.Value.(int64) % o1.Value.(int64))
+				return &res
+			}
+		}
+	case B1_Add:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt {
+				res.Init(o0.Value.(int64) + o1.Value.(int64))
+				return &res
+			} else if o0.ObjType == front.LitFloat {
+				res.Init(o0.Value.(float64) + o1.Value.(float64))
+				return &res
+			}
+		}
+	case B1_Sub:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt {
+				res.Init(o0.Value.(int64) - o1.Value.(int64))
+				return &res
+			} else if o0.ObjType == front.LitFloat {
+				res.Init(o0.Value.(float64) - o1.Value.(float64))
+				return &res
+			}
+		}
+	case B1_Shl:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt {
+				res.Init(o0.Value.(int64) << o1.Value.(int64))
+				return &res
+			}
+		}
+	case B1_Shr:
+	case B1_Lt:
+	case B1_Le:
+	case B1_Gt:
+	case B1_Ge:
+	case B1_Eq:
+	case B1_Ne:
+	case B1_BitAnd:
+	case B1_BitXor:
+	case B1_BitOr:
+	case B1_LogicAnd:
+	case B1_LogicOr:
+	case C1_Cond:
+	case U1_Sizeof:
+	case B1_Dot:
+	case B1_Index, C1_Slice, U1_Ref, U1_Deref, U1_Inc, U1_Dec, B1_Cast, B1_Make, U1_Len, U1_Move: // not foldable operator
+		return nil
+	default:
+		return nil
+	}
+}

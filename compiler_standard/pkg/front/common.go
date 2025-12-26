@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"unicode/utf8"
 )
 
@@ -96,6 +97,7 @@ func (l *Literal) Init(v interface{}) error {
 
 // compiler message, error counter
 type CplrMsg struct {
+	lock     sync.Mutex
 	Level    int
 	ErrCount int
 	Prints   []string
@@ -103,13 +105,19 @@ type CplrMsg struct {
 }
 
 func (m *CplrMsg) Init(level int) {
-	m.Level = level
+	if level < 0 {
+		level = 3
+	} else {
+		m.Level = level
+	}
 	m.ErrCount = 0
 	m.Prints = make([]string, 0, 64)
 	m.Paths = make([]string, 0, 4)
 }
 
 func (m *CplrMsg) Log(msg string, lvl int, isErr bool) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
 	if lvl >= m.Level {
 		m.Prints = append(m.Prints, msg)
 		if isErr {
