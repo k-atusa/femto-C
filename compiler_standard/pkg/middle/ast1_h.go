@@ -315,9 +315,9 @@ func (a1 *A1StatScope) Init(tp A1StatT, loc front.Loc, parent *A1StatScope) {
 	a1.Decls = make(map[string]A1Decl)
 }
 
-func (a1 *A1StatScope) FindDecl(name string) *A1Decl {
+func (a1 *A1StatScope) FindDecl(name string) A1Decl {
 	if decl, ok := a1.Decls[name]; ok {
-		return &decl
+		return decl
 	}
 	if a1.Parent != nil {
 		return a1.Parent.FindDecl(name)
@@ -613,19 +613,19 @@ func (m *A1Module) Init(path string, uname string) {
 	m.idx = make([]int, 0, 32)
 }
 
-func (m *A1Module) FindDecl(name string, chkExported bool) *A1Decl {
+func (m *A1Module) FindDecl(name string, chkExported bool) A1Decl {
 	d := m.Code.FindDecl(name)
 	if d == nil || !chkExported {
-		return d
+		return nil
 	}
-	switch (*d).GetObjType() {
+	switch d.GetObjType() {
 	case D1_Var, D1_Struct, D1_Enum, D1_Typedef:
-		nm := (*d).GetName()
+		nm := d.GetName()
 		if 'A' <= nm[0] && nm[0] <= 'Z' {
 			return d
 		}
 	case D1_Func:
-		t := (*d).(*A1DeclFunc)
+		t := d.(*A1DeclFunc)
 		if t.StructNm == "" {
 			if 'A' <= t.Name[0] && t.Name[0] <= 'Z' { // global function
 				return d
@@ -649,10 +649,10 @@ func (m *A1Module) FindLiteral(name string, chkExported bool) *front.Literal {
 			return nil
 		}
 		d := m.Code.FindDecl(enumNm)
-		if (*d).GetObjType() != D1_Enum {
+		if d.GetObjType() != D1_Enum {
 			return nil
 		}
-		e := (*d).(*A1DeclEnum)
+		e := d.(*A1DeclEnum)
 		for i, nm := range e.MemNames {
 			if nm == memberNm {
 				var l front.Literal

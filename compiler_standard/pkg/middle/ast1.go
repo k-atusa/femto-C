@@ -145,7 +145,7 @@ func (m *A1Module) parseType(tp front.TokenProvider, cur *A1StatScope, arch int)
 		tp.Pop()
 		tgtNm := tp.Pop()
 		decl := m.FindDecl(incNm.Text, false)
-		if decl == nil || (*decl).GetObjType() != D1_Include {
+		if decl == nil || decl.GetObjType() != D1_Include {
 			return nil, fmt.Errorf("E0201 include %s not found at %s:%d.%d", incNm.Text, m.Path, incNm.Location.Line, incNm.Location.Col)
 		}
 		base.Init(T1_Foreign, incNm.Location, tgtNm.Text, incNm.Text, m.Uname)
@@ -153,10 +153,10 @@ func (m *A1Module) parseType(tp front.TokenProvider, cur *A1StatScope, arch int)
 	} else if tp.Match([]front.TokenType{front.ID}) { // typedef, template, struct, enum
 		tgtNm := tp.Pop()
 		decl := m.FindDecl(tgtNm.Text, false)
-		if decl == nil || (*decl).GetObjType() != D1_Typedef { // template, struct, enum -> name
+		if decl == nil || decl.GetObjType() != D1_Typedef { // template, struct, enum -> name
 			base.Init(T1_Name, tgtNm.Location, tgtNm.Text, "", m.Uname)
 		} else { // typedef -> replace
-			base = (*decl).(*A1DeclTypedef).Type.Clone()
+			base = decl.(*A1DeclTypedef).Type.Clone()
 		}
 
 	} else if tp.CanPop(1) { // auto, primitive
@@ -314,10 +314,10 @@ func (a1 *A1Parser) isTypeStart(tp front.TokenProvider, m *A1Module) bool {
 		next := tp.Pop()
 		tp.Rewind(4)
 		decl := m.FindDecl(incNm.Text, false)
-		if decl == nil || (*decl).GetObjType() != D1_Include {
+		if decl == nil || decl.GetObjType() != D1_Include {
 			return false
 		}
-		pos := a1.FindModule((*decl).(*A1DeclInclude).TgtPath)
+		pos := a1.FindModule(decl.(*A1DeclInclude).TgtPath)
 		if pos < 0 {
 			return false
 		}
@@ -325,7 +325,7 @@ func (a1 *A1Parser) isTypeStart(tp front.TokenProvider, m *A1Module) bool {
 		if decl == nil {
 			return false
 		}
-		if ((*decl).GetObjType() == D1_Struct || (*decl).GetObjType() == D1_Enum || (*decl).GetObjType() == D1_Typedef) && next.ObjType != front.OP_DOT {
+		if (decl.GetObjType() == D1_Struct || decl.GetObjType() == D1_Enum || decl.GetObjType() == D1_Typedef) && next.ObjType != front.OP_DOT {
 			return true // struct.member, enum.member is not type
 		}
 
@@ -337,7 +337,7 @@ func (a1 *A1Parser) isTypeStart(tp front.TokenProvider, m *A1Module) bool {
 		if decl == nil {
 			return false
 		}
-		if ((*decl).GetObjType() == D1_Struct || (*decl).GetObjType() == D1_Enum || (*decl).GetObjType() == D1_Typedef || (*decl).GetObjType() == D1_Template) && next.ObjType != front.OP_DOT {
+		if (decl.GetObjType() == D1_Struct || decl.GetObjType() == D1_Enum || decl.GetObjType() == D1_Typedef || decl.GetObjType() == D1_Template) && next.ObjType != front.OP_DOT {
 			return true // struct.member, enum.member is not type
 		}
 	}
@@ -419,20 +419,31 @@ func (a1 *A1Parser) foldNode(tgt A1Expr, m *A1Module, cur *A1StatScope) *front.L
 				return &res
 			}
 		}
-	case B1_Div: /////
+	case B1_Div:
 		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
-			if o0.ObjType == front.LitInt && o1.Value.(int64) != 0 {
-				if 
+			if o0.ObjType == front.LitInt {
+				if o1.Value.(int64) == 0 {
+					a1.Logger.Log(fmt.Sprintf("E0301 division by zero at %s", a1.Logger.GetLoc(op.Loc)), 5, true)
+					return nil
+				}
 				res.Init(o0.Value.(int64) / o1.Value.(int64))
 				return &res
-			} else if o0.ObjType == front.LitFloat && o1.Value.(float64) != 0.0 {
+			} else if o0.ObjType == front.LitFloat {
+				if o1.Value.(float64) == 0.0 {
+					a1.Logger.Log(fmt.Sprintf("E0302 division by zero at %s", a1.Logger.GetLoc(op.Loc)), 5, true)
+					return nil
+				}
 				res.Init(o0.Value.(float64) / o1.Value.(float64))
 				return &res
 			}
 		}
 	case B1_Mod:
 		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
-			if o0.ObjType == front.LitInt && o1.Value.(int64) != 0 {
+			if o0.ObjType == front.LitInt {
+				if o1.Value.(int64) == 0 {
+					a1.Logger.Log(fmt.Sprintf("E0303 division by zero at %s", a1.Logger.GetLoc(op.Loc)), 5, true)
+					return nil
+				}
 				res.Init(o0.Value.(int64) % o1.Value.(int64))
 				return &res
 			}
@@ -460,28 +471,203 @@ func (a1 *A1Parser) foldNode(tgt A1Expr, m *A1Module, cur *A1StatScope) *front.L
 	case B1_Shl:
 		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
 			if o0.ObjType == front.LitInt {
-				res.Init(o0.Value.(int64) << o1.Value.(int64))
+				sh := o1.Value.(int64)
+				if sh < 0 || sh > 63 {
+					a1.Logger.Log(fmt.Sprintf("E0304 shift(%d) overflow at %s", sh, a1.Logger.GetLoc(op.Loc)), 5, true)
+					return nil
+				}
+				res.Init(o0.Value.(int64) << sh)
 				return &res
 			}
 		}
 	case B1_Shr:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt {
+				sh := o1.Value.(int64)
+				if sh < 0 || sh > 63 {
+					a1.Logger.Log(fmt.Sprintf("E0305 shift(%d) overflow at %s", sh, a1.Logger.GetLoc(op.Loc)), 5, true)
+					return nil
+				}
+				res.Init(o0.Value.(int64) >> sh)
+				return &res
+			}
+		}
 	case B1_Lt:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt {
+				res.Init(o0.Value.(int64) < o1.Value.(int64))
+				return &res
+			} else if o0.ObjType == front.LitFloat {
+				res.Init(o0.Value.(float64) < o1.Value.(float64))
+				return &res
+			}
+		}
 	case B1_Le:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt {
+				res.Init(o0.Value.(int64) <= o1.Value.(int64))
+				return &res
+			} else if o0.ObjType == front.LitFloat {
+				res.Init(o0.Value.(float64) <= o1.Value.(float64))
+				return &res
+			}
+		}
 	case B1_Gt:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt {
+				res.Init(o0.Value.(int64) > o1.Value.(int64))
+				return &res
+			} else if o0.ObjType == front.LitFloat {
+				res.Init(o0.Value.(float64) > o1.Value.(float64))
+				return &res
+			}
+		}
 	case B1_Ge:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt {
+				res.Init(o0.Value.(int64) >= o1.Value.(int64))
+				return &res
+			} else if o0.ObjType == front.LitFloat {
+				res.Init(o0.Value.(float64) >= o1.Value.(float64))
+				return &res
+			}
+		}
 	case B1_Eq:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt {
+				res.Init(o0.Value.(int64) == o1.Value.(int64))
+				return &res
+			} else if o0.ObjType == front.LitFloat {
+				res.Init(o0.Value.(float64) == o1.Value.(float64))
+				return &res
+			} else if o0.ObjType == front.LitBool {
+				res.Init(o0.Value.(bool) == o1.Value.(bool))
+				return &res
+			} else if o0.ObjType == front.LitNptr {
+				res.Init(true)
+				return &res
+			}
+		}
 	case B1_Ne:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt {
+				res.Init(o0.Value.(int64) != o1.Value.(int64))
+				return &res
+			} else if o0.ObjType == front.LitFloat {
+				res.Init(o0.Value.(float64) != o1.Value.(float64))
+				return &res
+			} else if o0.ObjType == front.LitBool {
+				res.Init(o0.Value.(bool) != o1.Value.(bool))
+				return &res
+			} else if o0.ObjType == front.LitNptr {
+				res.Init(false)
+				return &res
+			}
+		}
 	case B1_BitAnd:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt {
+				res.Init(o0.Value.(int64) & o1.Value.(int64))
+				return &res
+			}
+		}
 	case B1_BitXor:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt {
+				res.Init(o0.Value.(int64) ^ o1.Value.(int64))
+				return &res
+			}
+		}
 	case B1_BitOr:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitInt {
+				res.Init(o0.Value.(int64) | o1.Value.(int64))
+				return &res
+			}
+		}
 	case B1_LogicAnd:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitBool {
+				res.Init(o0.Value.(bool) && o1.Value.(bool))
+				return &res
+			}
+		}
 	case B1_LogicOr:
+		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
+			if o0.ObjType == front.LitBool {
+				res.Init(o0.Value.(bool) || o1.Value.(bool))
+				return &res
+			}
+		}
 	case C1_Cond:
+		if o0 != nil && o1 != nil && o2 != nil && o0.ObjType == front.LitBool && o1.ObjType == o2.ObjType {
+			if o1.Value.(bool) {
+				res = *o1
+			} else {
+				res = *o2
+			}
+			return &res
+		}
 	case U1_Sizeof:
-	case B1_Dot:
+		if o0 != nil {
+			switch o0.ObjType {
+			case front.LitInt, front.LitFloat:
+				res.Init(int64(8))
+			case front.LitBool:
+				res.Init(int64(1))
+			case front.LitString:
+				res.Init(int64(a1.Arch * 2))
+			case front.LitNptr:
+				res.Init(int64(a1.Arch))
+			}
+			return &res
+		} else if op.TypeOperand != nil {
+			switch op.TypeOperand.ObjType {
+			case T1_Primitive:
+				res.Init(int64(op.TypeOperand.Size))
+			case T1_Arr, T1_Func:
+				res.Init(int64(a1.Arch))
+			case T1_Slice:
+				res.Init(int64(a1.Arch * 2))
+			default:
+				return nil
+			}
+			return &res
+		}
+	case B1_Dot: // enum.member, inc.name, inc.enum.member
+		if op.Operand0.GetObjType() == E1_Name {
+			name0 := op.Operand0.(*A1ExprName).Name
+			decl := m.FindDecl(name0, false)
+			if decl == nil {
+				return nil
+			}
+			if decl.GetObjType() == D1_Enum && op.Operand1.GetObjType() == E1_Name { // enum.member
+				name1 := op.Operand1.(*A1ExprName).Name
+				return m.FindLiteral(name0+"."+name1, false)
+			}
+			if decl.GetObjType() == D1_Include {
+				pos := a1.FindModule(decl.(*A1DeclInclude).TgtPath)
+				if pos < 0 {
+					return nil
+				}
+				if op.Operand1.GetObjType() == E1_Name { // inc.name
+					name1 := op.Operand1.(*A1ExprName).Name
+					return a1.Modules[pos].FindLiteral(name1, true)
+
+				} else if op.Operand1.GetObjType() == E1_Op { // inc.enum.member
+					o := op.Operand1.(*A1ExprOp)
+					if o.SubType == B1_Dot && o.Operand0.GetObjType() == E1_Name && o.Operand1.GetObjType() == E1_Name {
+						name1 := o.Operand0.(*A1ExprName).Name
+						name2 := o.Operand1.(*A1ExprName).Name
+						return a1.Modules[pos].FindLiteral(name1+"."+name2, true)
+					}
+				}
+			}
+		}
 	case B1_Index, C1_Slice, U1_Ref, U1_Deref, U1_Inc, U1_Dec, B1_Cast, B1_Make, U1_Len, U1_Move: // not foldable operator
 		return nil
 	default:
 		return nil
 	}
+	return nil
 }
