@@ -1,1 +1,1 @@
-this compiler is no more updated. use standard compiler instead.
+disregard code and use standard compiler instead : this folder is no more updated
