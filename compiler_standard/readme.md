@@ -222,7 +222,7 @@ bool(myFunc, i32, i32)
 
 ### 1.2.9. 타입 변환
 
-cast 키워드로 표현식의 타입을 변환할 수 있습니다. 변환 결과 타입은 유효한 타입이여야 합니다.
+femto-C에는 암시적 형 변환이 없습니다. 명시적 캐스팅이 없다면 표현식의 타입은 바뀌지 않습니다. cast 키워드로 표현식의 타입을 변환할 수 있습니다. 변환 결과 타입은 유효한 타입이여야 합니다.
 
 ```c
 cast<int>(expr)
@@ -328,7 +328,7 @@ int b = a;
 `4 * 2 - 7 -> 1` 같이 컴파일 시간에 상수식을 접어 단일 리터럴로 축약될 수 있는 표현식을 상수 표현식이라고 합니다.
 
 다음과 같은 연산자가 상수 표현식을 지원합니다.
-- `+, -, *, /`
+- `+, -, *, /` : 
 - `%, `
 
 ### 1.4.4. 변수 선언 접두어
@@ -484,6 +484,6 @@ int b = a;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LDE2Mz
-g1MjEwMjMsMTg1MTYxMjM5OV19
+eyJoaXN0b3J5IjpbMzcxMjU0NTQ2LC0xNTI5OTUxNDg2LDUzND
+A1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIzOTldfQ==
 -->
