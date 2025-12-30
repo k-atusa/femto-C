@@ -370,10 +370,10 @@ export const f64 PI = 3.141592;
 
 이항연산자는 기본적으로 같은 타입에 대해서만 연산이 가능하다.
 `+, -, *, /` : 산술 덧셈 뺄셈 곱셈 나눗셈, (정수, 정수)->정수, (실수, 실수)->실수
-`%, &, |, ^` :  산술 나머지, 비트 합 곱 XOR, 
-`<<, >>` :
-`&&, ||` :
-`<, <=, >, >=` :
+`%, &, |, ^` :  산술 나머지, 비트 곱 합 XOR, (정수, 정수)->정수
+`<<, >>` : 비트 시프트, (정수, 정수)->정수, 비트시프트는 좌우 타입이 달라도 된다.
+`&&, ||` : 논리 곱 합, (불리언, 불리언)->불리언
+`<, <=, >, >=` : 산술 비교
 `==, !=` :
 `a.b` :
 `arr[i]` :
@@ -522,7 +522,7 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMjAzMjUxODUxOSwyMDI4NzQ2MjAxLC0xNT
+eyJoaXN0b3J5IjpbLTIwNjUxODE3NCwyMDI4NzQ2MjAxLC0xNT
 I5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIz
 OTldfQ==
 -->
