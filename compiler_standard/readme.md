@@ -403,11 +403,11 @@ export const f64 PI = 3.141592;
  5. `<< >>` : 비트 시프트
  6. `< <= > >=` : 산술 비교
  7. `== !=` : 일반 비교
- 8. `&`
- 9. `^`
- 10. `|`
- 11. `&&`
- 12. `||`
+ 8. `&`: 비트 곱
+ 9. `^` : 비트 XOR
+ 10. `|` : 비트 합
+ 11. `&&` : 논리 곱
+ 12. `||` : 논리 합
 
 ## 1.6. 제어문
 
@@ -546,7 +546,7 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTIzMTA3MjYzOSwyMDI4NzQ2MjAxLC0xNT
+eyJoaXN0b3J5IjpbMTU0NzMyNDQ1MCwyMDI4NzQ2MjAxLC0xNT
 I5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIz
 OTldfQ==
 -->
