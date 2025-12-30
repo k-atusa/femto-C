@@ -368,7 +368,7 @@ export const f64 PI = 3.141592;
 
 ### 1.5.2. 이항연산자
 
-이항연산자는 기본적으로 같은 타입에 대해서만 연산이 가능하다.
+이항연산자는 기본적으로 같은 타입에 대해서만 연산이 가능합니다.
 `+, -, *, /` : 산술 덧셈 뺄셈 곱셈 나눗셈, (정수, 정수)->정수, (실수, 실수)->실수
 `%, &, |, ^` :  산술 나머지, 비트 곱 합 XOR, (정수, 정수)->정수
 `<<, >>` : 비트 시프트, (정수, 정수)->정수, 비트시프트는 좌우 타입이 달라도 된다.
@@ -385,12 +385,12 @@ export const f64 PI = 3.141592;
 
 ### 1.5.4. 내장 함수
 
-내장 함수는 사용에 괄호가 필요하며 타입 변환이나 내부 구성요소에 접근할 때 사용한다.
+내장 함수는 사용에 괄호가 필요하며 타입 변환이나 내부 구성요소에 접근할 때 사용합니다.
 `sizeof(T) // type int` : 타입이나 표현식을 받아 바이트 단위 크기를 반환
 `cast<T>(expr)` : 표현식의 타입을 변환
 `len(arr) // type int` : 배열이나 슬라이스를 받아 길이를 반환
-`make(ptr, length)` :
-`move(expr)` :
+`make(ptr, length)` : 포인터 표현식과 길이를 받아 슬라이스를 생성
+`move(expr)` : 표현식의 값을 반환하되, 원본 표현식의 메모리는 제로필, 인자는 할당식의 좌변에 들어갈 수 있어야 
 
 ### 1.5.5. 연산자 우선순위
 
@@ -532,7 +532,7 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTIwMTgzOTQxMTAsMjAyODc0NjIwMSwtMT
+eyJoaXN0b3J5IjpbLTE5MTkzMjg1MjYsMjAyODc0NjIwMSwtMT
 UyOTk1MTQ4Niw1MzQwNTE1OTYsMTYzODUyMTAyMywxODUxNjEy
 Mzk5XX0=
 -->
