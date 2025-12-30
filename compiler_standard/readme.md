@@ -325,7 +325,7 @@ int b = a;
 
 ### 1.4.3. 상수 표현식
 
-컴파일 시간에 상수식을 접어 단일 리터럴로 축약될 수 있는 표현식을 상수 표현식이라고 합니다.
+`4 * 2 - 7 -> 1` 같이 컴파일 시간에 상수식을 접어 단일 리터럴로 축약될 수 있는 표현식을 상수 표현식이라고 합니다.
 
 ```c
 ```
@@ -483,6 +483,6 @@ int b = a;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTI5ODEyMDUwNCwxNjM4NTIxMDIzLDE4NT
+eyJoaXN0b3J5IjpbMTExMDQzMzc2MSwxNjM4NTIxMDIzLDE4NT
 E2MTIzOTldfQ==
 -->
