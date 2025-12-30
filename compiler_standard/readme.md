@@ -380,8 +380,8 @@ export const f64 PI = 3.141592;
 
 ### 1.5.3. 삼항연산자
 
-`cond ? t_expr : f_expr` :
-`` :
+`cond ? t_expr : f_expr` : 조건 연산자, 불리언 조건식이 참이면 참 표현식 아니면 거짓 표현식을 의미
+`arr[m:n]` : 슬라이싱, (배열, 슬라이스, 포인터)[정수, 정수]
 
 ### 1.5.4. 내장 함수
 
@@ -525,7 +525,7 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTk4NTEyNjg1NSwyMDI4NzQ2MjAxLC0xNT
-I5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIz
-OTldfQ==
+eyJoaXN0b3J5IjpbLTE2MTM0NjU1LDIwMjg3NDYyMDEsLTE1Mj
+k5NTE0ODYsNTM0MDUxNTk2LDE2Mzg1MjEwMjMsMTg1MTYxMjM5
+OV19
 -->
