@@ -421,7 +421,7 @@ export const f64 PI = 3.141592;
 # 2. C와의 차이점 및 주의사항
 2. Differences with C and Cautions
 
-이 항목은 기존 C 프로그래머들이 혼란을 느끼거나, 잘 알지 못하면 성능이나 안전성을 해칠 수 있는 사항에 대한 내용입니다.
+이 항목은 기존 C 프로그래머들이 혼란을 느끼거나, 잘 알지 못하면 성능이나 안전성을 해ㅈ 수 있는 사항에 대한 내용입니다.
 
 ## 2.1. 모듈과 가시성
 
@@ -504,6 +504,6 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTg3NzM5Nzc3MiwtMTUyOTk1MTQ4Niw1Mz
+eyJoaXN0b3J5IjpbMjA4MTkwMjM3MiwtMTUyOTk1MTQ4Niw1Mz
 QwNTE1OTYsMTYzODUyMTAyMywxODUxNjEyMzk5XX0=
 -->
