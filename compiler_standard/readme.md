@@ -337,7 +337,14 @@ int b = a;
 
 ### 1.4.4. 변수 선언 접두어
 
-변수 선언 시 타입 앞에 키워드를 붙여 변수의 속성으
+변수 선언 시 타입 앞에 키워드를 붙여 변수의 속성을 부여할 수 있습니다.
+
+```c
+auto i = 0;
+const int j = 1;
+define MAX_LEN = 255;
+volatile auto 
+```
 
 ## 1.5. 연산자
 
@@ -489,6 +496,6 @@ int b = a;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTM0ODU2NjUyNCwtMTUyOTk1MTQ4Niw1Mz
+eyJoaXN0b3J5IjpbMTQxOTUzMTAxNSwtMTUyOTk1MTQ4Niw1Mz
 QwNTE1OTYsMTYzODUyMTAyMywxODUxNjEyMzk5XX0=
 -->
