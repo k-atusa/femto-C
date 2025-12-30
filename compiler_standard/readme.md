@@ -381,14 +381,15 @@ export const f64 PI = 3.141592;
 ### 1.5.3. 삼항연산자
 
 `cond ? t_expr : f_expr` : 조건 연산자, 불리언 조건식이 참이면 참 표현식 아니면 거짓 표현식을 의미
-`arr[m:n]` : 슬라이싱, (배열, 슬라이스, 포인터)[정수, 정수]
+`arr[m:n]` : 슬라이싱, (배열, 슬라이스, 포인터)[정수, 정수], 슬라이싱의 시작과 끝 인자는 생략
 
 ### 1.5.4. 내장 함수
 
 내장 함수는 사용에 괄호가 필요하며 타입 변환이나 내부 구성요소에 접근할 때 사용한다.
 `sizeof(T)` :
+`cast<T>(expr)` :
 `len(arr)` :
-`make(ptr, len` :
+`make(ptr, length)` :
 `` :
 `` :
 `` :
@@ -533,7 +534,7 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbODE4MTk0MjU0LDIwMjg3NDYyMDEsLTE1Mj
-k5NTE0ODYsNTM0MDUxNTk2LDE2Mzg1MjEwMjMsMTg1MTYxMjM5
-OV19
+eyJoaXN0b3J5IjpbLTE2OTI4NTQ2NCwyMDI4NzQ2MjAxLC0xNT
+I5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIz
+OTldfQ==
 -->
