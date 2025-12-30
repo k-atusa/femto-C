@@ -362,10 +362,10 @@ export const f64 PI = 3.141592;
 
 `+,-` : 단항 부호, 정수->정수, 실수->실수
 `++, --` : 증감, 정수->정수
-`*` : 역참조, 포인터 ->타입
-`&` : 참조, 타입 -> 포인터
-`!` : 논리 부정, 불리언 -> 불리언
-`~` :  비트 부정, 정수 -> 정수
+`*` : 역참조, 포인터->타입
+`&` : 참조, 타입->포인터
+`!` : 논리 부정, 불리언->불리언
+`~` :  비트 부정, 정수->정수
 
 ### 1.5.2. 이항연산자
 
@@ -396,6 +396,18 @@ export const f64 PI = 3.141592;
 ### 1.5.5. 연산자 우선순위
 
  C의 연산자 우선순위와 동일합니다.
+ 1. `. [] () ++ --` : 이름 접근,
+ 2.
+ 3.
+ 4.
+ 5.
+ 6.
+ 7.
+ 8.
+ 9.
+ 10.
+ 11.
+ 12.
 
 ## 1.6. 제어문
 
@@ -534,7 +546,7 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTYzODU2OTY0MSwyMDI4NzQ2MjAxLC0xNT
-I5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIz
-OTldfQ==
+eyJoaXN0b3J5IjpbNDY2MTcxNTIwLDIwMjg3NDYyMDEsLTE1Mj
+k5NTE0ODYsNTM0MDUxNTk2LDE2Mzg1MjEwMjMsMTg1MTYxMjM5
+OV19
 -->
