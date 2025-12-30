@@ -396,8 +396,8 @@ export const f64 PI = 3.141592;
 ### 1.5.5. 연산자 우선순위
 
  C의 연산자 우선순위와 동일합니다.
- 1. `. [] () ++ --` : 이름 접근,
- 2.
+ 1. `. [] () ++ --` : 이름 접근, 인덱싱, 슬라이싱, 함수 호출, 증감 연산자
+ 2. `+ - ! ~ * &` : 부호, 논리 부정, 비트 부정, 메모리 (단항 연산자)
  3.
  4.
  5.
@@ -546,7 +546,7 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbNDY2MTcxNTIwLDIwMjg3NDYyMDEsLTE1Mj
-k5NTE0ODYsNTM0MDUxNTk2LDE2Mzg1MjEwMjMsMTg1MTYxMjM5
-OV19
+eyJoaXN0b3J5IjpbMTI3NzY0MjM1NSwyMDI4NzQ2MjAxLC0xNT
+I5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIz
+OTldfQ==
 -->
