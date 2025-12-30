@@ -329,7 +329,7 @@ int b = a;
 
 다음과 같은 연산자가 상수 표현식을 지원합니다.
 - `+, -, *, /` : 정수와 실수 연산
-- `%, &, |, ^, <<, >>` : 정수 연산
+- `%, ~, &, |, ^, <<, >>` : 정수 연산
 - `<, <=, >, >=` : 정수와 실수 연산
 - `==, !=` : 정수, 실수, 불리언 연산
 - `&&, ||, !` : 불리언 연산
@@ -359,6 +359,12 @@ export const f64 PI = 3.141592;
 연산자는 표현식을 받고 특정 연산을 하여 다시 표현식을 만듭니다. femto-C의 모든 연산은 강타입입니다. 표현식의 타입이 암묵적으로 바뀌지 않고 연산자도 암시적 타입 확장을 적용하지 않습니다.
 
 ### 1.5.1. 단항연산자
+
+`+,-` :
+`*` :
+`&` :
+`!` :
+`~` : 
 
 ### 1.5.2. 이항연산자
 
@@ -506,6 +512,7 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMjAyODc0NjIwMSwtMTUyOTk1MTQ4Niw1Mz
-QwNTE1OTYsMTYzODUyMTAyMywxODUxNjEyMzk5XX0=
+eyJoaXN0b3J5IjpbODAxMDI4MzUyLDIwMjg3NDYyMDEsLTE1Mj
+k5NTE0ODYsNTM0MDUxNTk2LDE2Mzg1MjEwMjMsMTg1MTYxMjM5
+OV19
 -->
