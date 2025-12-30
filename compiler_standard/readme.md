@@ -375,10 +375,13 @@ export const f64 PI = 3.141592;
 `&&, ||` : 논리 곱 합, (불리언, 불리언)->불리언
 `<, <=, >, >=` : 산술 비교, (정수, 정수)->불리언, (실수, 실수)->불리언
 `==, !=` : 비교, (정수, 정수)->불리언, (실수, 실수)->불리언, (불리언, 불리언)->불리언, (포인터, 포인터)->불리언
-`a.b` : 접근, 모듈이나 구조체
-`arr[i]` :
+`a.b` : 접근 연산자, 모듈이나 구조체 항목 접근
+`arr[i]` : 인덱싱, (배열, 슬라이스, 포인터)[정수]
 
 ### 1.5.3. 삼항연산자
+
+`cond ? t_expr : f_expr` :
+`` :
 
 ### 1.5.4. 내장 함수
 
@@ -522,7 +525,7 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMzE2NDYzNTQ3LDIwMjg3NDYyMDEsLTE1Mj
-k5NTE0ODYsNTM0MDUxNTk2LDE2Mzg1MjEwMjMsMTg1MTYxMjM5
-OV19
+eyJoaXN0b3J5IjpbMTk4NTEyNjg1NSwyMDI4NzQ2MjAxLC0xNT
+I5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIz
+OTldfQ==
 -->
