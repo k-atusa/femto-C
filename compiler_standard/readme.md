@@ -337,11 +337,13 @@ int b = a;
 
 ### 1.4.4. 변수 선언 접두어
 
-변수 선언 시 타입 앞에 키워드를 붙여 변수의 속성을 부여할 수 있습니다. 속성은 중복하여 부여할 수도 있습니다.
+변수 선언 시 타입 앞에 키워드를 붙여 변수의 속성을 부여할 수 있습니다. 속성은 중복하여 부여할 수도 있습니다. 단, 요구조건이 서로 모순되는 속성은 중복될 수 없습니다.
 - `auto` : 타입 대신 사용하며 컴파일러가 초기화 표현식으로 변수의 타입을 추론합니다. 항상 초기화식이 필요합니다.
 - `const` : 변수에 대한 직접 재할당을 금지합니다. 다만 포인터 연산으로 간접적으로 변수를 참조하는 경우 값을 바꾸는 연산을 할 수 있습니다. 항상 초기화식이 필요합니다.
 - `define` : 단일 리터럴에 대해 다른 이름을 붙입니다. 이 속성으로 선언된 변수는 항상 상수 표현식으로 초기화되어야 합니다.
-- `volatile` :
+- `volatile` : 메모리 참조나 하드웨어 동작으로 변수의 메모리
+- `extern` :
+- `export` :
 
 ```c
 auto i = 0;
@@ -500,6 +502,6 @@ volatile auto tag = 0xFFFF;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTE3NDkyMzA2NTEsLTE1Mjk5NTE0ODYsNT
-M0MDUxNTk2LDE2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
+eyJoaXN0b3J5IjpbLTY0NTgwNzk4LC0xNTI5OTUxNDg2LDUzND
+A1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIzOTldfQ==
 -->
