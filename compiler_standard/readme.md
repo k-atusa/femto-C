@@ -330,7 +330,10 @@ int b = a;
 다음과 같은 연산자가 상수 표현식을 지원합니다.
 - `+, -, *, /` : 정수와 실수 연산
 - `%, &, |, ^, <<, >>` : 정수 연산
-- 
+- `<, <=, >, >=` : 정수와 실수 연산
+- `==, !=` : 정수, 실수, 불리언 연산
+- `&&, ||, !` : 불리언 연산
+- `sizeof`
 
 ### 1.4.4. 변수 선언 접두어
 
@@ -485,6 +488,6 @@ int b = a;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbNjkyMzI1NDExLC0xNTI5OTUxNDg2LDUzND
-A1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIzOTldfQ==
+eyJoaXN0b3J5IjpbMTgyNDIyMjU2MywtMTUyOTk1MTQ4Niw1Mz
+QwNTE1OTYsMTYzODUyMTAyMywxODUxNjEyMzk5XX0=
 -->
