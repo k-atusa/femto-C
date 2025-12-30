@@ -319,7 +319,8 @@ int varB = 2004;
 `타입 식별자명`으로 변수를 선언합니다. 변수를 선언하며 할당자를 사용해 동시에 초기화할 수 있습니다. 표현식에서 식별자명을 쓰면 변수를 사용할 수 있습니다.
 
 ```c
-int 
+int a;
+int b = a;
 ```
 
 ### 1.4.3. 상수 표현식
@@ -477,6 +478,6 @@ int
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTc3Mzg4Mzg4MiwxNjM4NTIxMDIzLDE4NT
-E2MTIzOTldfQ==
+eyJoaXN0b3J5IjpbNTQyNTU2NTI2LDE2Mzg1MjEwMjMsMTg1MT
+YxMjM5OV19
 -->
