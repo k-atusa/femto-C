@@ -404,10 +404,10 @@ export const f64 PI = 3.141592;
  6. `< <= > >=` : 산술 비교
  7. `== !=` : 일반 비교
  8. `&`
- 9.
- 10.
- 11.
- 12.
+ 9. `^`
+ 10. `|`
+ 11. `&&`
+ 12. `||`
 
 ## 1.6. 제어문
 
@@ -546,7 +546,7 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTIzNDI5MzE3NywyMDI4NzQ2MjAxLC0xNT
+eyJoaXN0b3J5IjpbMTIzMTA3MjYzOSwyMDI4NzQ2MjAxLC0xNT
 I5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIz
 OTldfQ==
 -->
