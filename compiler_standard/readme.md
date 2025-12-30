@@ -361,7 +361,7 @@ export const f64 PI = 3.141592;
 ### 1.5.1. 단항연산자
 
 `+,-` : 단항 부호, 정수->정수, 실수->실수
-`++, --` : 증감, 정수->정수
+`++, --` : 후위 증감, 정수->정수, 전위 증감 연산자는 없음
 `*` : 역참조, 포인터->타입
 `&` : 참조, 타입->포인터
 `!` : 논리 부정, 불리언->불리언
@@ -396,9 +396,9 @@ export const f64 PI = 3.141592;
 ### 1.5.5. 연산자 우선순위
 
  C의 연산자 우선순위와 동일합니다.
- 1. `. [] () ++ --` : 이름 접근, 인덱싱, 슬라이싱, 함수 호출, 증감 연산자
+ 1. `. [] () ++ --` : 이름 접근, 인덱싱, 슬라이싱, 함수 호출, 후위 증감 연산자
  2. `+ - ! ~ * &` : 부호, 논리 부정, 비트 부정, 메모리 (단항 연산자)
- 3.
+ 3. `* / %` : 산술 
  4.
  5.
  6.
@@ -546,7 +546,7 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTI3NzY0MjM1NSwyMDI4NzQ2MjAxLC0xNT
+eyJoaXN0b3J5IjpbLTk5NTg4Mzk5NCwyMDI4NzQ2MjAxLC0xNT
 I5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIz
 OTldfQ==
 -->
