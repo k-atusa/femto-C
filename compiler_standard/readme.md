@@ -340,7 +340,7 @@ int b = a;
 변수 선언 시 타입 앞에 키워드를 붙여 변수의 속성을 부여할 수 있습니다.
 - `auto` : 타입 대신 사용하며 컴파일러가 초기화 표현식으로 변수의 타입을 추론합니다. 항상 초기화식이 필요합니다.
 - `const` : 변수에 대한 직접 재할당을 금지합니다. 다만 포인터 연산으로 간접적으로 변수를 참조하는 경우 값을 바꾸는 연산을 할 수 있습니다. 항상 초기화식이 필요합니다.
-- `define` :
+- `define` : 단일 리터럴에 대해 다른 이름을 붙입니다. 이 속성으로 선언된 변수는 항상 상수 표현식으로 초기화되어야 합니다.
 - `volatile` :
 
 ```c
@@ -500,6 +500,6 @@ volatile auto tag = 0xFFFF;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTY3MzI1OTAyNywtMTUyOTk1MTQ4Niw1Mz
+eyJoaXN0b3J5IjpbMTcyMDA4MDA3NiwtMTUyOTk1MTQ4Niw1Mz
 QwNTE1OTYsMTYzODUyMTAyMywxODUxNjEyMzk5XX0=
 -->
