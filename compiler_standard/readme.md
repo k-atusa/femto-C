@@ -356,6 +356,8 @@ export const f64 PI = 3.141592;
 
 ## 1.5. 연산자
 
+연산자는 표현식을 받고 특정 연산을 하여 다시 표현식을 만듭니다. femto-C의 모든 연산은 강타입입니다
+
 ### 1.5.1. 단항연산자
 
 ### 1.5.2. 이항연산자
@@ -421,7 +423,7 @@ export const f64 PI = 3.141592;
 # 2. C와의 차이점 및 주의사항
 2. Differences with C and Cautions
 
-이 항목은 기존 C 프로그래머들이 혼란을 느끼거나, 잘 알지 못하면 성능이나 안전성을 해ㅈ 수 있는 사항에 대한 내용입니다.
+이 항목은 기존 C 프로그래머들이 혼란을 느끼거나, 잘 알지 못하면 성능이나 안전성이 저하될 수 있는 사항에 대한 내용입니다.
 
 ## 2.1. 모듈과 가시성
 
@@ -504,6 +506,6 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMjA4MTkwMjM3MiwtMTUyOTk1MTQ4Niw1Mz
+eyJoaXN0b3J5IjpbLTIzNzY5NDMxMiwtMTUyOTk1MTQ4Niw1Mz
 QwNTE1OTYsMTYzODUyMTAyMywxODUxNjEyMzk5XX0=
 -->
