@@ -338,12 +338,16 @@ int b = a;
 ### 1.4.4. 변수 선언 접두어
 
 변수 선언 시 타입 앞에 키워드를 붙여 변수의 속성을 부여할 수 있습니다.
+- `auto` : 타입 대신 사용하며 컴파일러가 초기화 표현식으로 변수의 타입을 추론합니다. 항상 초기화식이 필요합니다.
+- `const` : 
+- `define` :
+- `volatile` :
 
 ```c
 auto i = 0;
 const int j = 1;
 define MAX_LEN = 255;
-volatile auto 
+volatile auto tag = 0xFFFF;
 ```
 
 ## 1.5. 연산자
@@ -496,6 +500,6 @@ volatile auto
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTQxOTUzMTAxNSwtMTUyOTk1MTQ4Niw1Mz
-QwNTE1OTYsMTYzODUyMTAyMywxODUxNjEyMzk5XX0=
+eyJoaXN0b3J5IjpbLTEzMDM3MjUwNDksLTE1Mjk5NTE0ODYsNT
+M0MDUxNTk2LDE2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
 -->
