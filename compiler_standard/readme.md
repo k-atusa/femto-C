@@ -341,8 +341,8 @@ int b = a;
 - `auto` : 타입 대신 사용하며 컴파일러가 초기화 표현식으로 변수의 타입을 추론합니다. 항상 초기화식이 필요합니다.
 - `const` : 변수에 대한 직접 재할당을 금지합니다. 다만 포인터 연산으로 간접적으로 변수를 참조하는 경우 값을 바꾸는 연산을 할 수 있습니다. 항상 초기화식이 필요합니다.
 - `define` : 단일 리터럴에 대해 다른 이름을 붙입니다. 이 속성으로 선언된 변수는 항상 상수 표현식으로 초기화되어야 합니다.
-- `volatile` : 메모리 참조나 하드웨어 동작으로 변수의 메모리
-- `extern` :
+- `volatile` : 메모리 참조나 하드웨어 동작으로 변수의 메모리가 컴파일러가 모르게 바뀔 수 있음을 선언합니다. 이 속성이 붙은 변수는 컴파일러의 최적화에 제약을 겁니다.
+- `extern` : 해당 타입의 변수가 컴파일 타겟 코드에 있음을 선언합니다. C 모듈을 불러올 때, 
 - `export` :
 
 ```c
@@ -502,6 +502,6 @@ volatile auto tag = 0xFFFF;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTY0NTgwNzk4LC0xNTI5OTUxNDg2LDUzND
-A1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIzOTldfQ==
+eyJoaXN0b3J5IjpbMTAwODQzMzQwNCwtMTUyOTk1MTQ4Niw1Mz
+QwNTE1OTYsMTYzODUyMTAyMywxODUxNjEyMzk5XX0=
 -->
