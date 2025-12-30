@@ -360,10 +360,10 @@ export const f64 PI = 3.141592;
 
 ### 1.5.1. 단항연산자
 
-`+,-` :
-`*` :
-`&` :
-`!` :
+`+,-` : 단항 부호, 정수 -> 정수, 실수 -> 실수
+`*` : 역참조, 포인터 -> 타입
+`&` : 참조, 타입 -> 포인터
+`!` : 논리 부정, 불리언 -> 불리언
 `~` : 
 
 ### 1.5.2. 이항연산자
@@ -512,7 +512,7 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbODAxMDI4MzUyLDIwMjg3NDYyMDEsLTE1Mj
-k5NTE0ODYsNTM0MDUxNTk2LDE2Mzg1MjEwMjMsMTg1MTYxMjM5
-OV19
+eyJoaXN0b3J5IjpbMTkzMDA1NzYyMiwyMDI4NzQ2MjAxLC0xNT
+I5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIz
+OTldfQ==
 -->
