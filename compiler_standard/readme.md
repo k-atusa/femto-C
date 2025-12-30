@@ -342,7 +342,7 @@ int b = a;
 - `const` : 변수에 대한 직접 재할당을 금지합니다. 다만 포인터 연산으로 간접적으로 변수를 참조하는 경우 값을 바꾸는 연산을 할 수 있습니다. 항상 초기화식이 필요합니다.
 - `define` : 단일 리터럴에 대해 다른 이름을 붙입니다. 이 속성으로 선언된 변수는 항상 상수 표현식으로 초기화되어야 합니다.
 - `volatile` : 메모리 참조나 하드웨어 동작으로 변수의 메모리가 컴파일러가 모르게 바뀔 수 있음을 선언합니다. 이 속성이 붙은 변수는 컴파일러의 최적화에 제약을 겁니다.
-- `extern` : 해당 타입의 변수가 컴파일 타겟 코드에 있음을 선언합니다. C 모듈을 불러올 때, 
+- `extern` : 해당 타입의 변수가 컴파일 타겟 코드에 있음을 선언합니다. C 모듈을 불러올 때, 해당 모듈의 함수와 전역변수를 이 속성을 부여해 선언하면 됩니다. 초기화식을 가질 수 없습니다.
 - `export` :
 
 ```c
@@ -350,6 +350,8 @@ auto i = 0;
 const int j = i + 1;
 define MAX_LEN = 256 * 255 + 255;
 volatile auto tag = 0xFFFF;
+extern
+export const f64 PI = 3.141592
 ```
 
 ## 1.5. 연산자
@@ -502,6 +504,6 @@ volatile auto tag = 0xFFFF;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTAwODQzMzQwNCwtMTUyOTk1MTQ4Niw1Mz
+eyJoaXN0b3J5IjpbLTc5OTg0ODYzNywtMTUyOTk1MTQ4Niw1Mz
 QwNTE1OTYsMTYzODUyMTAyMywxODUxNjEyMzk5XX0=
 -->
