@@ -333,10 +333,11 @@ int b = a;
 - `<, <=, >, >=` : 정수와 실수 연산
 - `==, !=` : 정수, 실수, 불리언 연산
 - `&&, ||, !` : 불리언 연산
-- `sizeof`
+- `sizeof` : 원시 자료형에 한해 연산
 
 ### 1.4.4. 변수 선언 접두어
 
+변수 선언 시 타입 앞에 키워드를 붙여 변수의 속성으
 
 ## 1.5. 연산자
 
@@ -488,6 +489,6 @@ int b = a;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTgyNDIyMjU2MywtMTUyOTk1MTQ4Niw1Mz
+eyJoaXN0b3J5IjpbMTM0ODU2NjUyNCwtMTUyOTk1MTQ4Niw1Mz
 QwNTE1OTYsMTYzODUyMTAyMywxODUxNjEyMzk5XX0=
 -->
