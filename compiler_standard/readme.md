@@ -360,8 +360,9 @@ export const f64 PI = 3.141592;
 
 ### 1.5.1. 단항연산자
 
-`+,-` : 단항 부호, 정수 -> 정수, 실수 -> 실수
-`*` : 역참조, 포인터 -> 타입
+`+,-` : 단항 부호, 정수->정수, 실수->실수
+`++, --` : 증감, 정수->정수
+`*` : 역참조, 포인터 ->타입
 `&` : 참조, 타입 -> 포인터
 `!` : 논리 부정, 불리언 -> 불리언
 `~` :  비트 부정, 정수 -> 정수
@@ -390,10 +391,11 @@ export const f64 PI = 3.141592;
 `cast<T>(expr)` : 표현식의 타입을 변환
 `len(arr) // type int` : 배열이나 슬라이스를 받아 길이를 반환
 `make(ptr, length)` : 포인터 표현식과 길이를 받아 슬라이스를 생성
-`move(expr)` : 표현식의 값을 반환하되, 원본 표현식의 메모리는 제로필, 인자는 할당식의 좌변에 들어갈 수 있어야 
+`move(expr)` : 표현식의 값을 반환하되, 원본 표현식의 메모리는 제로필, 인자는 할당식의 좌변에 들어갈 수 있어야 함
 
 ### 1.5.5. 연산자 우선순위
 
+ C의 연산자 우선순위와 동일합니다.
 
 ## 1.6. 제어문
 
@@ -532,7 +534,7 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTE5MTkzMjg1MjYsMjAyODc0NjIwMSwtMT
-UyOTk1MTQ4Niw1MzQwNTE1OTYsMTYzODUyMTAyMywxODUxNjEy
-Mzk5XX0=
+eyJoaXN0b3J5IjpbMTYzODU2OTY0MSwyMDI4NzQ2MjAxLC0xNT
+I5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIz
+OTldfQ==
 -->
