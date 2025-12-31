@@ -517,7 +517,8 @@ int(int, int) func = add;
 함수 이름 혹은 함수 포인터 타입의 식에 인자 표현식을 넣은 괄호를 붙이면 함수를 호출할 수 있습니다. 함수 호출 시 인자는 앞에서부터 평가됨이 보장됩니다.
 
 ```c
-add(i++, i++ + 1)
+add(i++, i++ + 1);
+myObj.member(“print”);
 ``` 
 
 ### 1.7.3. 가변 인자 함수
@@ -642,7 +643,7 @@ add(i++, i++ + 1)
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTAzMDQ1NjkwNiwxNjc1NDQ1MjY0LC02OD
+eyJoaXN0b3J5IjpbMjA2NDgyMDY0NCwxNjc1NDQ1MjY0LC02OD
 c4NDM2ODcsLTEwODc3NDk0NTEsMTE5ODA4OTc0NiwxNzI3Mjc5
 NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LD
 E2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
