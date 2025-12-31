@@ -530,7 +530,7 @@ va_arg int sum(void*[]) {...}
 va_arg u8[] sprintf(u8[] format, void*[] args, int[] sizes) {...}
 ```
 
-추가인자는 모두 void* 타입으로 전달됩니다. 함수 호출 시 포인터 타입은 그대로 캐스팅되어 전달되고, 값 타입은 호출자 스택에 복사된 후 메모리 주소가 취해져 전달됩니다. 가변 인자 함수의 마지막 인자는 `void*[]` 혹은 `void*[], int[]`로 끝나야 합니다. 
+추가인자는 모두 void* 타입으로 전달됩니다. 함수 호출 시 포인터 타입은 그대로 캐스팅되어 전달되고, 값 타입은 호출자 스택에 복사된 후 메모리 주소가 취해져 전달됩니다. 가변 인자 함수의 마지막 인자는 `void*[]` 혹은 `void*[], int[]`로 끝나야 합니다. `void*[]`는 추가 인자 포인터가 들어오고, `int[]`는 추가 인자 포인터가 가리키는 값의 크기가 들어옵니다.
 
 ## 1.8. 열거형
 
@@ -651,8 +651,8 @@ va_arg u8[] sprintf(u8[] format, void*[] args, int[] sizes) {...}
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTE1ODMxNjE3MTAsMTY3NTQ0NTI2NCwtNj
-g3ODQzNjg3LC0xMDg3NzQ5NDUxLDExOTgwODk3NDYsMTcyNzI3
-OTU5MSwyMDI4NzQ2MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5Ni
-wxNjM4NTIxMDIzLDE4NTE2MTIzOTldfQ==
+eyJoaXN0b3J5IjpbMTc5NzU1NjI4MiwxNjc1NDQ1MjY0LC02OD
+c4NDM2ODcsLTEwODc3NDk0NTEsMTE5ODA4OTc0NiwxNzI3Mjc5
+NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LD
+E2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
 -->
