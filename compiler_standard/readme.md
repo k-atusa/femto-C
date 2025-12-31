@@ -441,8 +441,8 @@ for (int i = 0; i < len(arr); i++) {
 for (auto i, r : arr) io.printf(“arr[%d] = %s\n”, i, r);
 ```
 
-- while :
-- for :
+- while : `while` 키워드를 사용하여 반복문을 만듭니다. 조건식으로 불리언을 받고 해당 조건이 만족되면 문장을 반복합니다.
+- for : `for` 키워드로도 반복문을 만들 수 이
 - foreach :
 
 ### 1.6.3. 비교문
@@ -576,7 +576,7 @@ for (auto i, r : arr) io.printf(“arr[%d] = %s\n”, i, r);
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMzIxNjc1MTU4LDExOTgwODk3NDYsMTcyNz
+eyJoaXN0b3J5IjpbNDI2MTQzMDY3LDExOTgwODk3NDYsMTcyNz
 I3OTU5MSwyMDI4NzQ2MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5
 NiwxNjM4NTIxMDIzLDE4NTE2MTIzOTldfQ==
 -->
