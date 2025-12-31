@@ -452,11 +452,15 @@ while (true) {
 }
 ```
 
-반복문 안에서 ``
+반복문 안에서 `break, continue`를 사용하여 반복을 제어할 수 있습니다. break는 반복문 밖으로 바로 나갑니다. continue는 반복문의 시작으로 이동합니다.
 
 ### 1.6.3. 비교문
 
-정수 조건에 대해, 여러 조건을 동시에 써서 비교할 수 있는 제어문입니다. 조건식으로 정수가 들어가며, 비교식으로 정수 상수 표현식이 들어가야 합니다. 기본 
+정수 조건에 대해, 여러 조건을 동시에 써서 비교할 수 있는 제어문입니다. 조건식으로 정수가 들어가며, 비교식으로 정수 상수 표현식이 들어가야 합니다.
+
+```c
+switch (getChar
+```
 
 ## 1.7. 함수
 
@@ -586,7 +590,7 @@ while (true) {
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTc1OTM0NTQ2MywtNjg3ODQzNjg3LC0xMD
+eyJoaXN0b3J5IjpbMTQ4NDgwOTIzMSwtNjg3ODQzNjg3LC0xMD
 g3NzQ5NDUxLDExOTgwODk3NDYsMTcyNzI3OTU5MSwyMDI4NzQ2
 MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLD
 E4NTE2MTIzOTldfQ==
