@@ -431,14 +431,14 @@ if (j == 1) {
 
 ### 1.6.2. 반복문
 
-`while, for` 키워드로 특정 조건을 만족시키면 계속 반복되는 문장을 만듭니다. `while` 반복문은 조건식으로 불리언을 받고 식이 참이라면 문장을 반복합니다. `for` 반복문은 초기화문, 조건문, 증감문을 받고 조건이 만족될 때까지 문장을 반복합니다. 각 문은 생략될 수도 있습니다. `for` 안에 
+`while, for` 키워드로 특정 조건을 만족시키면 계속 반복되는 문장을 만듭니다. `while` 반복문은 조건식으로 불리언을 받고 식이 참이라면 문장을 반복합니다. `for` 반복문은 초기화문, 조건문, 증감문을 받고 조건이 만족될 때까지 문장을 반복합니다. 각 문은 생략될 수도 있습니다. `for` 안에 배열이나 슬라이스의 원소를 순회하는 초기화문을 넣을 수도 있습니다. auto 타입을 사용해야 하며, 생략 시 기존 변수에 대입됩니다.
 
 ```c
 while (i != 0) i--;
 for (int i = 0; i < len(arr); i++) {
   arr[i] += 256;
 }
-for (auto i, r : arr) io.printf(“arr[%d] = %d\n”, i, r);
+for (auto i, r : arr) io.printf(“arr[%d] = %\n”, i, r);
 ```
 
 ### 1.6.3. 비교문
@@ -572,7 +572,7 @@ for (auto i, r : arr) io.printf(“arr[%d] = %d\n”, i, r);
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTM3NDYzMzU0NSwxMTk4MDg5NzQ2LDE3Mj
-cyNzk1OTEsMjAyODc0NjIwMSwtMTUyOTk1MTQ4Niw1MzQwNTE1
-OTYsMTYzODUyMTAyMywxODUxNjEyMzk5XX0=
+eyJoaXN0b3J5IjpbLTE4OTA3ODMyNTAsMTE5ODA4OTc0NiwxNz
+I3Mjc5NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUx
+NTk2LDE2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
 -->
