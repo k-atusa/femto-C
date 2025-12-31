@@ -560,7 +560,8 @@ Mode b = Mode.Read;
 열거형의 멤버는 값을 지정하지 않으면 0부터 시작하여, 이전 멤버의 값보다 1 많은 값을 가집니다. 직접 값을 지정하는 경우 초기화식으로 정수 상수 표현식이 올 수 있습니다. 열거형의 컴파일 후 결과물은 크기가 정해져 있지는 않지만, 모든 멤버의 값을 표현할 수 있는 부호있는 정수가 됩니다.
 
 ```c
-
+Color // can be i8, i32, ...
+Mode // i64
 ```
 
 
@@ -676,8 +677,8 @@ Mode b = Mode.Read;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMzk4NDY5MDMzLDE2NzU0NDUyNjQsLTY4Nz
-g0MzY4NywtMTA4Nzc0OTQ1MSwxMTk4MDg5NzQ2LDE3MjcyNzk1
-OTEsMjAyODc0NjIwMSwtMTUyOTk1MTQ4Niw1MzQwNTE1OTYsMT
-YzODUyMTAyMywxODUxNjEyMzk5XX0=
+eyJoaXN0b3J5IjpbMTI3MzIzOTExMiwxNjc1NDQ1MjY0LC02OD
+c4NDM2ODcsLTEwODc3NDk0NTEsMTE5ODA4OTc0NiwxNzI3Mjc5
+NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LD
+E2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
 -->
