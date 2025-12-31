@@ -484,8 +484,17 @@ switch (score / 10) {
 
 함수는 프로그램 실행 흐름을 제어합니다.
 
-
 ### 1.7.1. 함수 선언과 사용
+
+```c
+void Hello(bool cond) {
+  if (!cond) return;
+  io.puts(“Hello, world!”);
+}
+int add(int a, int b) {
+  return a + b;
+}
+```
 
 ### 1.7.2. 함수 호출
 
@@ -611,7 +620,7 @@ switch (score / 10) {
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTc4Mjc4MDI3OCwxNjc1NDQ1MjY0LC02OD
+eyJoaXN0b3J5IjpbLTQ1OTQ0NDUyNywxNjc1NDQ1MjY0LC02OD
 c4NDM2ODcsLTEwODc3NDk0NTEsMTE5ODA4OTc0NiwxNzI3Mjc5
 NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LD
 E2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
