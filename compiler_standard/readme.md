@@ -534,6 +534,8 @@ va_arg u8[] sprintf(u8[] format, void*[] args, int[] sizes) {...}
 
 ## 1.8. 열거형
 
+열거형은 정수 상수를 묶어서 한 번에 선얺
+
 ### 1.8.1. 열거형의 선언과 사용
 
 ### 1.8.2. 열거형의 값 할당
@@ -651,7 +653,7 @@ va_arg u8[] sprintf(u8[] format, void*[] args, int[] sizes) {...}
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTc5NzU1NjI4MiwxNjc1NDQ1MjY0LC02OD
+eyJoaXN0b3J5IjpbMTI2MDI4ODQ0NSwxNjc1NDQ1MjY0LC02OD
 c4NDM2ODcsLTEwODc3NDk0NTEsMTE5ODA4OTc0NiwxNzI3Mjc5
 NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LD
 E2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
