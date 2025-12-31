@@ -412,8 +412,16 @@ export const f64 PI = 3.141592;
 
 ## 1.6. 제어문
 
+제어문은 프로그램의 실행 흐름을 제어합니다.
 
 ### 1.6.1. 조건문
+
+`if, else` 키워드로 특정 조건일때만 실행되는 문장을 만듭니다.
+
+```c
+if (i == 0) return 0;
+if ( 
+```
 
 ### 1.6.2. 반복문
 
@@ -548,7 +556,7 @@ export const f64 PI = 3.141592;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTEwMTQ2NjkyMjEsMjAyODc0NjIwMSwtMT
-UyOTk1MTQ4Niw1MzQwNTE1OTYsMTYzODUyMTAyMywxODUxNjEy
-Mzk5XX0=
+eyJoaXN0b3J5IjpbOTI1NTgxNTQ2LDIwMjg3NDYyMDEsLTE1Mj
+k5NTE0ODYsNTM0MDUxNTk2LDE2Mzg1MjEwMjMsMTg1MTYxMjM5
+OV19
 -->
