@@ -459,7 +459,16 @@ while (true) {
 정수 조건에 대해, 여러 조건을 동시에 써서 비교할 수 있는 제어문입니다. 조건식으로 정수가 들어가며, 비교식으로 정수 상수 표현식이 들어가야 합니다.
 
 ```c
-switch (getChar
+switch (getChar()) {
+  case ‘a’:
+    io.puts(“it is a\n”);
+  case ‘b’:
+    io.puts(“it is b\n”);
+  case ‘c’:
+    io.puts
+}
+switch (c) {
+}
 ```
 
 ## 1.7. 함수
@@ -590,7 +599,7 @@ switch (getChar
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTQ4NDgwOTIzMSwtNjg3ODQzNjg3LC0xMD
+eyJoaXN0b3J5IjpbMTUwNDQwNjUxMywtNjg3ODQzNjg3LC0xMD
 g3NzQ5NDUxLDExOTgwODk3NDYsMTcyNzI3OTU5MSwyMDI4NzQ2
 MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLD
 E4NTE2MTIzOTldfQ==
