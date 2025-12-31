@@ -416,7 +416,7 @@ export const f64 PI = 3.141592;
 
 ### 1.6.1. 조건문
 
-`if, else` 키워드로 특정 조건일때만 실행되는 문장을 만듭니다. 조건문은 뒤에 단일 무조건식에는 불리언 타입만 들어갑니다.
+`if, else` 키워드로 특정 조건일때만 실행되는 문장을 만듭니다. 조건문은 뒤에 단일 문장 혹은 스코프 하나를 받습니다. 조건식에는 불리언 타입만 들어갑니다.
 
 ```c
 if (i == 0) return 0;
@@ -430,6 +430,12 @@ if (j == 1) {
 ```
 
 ### 1.6.2. 반복문
+
+`while, for` 키워드로 특정 조건을 만족시키면 계속 반복되는 문장을 만듭니다.
+
+```c
+while (i != 0) i-
+```
 
 ### 1.6.3. 비교문
 
@@ -562,7 +568,7 @@ if (j == 1) {
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTU4ODM5Mjg5NSwxNzI3Mjc5NTkxLDIwMj
-g3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LDE2Mzg1MjEw
-MjMsMTg1MTYxMjM5OV19
+eyJoaXN0b3J5IjpbLTEyMjI1NjY2MTQsMTcyNzI3OTU5MSwyMD
+I4NzQ2MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIx
+MDIzLDE4NTE2MTIzOTldfQ==
 -->
