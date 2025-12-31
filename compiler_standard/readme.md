@@ -434,7 +434,11 @@ if (j == 1) {
 `while, for` 키워드로 특정 조건을 만족시키면 계속 반복되는 문장을 만듭니다.
 
 ```c
-while (i != 0) i-
+while (i != 0) i--;
+for (int i = 0; i < len(arr); i++) {
+  arr[i] += 256;
+}
+for (i, r : arr) io.printf(“arr[%d] = ”, i, r);
 ```
 
 ### 1.6.3. 비교문
@@ -568,7 +572,7 @@ while (i != 0) i-
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTEyMjI1NjY2MTQsMTcyNzI3OTU5MSwyMD
-I4NzQ2MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIx
-MDIzLDE4NTE2MTIzOTldfQ==
+eyJoaXN0b3J5IjpbNDcwMjIxNDQ2LDE3MjcyNzk1OTEsMjAyOD
+c0NjIwMSwtMTUyOTk1MTQ4Niw1MzQwNTE1OTYsMTYzODUyMTAy
+MywxODUxNjEyMzk5XX0=
 -->
