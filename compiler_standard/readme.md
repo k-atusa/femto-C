@@ -538,7 +538,7 @@ va_arg u8[] sprintf(u8[] format, void*[] args, int[] sizes) {...}
 
 ### 1.8.1. 열거형의 선언과 사용
 
-`enum` 키어드로 열거형을 선언합니다. 열거형의 멤버는 같은 열거형 안쪽에서는 서로 독립적인 이름을 가져야 합니다. 열거형은 컴파일 후에는 정수형이 되지만, 코드 상에서는 새로운 타입을 부여한 것과 같습니다. 점 ㅇ
+`enum` 키어드로 열거형을 선언합니다. 열거형의 멤버는 같은 열거형 안쪽에서는 서로 독립적인 이름을 가져야 합니다. 열거형은 컴파일 후에는 정수형이 되지만, 코드 상에서는 새로운 타입을 부여한 것과 같습니다. 점 연산자로 열거형 멤버를 사용할 수 있습니다.
 
 ```c
 enum Color {
@@ -556,6 +556,8 @@ Mode b = Mode.Read;
 ```
 
 ### 1.8.2. 열거형의 값 할당
+
+열거형의 멤버는 값을 지정하지 않으면 0부터 시작하여, 이전 멤버의 값보다 1 많은 값을 가집니다. 직접 값을 지정하는 경우 정수 상수 표현식이 올 수 있습니다.
 
 
 ## 1.9. 구조체
@@ -670,8 +672,8 @@ Mode b = Mode.Read;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTEzNDIxMTcwNzYsMTY3NTQ0NTI2NCwtNj
-g3ODQzNjg3LC0xMDg3NzQ5NDUxLDExOTgwODk3NDYsMTcyNzI3
-OTU5MSwyMDI4NzQ2MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5Ni
-wxNjM4NTIxMDIzLDE4NTE2MTIzOTldfQ==
+eyJoaXN0b3J5IjpbLTU0MTg0MzQ3MSwxNjc1NDQ1MjY0LC02OD
+c4NDM2ODcsLTEwODc3NDk0NTEsMTE5ODA4OTc0NiwxNzI3Mjc5
+NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LD
+E2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
 -->
