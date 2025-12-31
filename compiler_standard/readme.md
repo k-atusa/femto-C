@@ -431,7 +431,7 @@ if (j == 1) {
 
 ### 1.6.2. 반복문
 
-`while, for` 키워드로 특정 조건을 만족시키면 계속 반복되는 문장을 만듭니다. `while` 반복문은 조건식으로 불리언을 받고 식이 참이라면 문장을 반복합니다. `for` 반복문은 초기화문, 조건문, 증감문을 받고 조건이 만족될 때까지 문장을 반복합니다. 각 문은 생략될 수도 있습니다. `for` 안에 배열이나 슬라이스의 원소를 순회하는 초기화문을 넣을 수도 있습니다. auto 타입을 사용해야 하며, 생략 시 기존 변수에 대입됩니다. T[] 타입을 순회하면 int, T 타입의 변수가 생성됩니다.
+`while, for` 키워드로 특정 조건을 만족시키면 계속 반복되는 문장을 만듭니다. 반복문은 단일 문장을 반복하거나 스코프를 받을 수 있습니다.
 
 ```c
 while (i != 0) i--;
@@ -443,7 +443,7 @@ for (auto i, r : arr) io.printf(“arr[%d] = %s\n”, i, r);
 
 - while : `while` 키워드를 사용하여 반복문을 만듭니다. 조건식으로 불리언을 받고 해당 조건이 만족되면 문장을 반복합니다.
 - for : `for` 키워드로도 반복문을 만들 수 있습니다. 초기화문, 조건문, 증감문을 받습니다. 초기화문은 반복문 진입 시 처음 한 번만 실행됩니다. 조건문은 불리언이며 조건을 만족하면 문장을 반복합니다. 증감문은 반복문을 빠져나올 때 마지막에 실행됩니다. 각 문은 생략될 수도 있습니다.
-- foreach : `for` 키워드를 쓰되 조건문에 배열과 슬라이스를 순회하는 코드를 넣을 수 있습니다. T[] 타입은 (int, T) 타입의 변수들로 순회하게 됩니다. 타입
+- foreach : `for` 키워드를 쓰되 조건문에 배열과 슬라이스를 순회하는 코드를 넣을 수 있습니다. T[] 타입은 (int, T) 타입의 변수들로 순회하게 됩니다. 타입 지정은 auto만 가능하며, 생략 시 값을 이미 존재하는 변수에 할당하게 됩니다.
 
 ### 1.6.3. 비교문
 
@@ -576,7 +576,7 @@ for (auto i, r : arr) io.printf(“arr[%d] = %s\n”, i, r);
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbOTIzNjkzNjksMTE5ODA4OTc0NiwxNzI3Mj
-c5NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2
-LDE2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
+eyJoaXN0b3J5IjpbLTEwODc3NDk0NTEsMTE5ODA4OTc0NiwxNz
+I3Mjc5NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUx
+NTk2LDE2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
 -->
