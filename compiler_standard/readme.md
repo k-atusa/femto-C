@@ -448,6 +448,7 @@ for (auto i, r : arr) io.printf(“arr[%d] = %s\n”, i, r);
 ### 1.6.3. 비교문
 
 
+
 ## 1.7. 함수
 
 ### 1.7.1. 함수 선언과 사용
@@ -576,7 +577,8 @@ for (auto i, r : arr) io.printf(“arr[%d] = %s\n”, i, r);
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTEwODc3NDk0NTEsMTE5ODA4OTc0NiwxNz
-I3Mjc5NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUx
-NTk2LDE2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
+eyJoaXN0b3J5IjpbLTg0NDExMzg0OSwtMTA4Nzc0OTQ1MSwxMT
+k4MDg5NzQ2LDE3MjcyNzk1OTEsMjAyODc0NjIwMSwtMTUyOTk1
+MTQ4Niw1MzQwNTE1OTYsMTYzODUyMTAyMywxODUxNjEyMzk5XX
+0=
 -->
