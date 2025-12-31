@@ -438,7 +438,7 @@ while (i != 0) i--;
 for (int i = 0; i < len(arr); i++) {
   arr[i] += 256;
 }
-for (i, r : arr) io.printf(“arr[%d] = %d\n”, i, r);
+for (auto i, r : arr) io.printf(“arr[%d] = %d\n”, i, r);
 ```
 
 ### 1.6.3. 비교문
@@ -572,7 +572,7 @@ for (i, r : arr) io.printf(“arr[%d] = %d\n”, i, r);
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTE5ODA4OTc0NiwxNzI3Mjc5NTkxLDIwMj
-g3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LDE2Mzg1MjEw
-MjMsMTg1MTYxMjM5OV19
+eyJoaXN0b3J5IjpbLTM3NDYzMzU0NSwxMTk4MDg5NzQ2LDE3Mj
+cyNzk1OTEsMjAyODc0NjIwMSwtMTUyOTk1MTQ4Niw1MzQwNTE1
+OTYsMTYzODUyMTAyMywxODUxNjEyMzk5XX0=
 -->
