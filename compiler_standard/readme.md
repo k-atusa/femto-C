@@ -523,6 +523,11 @@ myObj.member(“print”);
 
 ### 1.7.3. 가변 인자 함수
 
+`va_arg` 키워드를 함수 선언 앞에 붙여 가변 인자 함수로 만들 수 있습니다. 가변 인자 함수는 기본 인자를 다 채우고 남는 인자를 컴파일러가 자동으로 묶어 전달
+
+```c
+```
+
 
 ## 1.8. 열거형
 
@@ -643,8 +648,8 @@ myObj.member(“print”);
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMjA2NDgyMDY0NCwxNjc1NDQ1MjY0LC02OD
-c4NDM2ODcsLTEwODc3NDk0NTEsMTE5ODA4OTc0NiwxNzI3Mjc5
-NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LD
-E2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
+eyJoaXN0b3J5IjpbLTExOTc1OTQ4NjYsMTY3NTQ0NTI2NCwtNj
+g3ODQzNjg3LC0xMDg3NzQ5NDUxLDExOTgwODk3NDYsMTcyNzI3
+OTU5MSwyMDI4NzQ2MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5Ni
+wxNjM4NTIxMDIzLDE4NTE2MTIzOTldfQ==
 -->
