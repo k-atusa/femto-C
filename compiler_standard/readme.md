@@ -431,7 +431,7 @@ if (j == 1) {
 
 ### 1.6.2. 반복문
 
-`while, for` 키워드로 특정 조건을 만족시키면 계속 반복되는 문장을 만듭니다. `while` 반복문은 조건식으로 
+`while, for` 키워드로 특정 조건을 만족시키면 계속 반복되는 문장을 만듭니다. `while` 반복문은 조건식으로 불리언을 받고 식이 참이라면 문장을 반복합니다. `for` 반복문은 초기화문, 조건문, 증감문을 받고 조건이 만족될 때까지 문장을 반복합니다. 각 문은 생략될 수도 있습니다. `for` 안에 
 
 ```c
 while (i != 0) i--;
@@ -572,7 +572,7 @@ for (i, r : arr) io.printf(“arr[%d] = %d\n”, i, r);
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTk4NzkzMDczMiwxNzI3Mjc5NTkxLDIwMj
+eyJoaXN0b3J5IjpbMTE5ODA4OTc0NiwxNzI3Mjc5NTkxLDIwMj
 g3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LDE2Mzg1MjEw
 MjMsMTg1MTYxMjM5OV19
 -->
