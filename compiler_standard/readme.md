@@ -62,12 +62,15 @@ struct Point {int x; int y;}
 선언문은 이름이나 타입을 선언합니다. 선언문으로 `모듈 접근자, 전역변수, 지역변수, 함수, 메소드, 타입 별칭`의 이름과 `구조체, 열거형, 템플릿` 타입을 선언할 수 있습니다.
 
 ```c
+auto p = getPoint(4, 27);
 Point getPoint(int x, int y) {
   Point ret = {x, y};
   return ret;
 }
 struct Point {int x; int y;}
 ```
+
+변수를 제외하고 선언문은 호이스팅이 되어 사용부가 선언부보다 앞에 있어도 됩니다. 대신 모든 ㅅ
 
 ```c
 // single line comment
@@ -631,7 +634,7 @@ int(int, int) func = add;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTk4ODMxNzMxMiwxNjc1NDQ1MjY0LC02OD
+eyJoaXN0b3J5IjpbMTU1MTI1MTE3MSwxNjc1NDQ1MjY0LC02OD
 c4NDM2ODcsLTEwODc3NDk0NTEsMTE5ODA4OTc0NiwxNzI3Mjc5
 NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LD
 E2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
