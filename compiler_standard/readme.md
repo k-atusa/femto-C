@@ -538,17 +538,21 @@ va_arg u8[] sprintf(u8[] format, void*[] args, int[] sizes) {...}
 
 ### 1.8.1. 열거형의 선언과 사용
 
+`enum` 키어드로 열거형을 선언합니다. 열거형 
+
 ```c
 enum Color {
   Red, // 0
-  Green,
-  Blue
+  Green, // 1
+  Blue // 2
 }
 enum Mode {
-  Read = 10,
-  Write = 256 * 10 + 10,
+  Read = 30 * 18, // 540
+  Write, // 541
   Error = 0xFFFFFFFF
 }
+Color a;
+Mode b = Mode.Read;
 ```
 
 ### 1.8.2. 열거형의 값 할당
@@ -666,8 +670,8 @@ enum Mode {
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTQ1NDU1MzMxLDE2NzU0NDUyNjQsLTY4Nz
-g0MzY4NywtMTA4Nzc0OTQ1MSwxMTk4MDg5NzQ2LDE3MjcyNzk1
-OTEsMjAyODc0NjIwMSwtMTUyOTk1MTQ4Niw1MzQwNTE1OTYsMT
-YzODUyMTAyMywxODUxNjEyMzk5XX0=
+eyJoaXN0b3J5IjpbLTEyNzkxODQ2MzQsMTY3NTQ0NTI2NCwtNj
+g3ODQzNjg3LC0xMDg3NzQ5NDUxLDExOTgwODk3NDYsMTcyNzI3
+OTU5MSwyMDI4NzQ2MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5Ni
+wxNjM4NTIxMDIzLDE4NTE2MTIzOTldfQ==
 -->
