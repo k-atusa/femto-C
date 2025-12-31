@@ -486,6 +486,8 @@ switch (score / 10) {
 
 ### 1.7.1. 함수 선언과 사용
 
+반환 타입과 식별자를 쓰고 괄호 안에 인자 타입과 이름을 넣어 함수를 선언합니다.
+
 ```c
 void Hello(bool cond) {
   if (!cond) return;
@@ -494,6 +496,7 @@ void Hello(bool cond) {
 int add(int a, int b) {
   return a + b;
 }
+int(int, int) func = add;
 ```
 
 ### 1.7.2. 함수 호출
@@ -620,7 +623,7 @@ int add(int a, int b) {
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTQ1OTQ0NDUyNywxNjc1NDQ1MjY0LC02OD
+eyJoaXN0b3J5IjpbLTYzMzE3ODQwNSwxNjc1NDQ1MjY0LC02OD
 c4NDM2ODcsLTEwODc3NDk0NTEsMTE5ODA4OTc0NiwxNzI3Mjc5
 NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LD
 E2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
