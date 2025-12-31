@@ -70,7 +70,7 @@ Point getPoint(int x, int y) {
 struct Point {int x; int y;}
 ```
 
-변수를 제외하고 선언문은 호이스팅이 되어 사용부가 선언부보다 앞에 있어도 됩니다. 대신 모든 ㅅ
+변수를 제외하고 선언문은 호이스팅이 되어 사용부가 선언부보다 앞에 있어도 됩니다. 대신 모든 선언은 동시에 정의가 있어야 합니다.
 
 ```c
 // single line comment
@@ -497,7 +497,7 @@ switch (score / 10) {
 
 ### 1.7.1. 함수 선언과 사용
 
-반환 타입과 식별자를 쓰고 괄호 안에 인자 타입과 이름을 넣어 함수를 선언합니다.
+반환 타입과 식별자를 쓰고 괄호 안에 인자 타입과 이름을 넣어 함수를 선언합니다. 반환을 하지 않는다면 void를 사용합니다. 함수 안에서 값을 바
 
 ```c
 void Hello(bool cond) {
@@ -634,7 +634,7 @@ int(int, int) func = add;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTU1MTI1MTE3MSwxNjc1NDQ1MjY0LC02OD
+eyJoaXN0b3J5IjpbLTkxNDA2MzI1MywxNjc1NDQ1MjY0LC02OD
 c4NDM2ODcsLTEwODc3NDk0NTEsMTE5ODA4OTc0NiwxNzI3Mjc5
 NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LD
 E2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
