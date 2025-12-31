@@ -46,30 +46,6 @@ func (a1 *A1Type) Init(tp A1TypeT, loc front.Loc, name string, incName string, s
 	a1.Align = -1
 }
 
-func (a1 *A1Type) Clone() A1Type {
-	var direct *A1Type
-	if a1.Direct != nil {
-		t := a1.Direct.Clone()
-		direct = &t
-	}
-	indirect := make([]A1Type, len(a1.Indirect))
-	for i, r := range a1.Indirect {
-		indirect[i] = r.Clone()
-	}
-	return A1Type{
-		ObjType:  a1.ObjType,
-		Loc:      a1.Loc,
-		Name:     a1.Name,
-		IncName:  a1.IncName,
-		SrcUname: a1.SrcUname,
-		Direct:   direct,
-		Indirect: indirect,
-		ArrLen:   a1.ArrLen,
-		Size:     a1.Size,
-		Align:    a1.Align,
-	}
-}
-
 // AST1 expression node
 type A1ExprT int
 

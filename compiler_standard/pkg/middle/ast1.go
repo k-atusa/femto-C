@@ -52,6 +52,29 @@ func getPrattPrecedence(tknType front.TokenType, isUnary bool) int {
 }
 
 // convert TokenType to A1ExprOpT
+func getUnaryOpType(tknType front.TokenType) A1ExprOpT {
+	switch tknType {
+	case front.OP_ADD:
+		return U1_Plus
+	case front.OP_SUB:
+		return U1_Minus
+	case front.OP_LOGIC_NOT:
+		return U1_LogicNot
+	case front.OP_BIT_NOT:
+		return U1_BitNot
+	case front.OP_INC:
+		return U1_Inc
+	case front.OP_DEC:
+		return U1_Dec
+	case front.OP_MUL:
+		return U1_Deref
+	case front.OP_BIT_AND:
+		return U1_Ref
+	default:
+		return -1
+	}
+}
+
 func getBinaryOpType(tknType front.TokenType) A1ExprOpT {
 	switch tknType {
 	case front.OP_MUL:
@@ -137,7 +160,7 @@ func getAssignType(tkn front.Token) A1StatT {
 }
 
 // parse type
-func (m *A1Module) parseType(tp front.TokenProvider, cur *A1StatScope, arch int) (*A1Type, error) {
+func (m *A1Module) parseType(tp *front.TokenProvider, cur *A1StatScope, arch int) (*A1Type, error) {
 	// parse base type
 	var base A1Type
 	if tp.Match([]front.TokenType{front.ID, front.OP_DOT, front.ID}) { // foreign
@@ -156,7 +179,7 @@ func (m *A1Module) parseType(tp front.TokenProvider, cur *A1StatScope, arch int)
 		if decl == nil || decl.GetObjType() != D1_Typedef { // template, struct, enum -> name
 			base.Init(T1_Name, tgtNm.Location, tgtNm.Text, "", m.Uname)
 		} else { // typedef -> replace
-			base = decl.(*A1DeclTypedef).Type.Clone()
+			base = *decl.(*A1DeclTypedef).Type
 		}
 
 	} else if tp.CanPop(1) { // auto, primitive
@@ -299,7 +322,7 @@ func (m *A1Module) parseType(tp front.TokenProvider, cur *A1StatScope, arch int)
 }
 
 // check if type start
-func (a1 *A1Parser) isTypeStart(tp front.TokenProvider, m *A1Module) bool {
+func (a1 *A1Parser) isTypeStart(tp *front.TokenProvider, m *A1Module) bool {
 	if front.IsPrimitive(tp.Seek().ObjType) { // primitive
 		return true
 	}
@@ -423,14 +446,14 @@ func (a1 *A1Parser) foldNode(tgt A1Expr, m *A1Module, cur *A1StatScope) *front.L
 		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
 			if o0.ObjType == front.LitInt {
 				if o1.Value.(int64) == 0 {
-					a1.Logger.Log(fmt.Sprintf("E0301 division by zero at %s", a1.Logger.GetLoc(op.Loc)), 5, true)
+					a1.Logger.Log(fmt.Sprintf("E0210 division by zero at %s", a1.Logger.GetLoc(op.Loc)), 5, true)
 					return nil
 				}
 				res.Init(o0.Value.(int64) / o1.Value.(int64))
 				return &res
 			} else if o0.ObjType == front.LitFloat {
 				if o1.Value.(float64) == 0.0 {
-					a1.Logger.Log(fmt.Sprintf("E0302 division by zero at %s", a1.Logger.GetLoc(op.Loc)), 5, true)
+					a1.Logger.Log(fmt.Sprintf("E0211 division by zero at %s", a1.Logger.GetLoc(op.Loc)), 5, true)
 					return nil
 				}
 				res.Init(o0.Value.(float64) / o1.Value.(float64))
@@ -441,7 +464,7 @@ func (a1 *A1Parser) foldNode(tgt A1Expr, m *A1Module, cur *A1StatScope) *front.L
 		if o0 != nil && o1 != nil && o0.ObjType == o1.ObjType {
 			if o0.ObjType == front.LitInt {
 				if o1.Value.(int64) == 0 {
-					a1.Logger.Log(fmt.Sprintf("E0303 division by zero at %s", a1.Logger.GetLoc(op.Loc)), 5, true)
+					a1.Logger.Log(fmt.Sprintf("E0212 division by zero at %s", a1.Logger.GetLoc(op.Loc)), 5, true)
 					return nil
 				}
 				res.Init(o0.Value.(int64) % o1.Value.(int64))
@@ -473,7 +496,7 @@ func (a1 *A1Parser) foldNode(tgt A1Expr, m *A1Module, cur *A1StatScope) *front.L
 			if o0.ObjType == front.LitInt {
 				sh := o1.Value.(int64)
 				if sh < 0 || sh > 63 {
-					a1.Logger.Log(fmt.Sprintf("E0304 shift(%d) overflow at %s", sh, a1.Logger.GetLoc(op.Loc)), 5, true)
+					a1.Logger.Log(fmt.Sprintf("E0213 shift(%d) overflow at %s", sh, a1.Logger.GetLoc(op.Loc)), 5, true)
 					return nil
 				}
 				res.Init(o0.Value.(int64) << sh)
@@ -485,7 +508,7 @@ func (a1 *A1Parser) foldNode(tgt A1Expr, m *A1Module, cur *A1StatScope) *front.L
 			if o0.ObjType == front.LitInt {
 				sh := o1.Value.(int64)
 				if sh < 0 || sh > 63 {
-					a1.Logger.Log(fmt.Sprintf("E0305 shift(%d) overflow at %s", sh, a1.Logger.GetLoc(op.Loc)), 5, true)
+					a1.Logger.Log(fmt.Sprintf("E0214 shift(%d) overflow at %s", sh, a1.Logger.GetLoc(op.Loc)), 5, true)
 					return nil
 				}
 				res.Init(o0.Value.(int64) >> sh)
@@ -625,8 +648,14 @@ func (a1 *A1Parser) foldNode(tgt A1Expr, m *A1Module, cur *A1StatScope) *front.L
 			switch op.TypeOperand.ObjType {
 			case T1_Primitive:
 				res.Init(int64(op.TypeOperand.Size))
-			case T1_Arr, T1_Func:
+			case T1_Ptr, T1_Func:
 				res.Init(int64(a1.Arch))
+			case T1_Arr:
+				if op.TypeOperand.Size > 0 {
+					res.Init(int64(op.TypeOperand.Size))
+				} else {
+					return nil
+				}
 			case T1_Slice:
 				res.Init(int64(a1.Arch * 2))
 			default:
@@ -671,3 +700,275 @@ func (a1 *A1Parser) foldNode(tgt A1Expr, m *A1Module, cur *A1StatScope) *front.L
 	}
 	return nil
 }
+
+// expression parser
+func (a1 *A1Parser) parseAtomicExpr(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) A1Expr {
+	tkn := tp.Pop()
+	switch tkn.ObjType {
+	case front.LIT_INT, front.LIT_FLOAT, front.LIT_STR: // literal
+		var res A1ExprLiteral
+		res.Init(tkn.Location, tkn.Value)
+		return &res
+
+	case front.KEY_TRUE, front.KEY_FALSE, front.KEY_NULL: // keyword literal
+		var res A1ExprLiteral
+		var l front.Literal
+		if tkn.ObjType == front.KEY_TRUE {
+			l.Init(true)
+		} else if tkn.ObjType == front.KEY_FALSE {
+			l.Init(false)
+		} else {
+			l.Init(nil)
+		}
+		res.Init(tkn.Location, l)
+		return &res
+
+	case front.ID: // name
+		var res A1ExprName
+		res.Init(tkn.Location, tkn.Text)
+		return &res
+
+	case front.OP_LPAREN: // '(' expression
+		res := a1.parsePrattExpr(tp, m, cur, 0)
+		tkn = tp.Pop()
+		if tkn.ObjType != front.OP_RPAREN {
+			a1.Logger.Log(fmt.Sprintf("E0301 expected ')', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		return res
+
+	case front.OP_LBRACE: // '{' data literal
+		var res A1ExprLitData
+		res.Init(tkn.Location)
+		for tp.CanPop(1) {
+			res.Elements = append(res.Elements, a1.parseExpr(tp, m, cur))
+			tkn = tp.Seek()
+			if tkn.ObjType == front.OP_COMMA {
+				tp.Pop()
+				if tp.Seek().ObjType == front.OP_RBRACE {
+					break
+				}
+			} else if tkn.ObjType == front.OP_RBRACE {
+				break
+			} else {
+				a1.Logger.Log(fmt.Sprintf("E0302 expected '}', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+		}
+		return &res
+
+	case front.OP_ADD, front.OP_SUB, front.OP_BIT_NOT, front.OP_LOGIC_NOT, front.OP_MUL, front.OP_BIT_AND: // unary operator
+		var res A1ExprOp
+		res.Init(tkn.Location, getUnaryOpType(tkn.ObjType))
+		res.Operand0 = a1.parsePrattExpr(tp, m, cur, getPrattPrecedence(tkn.ObjType, true))
+		return &res
+
+	case front.IFUNC_SIZEOF:
+		tkn = tp.Pop()
+		if tkn.ObjType != front.OP_LPAREN {
+			a1.Logger.Log(fmt.Sprintf("E0303 expected '(', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		var res A1ExprOp
+		res.Init(tkn.Location, U1_Sizeof)
+		if a1.isTypeStart(tp, m) {
+			var err error
+			res.TypeOperand, err = m.parseType(tp, cur, a1.Arch)
+			if err != nil {
+				a1.Logger.Log(err.Error(), 5, true)
+			}
+		} else {
+			res.Operand0 = a1.parsePrattExpr(tp, m, cur, 0)
+		}
+		tkn = tp.Pop()
+		if tkn.ObjType != front.OP_RPAREN {
+			a1.Logger.Log(fmt.Sprintf("E0304 expected ')', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		return &res
+
+	case front.IFUNC_CAST:
+		tkn = tp.Pop()
+		if tkn.ObjType != front.OP_LT {
+			a1.Logger.Log(fmt.Sprintf("E0305 expected '<', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		var res A1ExprOp
+		res.Init(tkn.Location, B1_Cast)
+		var err error
+		res.TypeOperand, err = m.parseType(tp, cur, a1.Arch)
+		if err != nil {
+			a1.Logger.Log(err.Error(), 5, true)
+		}
+		tkn = tp.Pop()
+		if tkn.ObjType != front.OP_GT {
+			a1.Logger.Log(fmt.Sprintf("E0306 expected '>', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		tkn = tp.Pop()
+		if tkn.ObjType != front.OP_LPAREN {
+			a1.Logger.Log(fmt.Sprintf("E0307 expected '(', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		res.Operand0 = a1.parsePrattExpr(tp, m, cur, 0)
+		tkn = tp.Pop()
+		if tkn.ObjType != front.OP_RPAREN {
+			a1.Logger.Log(fmt.Sprintf("E0308 expected ')', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		return &res
+
+	case front.IFUNC_MAKE:
+		tkn = tp.Pop()
+		if tkn.ObjType != front.OP_LPAREN {
+			a1.Logger.Log(fmt.Sprintf("E0309 expected '(', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		var res A1ExprOp
+		res.Init(tkn.Location, B1_Make)
+		res.Operand0 = a1.parsePrattExpr(tp, m, cur, 0)
+		tkn = tp.Pop()
+		if tkn.ObjType != front.OP_COMMA {
+			a1.Logger.Log(fmt.Sprintf("E0310 expected ',', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		res.Operand1 = a1.parsePrattExpr(tp, m, cur, 0)
+		tkn = tp.Pop()
+		if tkn.ObjType != front.OP_RPAREN {
+			a1.Logger.Log(fmt.Sprintf("E0311 expected ')', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		return &res
+
+	case front.IFUNC_LEN, front.IFUNC_MOVE:
+		obj := tkn.ObjType
+		tkn = tp.Pop()
+		if tkn.ObjType != front.OP_LPAREN {
+			a1.Logger.Log(fmt.Sprintf("E0312 expected '(', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		var res A1ExprOp
+		if obj == front.IFUNC_LEN {
+			res.Init(tkn.Location, U1_Len)
+		} else {
+			res.Init(tkn.Location, U1_Move)
+		}
+		res.Operand0 = a1.parsePrattExpr(tp, m, cur, 0)
+		tkn = tp.Pop()
+		if tkn.ObjType != front.OP_RPAREN {
+			a1.Logger.Log(fmt.Sprintf("E0313 expected ')', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		return &res
+
+	default:
+		a1.Logger.Log(fmt.Sprintf("E0314 invalid atomic expr start %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	return nil
+}
+
+func (a1 *A1Parser) parsePrattExpr(tp *front.TokenProvider, m *A1Module, cur *A1StatScope, level int) A1Expr {
+	lhs := a1.parseAtomicExpr(tp, m, cur)
+	if lhs == nil {
+		return nil
+	}
+	for tp.CanPop(1) {
+		curLevel := getPrattPrecedence(tp.Seek().ObjType, false)
+		if curLevel < level {
+			break // higher precedence, end of expression
+		}
+
+		op := tp.Pop() // operator can be binary/cubic or postfix unary
+		switch op.ObjType {
+		case front.OP_DOT: // dot operator
+			tkn := tp.Pop()
+			if tkn.ObjType != front.ID {
+				a1.Logger.Log(fmt.Sprintf("E0315 expected name, got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			var nm A1ExprName
+			nm.Init(tkn.Location, tkn.Text)
+			var res A1ExprOp
+			res.Init(op.Location, B1_Dot)
+			res.Operand0 = lhs
+			res.Operand1 = &nm
+			lhs = &res
+
+		case front.OP_LPAREN: // func call
+			var res A1ExprFCall
+			res.Init(op.Location, lhs)
+			if tp.Seek().ObjType != front.OP_RPAREN {
+				for tp.CanPop(1) {
+					res.Args = append(res.Args, a1.parsePrattExpr(tp, m, cur, 0))
+					tkn := tp.Seek()
+					if tkn.ObjType == front.OP_COMMA {
+						tp.Pop()
+					} else if tkn.ObjType == front.OP_RPAREN {
+						break
+					} else {
+						a1.Logger.Log(fmt.Sprintf("E0316 expected ')', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+					}
+				}
+			}
+			tkn := tp.Pop()
+			if tkn.ObjType != front.OP_RPAREN {
+				a1.Logger.Log(fmt.Sprintf("E0317 expected ')', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			lhs = &res
+
+		case front.OP_LBRACKET: // indexing, slicing
+			isIdx := true
+			var left A1Expr = nil
+			var right A1Expr = nil
+			if tp.Seek().ObjType != front.OP_COLON {
+				left = a1.parsePrattExpr(tp, m, cur, 0)
+			}
+			if tp.Seek().ObjType == front.OP_COLON { // slicing
+				isIdx = false
+				tp.Pop()
+				if tp.Seek().ObjType != front.OP_RBRACKET {
+					right = a1.parsePrattExpr(tp, m, cur, 0)
+				}
+			}
+			tkn := tp.Pop()
+			if tkn.ObjType != front.OP_RBRACKET {
+				a1.Logger.Log(fmt.Sprintf("E0318 expected ']', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			var res A1ExprOp
+			if isIdx {
+				res.Init(op.Location, B1_Index)
+				res.Operand0 = lhs
+				res.Operand1 = left
+			} else {
+				res.Init(op.Location, C1_Slice)
+				res.Operand0 = lhs
+				res.Operand1 = left
+				res.Operand2 = right
+			}
+			lhs = &res
+
+		case front.OP_COND: // conditional operator
+			var res A1ExprOp
+			res.Init(op.Location, C1_Cond)
+			res.Operand0 = lhs
+			res.Operand1 = a1.parsePrattExpr(tp, m, cur, 0)
+			tkn := tp.Pop()
+			if tkn.ObjType != front.OP_COLON {
+				a1.Logger.Log(fmt.Sprintf("E0319 expected ':', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			res.Operand2 = a1.parsePrattExpr(tp, m, cur, 0)
+			lhs = &res
+
+		default: // binary op
+			var res A1ExprOp
+			res.Init(op.Location, getBinaryOpType(op.ObjType))
+			res.Operand0 = lhs
+			res.Operand1 = a1.parsePrattExpr(tp, m, cur, 0)
+			lhs = &res
+		}
+	}
+	return lhs
+}
+
+func (a1 *A1Parser) parseExpr(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) A1Expr {
+	res := a1.parsePrattExpr(tp, m, cur, 0)
+	if res == nil {
+		return nil
+	}
+	lit := a1.foldNode(res, m, cur)
+	if lit == nil {
+		return res
+	} else {
+		var l A1ExprLiteral
+		l.Init(res.GetLocation(), *lit)
+		return &l
+	}
+}
+
+// raw, struct, enum, func, typedef
