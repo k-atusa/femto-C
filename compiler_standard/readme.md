@@ -538,7 +538,7 @@ va_arg u8[] sprintf(u8[] format, void*[] args, int[] sizes) {...}
 
 ### 1.8.1. 열거형의 선언과 사용
 
-`enum` 키어드로 열거형을 선언합니다. 열거형 
+`enum` 키어드로 열거형을 선언합니다. 열거형의 멤버는 같은 열거형 안쪽에서는 서로 독립적인 이름을 가져야 합니다. 열거형은 컴파일 후에는 정수형이 되지만, 코드 상에서는 새로운 타입을 부여한 것과 같습니다. 점 ㅇ
 
 ```c
 enum Color {
@@ -670,7 +670,7 @@ Mode b = Mode.Read;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTEyNzkxODQ2MzQsMTY3NTQ0NTI2NCwtNj
+eyJoaXN0b3J5IjpbLTEzNDIxMTcwNzYsMTY3NTQ0NTI2NCwtNj
 g3ODQzNjg3LC0xMDg3NzQ5NDUxLDExOTgwODk3NDYsMTcyNzI3
 OTU5MSwyMDI4NzQ2MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5Ni
 wxNjM4NTIxMDIzLDE4NTE2MTIzOTldfQ==
