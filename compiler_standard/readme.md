@@ -482,6 +482,8 @@ switch (score / 10) {
 
 ## 1.7. 함수
 
+
+
 ### 1.7.1. 함수 선언과 사용
 
 ### 1.7.2. 함수 호출
@@ -608,8 +610,8 @@ switch (score / 10) {
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTY3NTQ0NTI2NCwtNjg3ODQzNjg3LC0xMD
-g3NzQ5NDUxLDExOTgwODk3NDYsMTcyNzI3OTU5MSwyMDI4NzQ2
-MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLD
-E4NTE2MTIzOTldfQ==
+eyJoaXN0b3J5IjpbMjg5NDc5NzMyLDE2NzU0NDUyNjQsLTY4Nz
+g0MzY4NywtMTA4Nzc0OTQ1MSwxMTk4MDg5NzQ2LDE3MjcyNzk1
+OTEsMjAyODc0NjIwMSwtMTUyOTk1MTQ4Niw1MzQwNTE1OTYsMT
+YzODUyMTAyMywxODUxNjEyMzk5XX0=
 -->
