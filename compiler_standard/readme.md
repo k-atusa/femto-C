@@ -497,7 +497,7 @@ switch (score / 10) {
 
 ### 1.7.1. 함수 선언과 사용
 
-반환 타입과 식별자를 쓰고 괄호 안에 인자 타입과 이름을 넣어 함수를 선언합니다. 반환을 하지 않는다면 void를 사용합니다. 함수 안에서 값을 바
+반환 타입과 식별자를 쓰고 괄호 안에 인자 타입과 이름을 넣어 함수를 선언합니다. 함수 본체는 중괄호로 둘러싸 정의합니다. 반환을 하지 않는다면 void를 사용합니다. 함수 안에서 값을 반환할 때는 `return` 키워드를 사용합니다.
 
 ```c
 void Hello(bool cond) {
@@ -509,6 +509,8 @@ int add(int a, int b) {
 }
 int(int, int) func = add;
 ```
+
+함수 이름을 그대로 사용하면 함수 포인터 타입으로 쓸 수 있습
 
 ### 1.7.2. 함수 호출
 
@@ -634,8 +636,8 @@ int(int, int) func = add;
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTkxNDA2MzI1MywxNjc1NDQ1MjY0LC02OD
-c4NDM2ODcsLTEwODc3NDk0NTEsMTE5ODA4OTc0NiwxNzI3Mjc5
-NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LD
-E2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
+eyJoaXN0b3J5IjpbNDUxNzMxNDkzLDE2NzU0NDUyNjQsLTY4Nz
+g0MzY4NywtMTA4Nzc0OTQ1MSwxMTk4MDg5NzQ2LDE3MjcyNzk1
+OTEsMjAyODc0NjIwMSwtMTUyOTk1MTQ4Niw1MzQwNTE1OTYsMT
+YzODUyMTAyMywxODUxNjEyMzk5XX0=
 -->
