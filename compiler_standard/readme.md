@@ -431,14 +431,14 @@ if (j == 1) {
 
 ### 1.6.2. 반복문
 
-`while, for` 키워드로 특정 조건을 만족시키면 계속 반복되는 문장을 만듭니다.
+`while, for` 키워드로 특정 조건을 만족시키면 계속 반복되는 문장을 만듭니다. `while` 반복문은 조건식으로 
 
 ```c
 while (i != 0) i--;
 for (int i = 0; i < len(arr); i++) {
   arr[i] += 256;
 }
-for (i, r : arr) io.printf(“arr[%d] = ”, i, r);
+for (i, r : arr) io.printf(“arr[%d] = %d\n”, i, r);
 ```
 
 ### 1.6.3. 비교문
@@ -572,7 +572,7 @@ for (i, r : arr) io.printf(“arr[%d] = ”, i, r);
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbNDcwMjIxNDQ2LDE3MjcyNzk1OTEsMjAyOD
-c0NjIwMSwtMTUyOTk1MTQ4Niw1MzQwNTE1OTYsMTYzODUyMTAy
-MywxODUxNjEyMzk5XX0=
+eyJoaXN0b3J5IjpbMTk4NzkzMDczMiwxNzI3Mjc5NTkxLDIwMj
+g3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LDE2Mzg1MjEw
+MjMsMTg1MTYxMjM5OV19
 -->
