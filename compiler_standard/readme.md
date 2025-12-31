@@ -445,7 +445,14 @@ for (auto i, r : arr) io.printf(“arr[%d] = %s\n”, i, r);
 - for : `for` 키워드로도 반복문을 만들 수 있습니다. 초기화문, 조건문, 증감문을 받습니다. 초기화문은 반복문 진입 시 처음 한 번만 실행됩니다. 조건문은 불리언이며 조건을 만족하면 문장을 반복합니다. 증감문은 반복문을 빠져나올 때 마지막에 실행됩니다. 각 문은 생략될 수도 있습니다.
 - foreach : `for` 키워드를 쓰되 조건문에 배열과 슬라이스를 순회하는 코드를 넣을 수 있습니다. T[] 타입은 (int, T) 타입의 변수들로 순회하게 됩니다. 타입 지정은 auto만 가능하며, 생략 시 값을 이미 존재하는 변수에 할당하게 됩니다.
 
+```c
+while (true) {
+  break;
+  continue;
+}
+```
 
+반복문 안에서 ``
 
 ### 1.6.3. 비교문
 
@@ -579,8 +586,8 @@ for (auto i, r : arr) io.printf(“arr[%d] = %s\n”, i, r);
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTY4Nzg0MzY4NywtMTA4Nzc0OTQ1MSwxMT
-k4MDg5NzQ2LDE3MjcyNzk1OTEsMjAyODc0NjIwMSwtMTUyOTk1
-MTQ4Niw1MzQwNTE1OTYsMTYzODUyMTAyMywxODUxNjEyMzk5XX
-0=
+eyJoaXN0b3J5IjpbLTc1OTM0NTQ2MywtNjg3ODQzNjg3LC0xMD
+g3NzQ5NDUxLDExOTgwODk3NDYsMTcyNzI3OTU5MSwyMDI4NzQ2
+MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLD
+E4NTE2MTIzOTldfQ==
 -->
