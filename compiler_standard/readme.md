@@ -456,7 +456,7 @@ while (true) {
 
 ### 1.6.3. 비교문
 
-정수 조건에 대해, 여러 조건을 동시에 써서 비교할 수 있는 제어문입니다. `switch, case` 키워드를 사용합니다.  조건식으로 정수가 들어가며, 비교식으로 정수 상수 표현식이 들어가야 합니다. 해당하는 조건이 없다면 기본 조건으로 이동하며 생략할 수 있습니다.
+정수 조건에 대해, 여러 조건을 동시에 써서 비교할 수 있는 제어문입니다. `switch, case` 키워드를 사용합니다.  조건식으로 정수가 들어가며, 비교식으로 정수 상수 표현식이 들어가야 합니다.
 
 ```c
 switch (getChar()) {
@@ -471,14 +471,14 @@ switch (score / 10) {
   case 2:
     io.puts(“pass”);
   case 1:
-    io.puts(“you have retry chance”);
+    io.puts(“you have retry chance\n”);
     fall;
   default:
     io.puts(“fail”);
 }
 ```
 
-해당하는 조건이 없다면 기본 조건식으로 이동합니다. 이 부분은 생략이 가능합니다. 각 조건식에 대해, 해당 부분이 종료되면 다음 조건식으로 ㅇ
+해당하는 조건이 없다면 기본 조건식으로 이동합니다. 이 부분은 생략이 가능합니다. 각 조건식에 대해, **해당 부분이 종료되면 다음 조건식으로 이동하지 않고 제어문이 종료**됩니다. `fall` 키워드를 마지막 부분에 명시해야 다음 조건식으로 이동합니다.
 
 ## 1.7. 함수
 
@@ -608,7 +608,7 @@ switch (score / 10) {
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMjE0MDQwMDU0MywtNjg3ODQzNjg3LC0xMD
+eyJoaXN0b3J5IjpbMTY3NTQ0NTI2NCwtNjg3ODQzNjg3LC0xMD
 g3NzQ5NDUxLDExOTgwODk3NDYsMTcyNzI3OTU5MSwyMDI4NzQ2
 MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLD
 E4NTE2MTIzOTldfQ==
