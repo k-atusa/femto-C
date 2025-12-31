@@ -523,11 +523,12 @@ myObj.member(“print”);
 
 ### 1.7.3. 가변 인자 함수
 
-`va_arg` 키워드를 함수 선언 앞에 붙여 가변 인자 함수로 만들 수 있습니다. 가변 인자 함수는 기본 인자를 다 채우고 남는 인자를 컴파일러가 자동으로 묶어 전달
+`va_arg` 키워드를 함수 선언 앞에 붙여 가변 인자 함수로 만들 수 있습니다. 가변 인자 함수는 기본 인자를 다 채우고 남는 인자를 컴파일러가 자동으로 묶어 전달해 줍니다. 함수 포인터 타입은 가변 인자를 표현할 수 없으므로 사용 시 직접 인자를 묶어야 합니다.
 
 ```c
 ```
 
+추가인자는 모두 void* 타입으로 전달됩니다. 함수 호출 시 포인터 타입은 그대로 캐스팅되어 전달되고, 값 타입은 
 
 ## 1.8. 열거형
 
@@ -648,8 +649,8 @@ myObj.member(“print”);
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbLTExOTc1OTQ4NjYsMTY3NTQ0NTI2NCwtNj
-g3ODQzNjg3LC0xMDg3NzQ5NDUxLDExOTgwODk3NDYsMTcyNzI3
-OTU5MSwyMDI4NzQ2MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5Ni
-wxNjM4NTIxMDIzLDE4NTE2MTIzOTldfQ==
+eyJoaXN0b3J5IjpbMTUzNTcwNjIwOSwxNjc1NDQ1MjY0LC02OD
+c4NDM2ODcsLTEwODc3NDk0NTEsMTE5ODA4OTc0NiwxNzI3Mjc5
+NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LD
+E2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
 -->
