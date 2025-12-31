@@ -416,11 +416,17 @@ export const f64 PI = 3.141592;
 
 ### 1.6.1. 조건문
 
-`if, else` 키워드로 특정 조건일때만 실행되는 문장을 만듭니다.
+`if, else` 키워드로 특정 조건일때만 실행되는 문장을 만듭니다. 조건식에는 불리언 타입만 들어갑니다.
 
 ```c
 if (i == 0) return 0;
-if ( 
+if (j == 1) {
+  return 0;
+} else if (j == 2) {
+  return 1;
+} else {
+ return 2;
+} 
 ```
 
 ### 1.6.2. 반복문
@@ -556,7 +562,7 @@ if (
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbOTI1NTgxNTQ2LDIwMjg3NDYyMDEsLTE1Mj
-k5NTE0ODYsNTM0MDUxNTk2LDE2Mzg1MjEwMjMsMTg1MTYxMjM5
-OV19
+eyJoaXN0b3J5IjpbLTg0OTc5MjMxMywyMDI4NzQ2MjAxLC0xNT
+I5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLDE4NTE2MTIz
+OTldfQ==
 -->
