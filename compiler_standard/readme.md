@@ -465,9 +465,14 @@ switch (getChar()) {
   case ‘b’:
     io.puts(“it is b\n”);
   case ‘c’:
-    io.puts
+    io.puts(“it is c\n”);
 }
-switch (c) {
+switch (score / 10) {
+  case 2:
+    io.puts(“pass”);
+  case 1:
+    io.puts(
+  default:
 }
 ```
 
@@ -599,7 +604,7 @@ switch (c) {
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTUwNDQwNjUxMywtNjg3ODQzNjg3LC0xMD
+eyJoaXN0b3J5IjpbMTIwODEwODcwMSwtNjg3ODQzNjg3LC0xMD
 g3NzQ5NDUxLDExOTgwODk3NDYsMTcyNzI3OTU5MSwyMDI4NzQ2
 MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLD
 E4NTE2MTIzOTldfQ==
