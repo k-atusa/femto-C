@@ -456,8 +456,7 @@ while (true) {
 
 ### 1.6.3. 비교문
 
-정수 조건에 대해, 여러 조건을 동시에 써서 비교할 수 있는 제어문입니다. 조건식으로 정수가 들어가며, 비교식으로 정수 상수 표현식이 들어가야 합니다.
-
+정수 조건에 대해, 여러 조건을 동시에 써서 비교할 수 있는 제어문입니다. 조건식으로 정수가 들어가며, 비교식으로 정수 상수 표현식이 들어가야 합니다. 해당하는 조건이 없다면 기본 조건으로 이동하며 생략
 ```c
 switch (getChar()) {
   case ‘a’:
@@ -471,10 +470,14 @@ switch (score / 10) {
   case 2:
     io.puts(“pass”);
   case 1:
-    io.puts(
+    io.puts(“you have retry chance”);
+    fall;
   default:
+    io.puts(“fail”);
 }
 ```
+
+
 
 ## 1.7. 함수
 
@@ -604,7 +607,7 @@ switch (score / 10) {
 
 ## 4.4. 컴파일러 옵션
 <!--stackedit_data:
-eyJoaXN0b3J5IjpbMTIwODEwODcwMSwtNjg3ODQzNjg3LC0xMD
+eyJoaXN0b3J5IjpbLTQ0NDU3OTY0NCwtNjg3ODQzNjg3LC0xMD
 g3NzQ5NDUxLDExOTgwODk3NDYsMTcyNzI3OTU5MSwyMDI4NzQ2
 MjAxLC0xNTI5OTUxNDg2LDUzNDA1MTU5NiwxNjM4NTIxMDIzLD
 E4NTE2MTIzOTldfQ==
