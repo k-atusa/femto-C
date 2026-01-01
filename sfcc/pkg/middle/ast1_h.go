@@ -592,9 +592,11 @@ type A1Module struct {
 	Code       *A1StatScope
 	IsFinished bool
 
-	tmpArgs []A1Type             // template args
-	tp      *front.TokenProvider // token provider for pass3
-	idx     []int                // pass3 index
+	tmpArgs []A1Type // template args
+	tmpUsed int      // template used
+
+	tp  *front.TokenProvider // token provider for pass3
+	idx []int                // pass3 index
 }
 
 func (m *A1Module) Init(path string, uname string, args []A1Type) {
@@ -604,6 +606,7 @@ func (m *A1Module) Init(path string, uname string, args []A1Type) {
 	m.Code = nil
 	m.IsFinished = false
 	m.tmpArgs = args
+	m.tmpUsed = 0
 	m.tp = nil
 	m.idx = make([]int, 0, 32)
 }
@@ -691,6 +694,15 @@ func (p *A1Parser) Init(arch int, log *front.CplrMsg) {
 func (p *A1Parser) FindModule(path string) int {
 	for i, m := range p.Modules {
 		if m.Path == path {
+			return i
+		}
+	}
+	return -1
+}
+
+func (p *A1Parser) GetModule(uname string) int {
+	for i, m := range p.Modules {
+		if m.Uname == uname {
 			return i
 		}
 	}
