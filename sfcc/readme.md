@@ -1,5 +1,5 @@
-# femto-C v0.5 문법 표준안
-femto-C v0.5 Grammar Standard
+# femto-C v0.5.0 문법 표준안
+femto-C v0.5.0 Grammar Standard
 
 # 1. 문법 명세
 1. Grammar Specification
@@ -98,7 +98,7 @@ _012
 다음 키워드와 기본 타입명은 식별자명으로 사용할 수 없습니다.
 
 ```c
-include, template, struct, enum, defer, templte,
+include, template, struct, enum, defer, template,
 va_arg, const, volatile, extern, export,
 if, else, while, for, switch, case, default,
 break, continue, fall, return,
@@ -818,9 +818,4 @@ raw_ir "declare i32 @puts(i8*)"
 ## 4.3. 컴파일러 출력
 
 ## 4.4. 컴파일러 옵션
-<!--stackedit_data:
-eyJoaXN0b3J5IjpbMTI3MzIzOTExMiwxNjc1NDQ1MjY0LC02OD
-c4NDM2ODcsLTEwODc3NDk0NTEsMTE5ODA4OTc0NiwxNzI3Mjc5
-NTkxLDIwMjg3NDYyMDEsLTE1Mjk5NTE0ODYsNTM0MDUxNTk2LD
-E2Mzg1MjEwMjMsMTg1MTYxMjM5OV19
--->
+
