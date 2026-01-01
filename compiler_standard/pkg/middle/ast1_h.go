@@ -46,6 +46,19 @@ func (a1 *A1Type) Init(tp A1TypeT, loc front.Loc, name string, incName string, s
 	a1.Align = -1
 }
 
+func (a1 *A1Type) Check(tp []A1TypeT) bool {
+	if len(tp) == 0 || (len(tp) > 1 && a1.Direct == nil) {
+		return false
+	}
+	if tp[0] != a1.ObjType {
+		return false
+	}
+	if len(tp) > 1 {
+		return a1.Direct.Check(tp[1:])
+	}
+	return true
+}
+
 // AST1 expression node
 type A1ExprT int
 
@@ -224,8 +237,8 @@ type A1StatRaw struct {
 	Code string
 }
 
-func (a1 *A1StatRaw) Init(loc front.Loc, code string) {
-	a1.ObjType = S1_RawC
+func (a1 *A1StatRaw) Init(tp A1StatT, loc front.Loc, code string) {
+	a1.ObjType = tp
 	a1.Loc = loc
 	a1.Code = code
 }
@@ -258,8 +271,8 @@ type A1StatAssign struct {
 	Right A1Expr
 }
 
-func (a1 *A1StatAssign) Init(loc front.Loc, left A1Expr, right A1Expr) {
-	a1.ObjType = S1_Assign
+func (a1 *A1StatAssign) Init(tp A1StatT, loc front.Loc, left A1Expr, right A1Expr) {
+	a1.ObjType = tp
 	a1.Loc = loc
 	a1.Left = left
 	a1.Right = right
@@ -270,25 +283,27 @@ type A1StatCtrl struct {
 	Body A1Expr // return value or defer body
 }
 
-func (a1 *A1StatCtrl) Init(tp A1StatT, loc front.Loc) {
+func (a1 *A1StatCtrl) Init(tp A1StatT, loc front.Loc, body A1Expr) {
 	a1.ObjType = tp
 	a1.Loc = loc
-	a1.Body = nil
+	a1.Body = body
 }
 
 type A1StatScope struct {
 	A1StatB
-	Parent *A1StatScope
-	Body   []A1Stat
-	Decls  map[string]A1Decl
+	Parent    *A1StatScope
+	Body      []A1Stat
+	Decls     map[string]A1Decl
+	IsForeach bool
 }
 
-func (a1 *A1StatScope) Init(tp A1StatT, loc front.Loc, parent *A1StatScope) {
-	a1.ObjType = tp
+func (a1 *A1StatScope) Init(loc front.Loc, parent *A1StatScope) {
+	a1.ObjType = S1_Scope
 	a1.Loc = loc
 	a1.Parent = parent
 	a1.Body = make([]A1Stat, 0)
 	a1.Decls = make(map[string]A1Decl)
+	a1.IsForeach = false
 }
 
 func (a1 *A1StatScope) FindDecl(name string) A1Decl {
@@ -319,11 +334,11 @@ func (a1 *A1StatScope) FindLiteral(name string) *front.Literal {
 type A1StatIf struct {
 	A1StatB
 	Cond     A1Expr
-	ThenBody *A1StatScope
-	ElseBody *A1StatScope
+	ThenBody A1Stat
+	ElseBody A1Stat
 }
 
-func (a1 *A1StatIf) Init(loc front.Loc, cond A1Expr, thenBody *A1StatScope, elseBody *A1StatScope) {
+func (a1 *A1StatIf) Init(loc front.Loc, cond A1Expr, thenBody A1Stat, elseBody A1Stat) {
 	a1.ObjType = S1_If
 	a1.Loc = loc
 	a1.Cond = cond
@@ -334,10 +349,10 @@ func (a1 *A1StatIf) Init(loc front.Loc, cond A1Expr, thenBody *A1StatScope, else
 type A1StatWhile struct {
 	A1StatB
 	Cond A1Expr
-	Body *A1StatScope
+	Body A1Stat
 }
 
-func (a1 *A1StatWhile) Init(loc front.Loc, cond A1Expr, body *A1StatScope) {
+func (a1 *A1StatWhile) Init(loc front.Loc, cond A1Expr, body A1Stat) {
 	a1.ObjType = S1_While
 	a1.Loc = loc
 	a1.Cond = cond
@@ -348,10 +363,10 @@ type A1StatFor struct {
 	A1StatB
 	Cond A1Expr
 	Step A1Stat
-	Body *A1StatScope
+	Body A1Stat
 }
 
-func (a1 *A1StatFor) Init(loc front.Loc, cond A1Expr, step A1Stat, body *A1StatScope) {
+func (a1 *A1StatFor) Init(loc front.Loc, cond A1Expr, step A1Stat, body A1Stat) {
 	a1.ObjType = S1_For
 	a1.Loc = loc
 	a1.Cond = cond
@@ -361,13 +376,17 @@ func (a1 *A1StatFor) Init(loc front.Loc, cond A1Expr, step A1Stat, body *A1StatS
 
 type A1StatForeach struct {
 	A1StatB
-	Iter A1Expr
-	Body *A1StatScope
+	Var_i string
+	Var_r string
+	Iter  A1Expr
+	Body  A1Stat
 }
 
-func (a1 *A1StatForeach) Init(loc front.Loc, iter A1Expr, body *A1StatScope) {
+func (a1 *A1StatForeach) Init(loc front.Loc, var_i string, var_r string, iter A1Expr, body A1Stat) {
 	a1.ObjType = S1_Foreach
 	a1.Loc = loc
+	a1.Var_i = var_i
+	a1.Var_r = var_r
 	a1.Iter = iter
 	a1.Body = body
 }
@@ -376,6 +395,7 @@ type A1StatSwitch struct {
 	A1StatB
 	Cond        A1Expr
 	CaseConds   []int64
+	CaseFalls   []bool
 	CaseBodies  [][]A1Stat
 	DefaultBody []A1Stat
 }
@@ -385,6 +405,7 @@ func (a1 *A1StatSwitch) Init(loc front.Loc, cond A1Expr) {
 	a1.Loc = loc
 	a1.Cond = cond
 	a1.CaseConds = make([]int64, 0)
+	a1.CaseFalls = make([]bool, 0)
 	a1.CaseBodies = make([][]A1Stat, 0)
 	a1.DefaultBody = make([]A1Stat, 0)
 }
@@ -511,26 +532,24 @@ type A1DeclFunc struct {
 	A1DeclB
 	StructNm   string
 	FuncNm     string
-	ParamTypes []A1Type
-	ParamNames []string
-	RetType    *A1Type
+	Params     []string
 	Body       *A1StatScope
-	IsVaArg    bool
+	IsVaArg    bool // void*[], void*[] int[]
+	IsVaArg_ad bool // void*[] int[]
 }
 
-func (d *A1DeclFunc) Init(loc front.Loc, fullNm string, t *A1Type, structNm string, funcNm string, isExported bool) {
+func (d *A1DeclFunc) Init(loc front.Loc, fullNm string, structNm string, funcNm string, body *A1StatScope, isExported bool) {
 	d.ObjType = D1_Func
 	d.Loc = loc
 	d.Name = fullNm
-	d.Type = t
+	d.Type = nil
 	d.StructNm = structNm
 	d.FuncNm = funcNm
-	d.ParamTypes = make([]A1Type, 0)
-	d.ParamNames = make([]string, 0)
-	d.RetType = nil
+	d.Params = make([]string, 0)
 	d.IsExported = isExported
-	d.Body = nil
+	d.Body = body
 	d.IsVaArg = false
+	d.IsVaArg_ad = false
 }
 
 type A1DeclStruct struct {
@@ -553,8 +572,7 @@ func (d *A1DeclStruct) Init(loc front.Loc, name string, isExported bool) {
 
 type A1DeclEnum struct {
 	A1DeclB
-	MemNames  []string
-	MemValues []int64
+	Members map[string]int64
 }
 
 func (d *A1DeclEnum) Init(loc front.Loc, name string, isExported bool) {
@@ -563,8 +581,7 @@ func (d *A1DeclEnum) Init(loc front.Loc, name string, isExported bool) {
 	d.Name = name
 	d.Type = nil
 	d.IsExported = isExported
-	d.MemNames = make([]string, 0)
-	d.MemValues = make([]int64, 0)
+	d.Members = make(map[string]int64)
 }
 
 // A1Module represents a single source file AST
@@ -575,16 +592,18 @@ type A1Module struct {
 	Code       *A1StatScope
 	IsFinished bool
 
-	tp  *front.TokenProvider // token provider for pass3
-	idx []int                // pass3 index
+	tmpArgs []A1Type             // template args
+	tp      *front.TokenProvider // token provider for pass3
+	idx     []int                // pass3 index
 }
 
-func (m *A1Module) Init(path string, uname string) {
+func (m *A1Module) Init(path string, uname string, args []A1Type) {
 	m.Path = path
 	m.Uname = uname
 	m.ChunkID = -1
 	m.Code = nil
 	m.IsFinished = false
+	m.tmpArgs = args
 	m.tp = nil
 	m.idx = make([]int, 0, 32)
 }
@@ -592,7 +611,7 @@ func (m *A1Module) Init(path string, uname string) {
 func (m *A1Module) FindDecl(name string, chkExported bool) A1Decl {
 	d := m.Code.FindDecl(name)
 	if d == nil || !chkExported {
-		return nil
+		return d
 	}
 	switch d.GetObjType() {
 	case D1_Var, D1_Struct, D1_Enum, D1_Typedef:
@@ -602,12 +621,12 @@ func (m *A1Module) FindDecl(name string, chkExported bool) A1Decl {
 		}
 	case D1_Func:
 		t := d.(*A1DeclFunc)
-		if t.StructNm == "" {
-			if 'A' <= t.Name[0] && t.Name[0] <= 'Z' { // global function
+		if t.StructNm == "" { // global function
+			if 'A' <= t.Name[0] && t.Name[0] <= 'Z' {
 				return d
 			}
-		} else {
-			if 'A' <= t.StructNm[0] && t.StructNm[0] <= 'Z' && 'A' <= t.FuncNm[0] && t.FuncNm[0] <= 'Z' { // methods
+		} else { // methods
+			if 'A' <= t.StructNm[0] && t.StructNm[0] <= 'Z' && 'A' <= t.FuncNm[0] && t.FuncNm[0] <= 'Z' {
 				return d
 			}
 		}
@@ -625,19 +644,18 @@ func (m *A1Module) FindLiteral(name string, chkExported bool) *front.Literal {
 			return nil
 		}
 		d := m.Code.FindDecl(enumNm)
-		if d.GetObjType() != D1_Enum {
+		if d == nil || d.GetObjType() != D1_Enum {
 			return nil
 		}
 		e := d.(*A1DeclEnum)
-		for i, nm := range e.MemNames {
-			if nm == memberNm {
-				var l front.Literal
-				l.Init(e.MemValues[i])
-				return &l
-			}
+		lit, ok := e.Members[memberNm]
+		if ok {
+			var l front.Literal
+			l.Init(lit)
+			return &l
+		} else {
+			return nil
 		}
-		return nil
-
 	} else { // defined literal
 		if chkExported && !('A' <= name[0] && name[0] <= 'Z') {
 			return nil

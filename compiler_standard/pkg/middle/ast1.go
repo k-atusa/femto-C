@@ -124,21 +124,6 @@ func getBinaryOpType(tknType front.TokenType) A1ExprOpT {
 	}
 }
 
-// get number of operand
-func getOperandNum(op A1ExprOpT) int {
-	switch op {
-	case -1:
-		return 0
-	case C1_Cond, C1_Slice:
-		return 3
-	case U1_Plus, U1_Minus, U1_LogicNot, U1_BitNot, U1_Inc, U1_Dec,
-		U1_Ref, U1_Deref, U1_Sizeof, U1_Len, U1_Move:
-		return 1
-	default:
-		return 2
-	}
-}
-
 // convert token to A1StatT
 func getAssignType(tkn front.Token) A1StatT {
 	switch tkn.ObjType {
@@ -176,10 +161,14 @@ func (m *A1Module) parseType(tp *front.TokenProvider, cur *A1StatScope, arch int
 	} else if tp.Match([]front.TokenType{front.ID}) { // typedef, template, struct, enum
 		tgtNm := tp.Pop()
 		decl := m.FindDecl(tgtNm.Text, false)
-		if decl == nil || decl.GetObjType() != D1_Typedef { // template, struct, enum -> name
+		if decl == nil { // name use before define
 			base.Init(T1_Name, tgtNm.Location, tgtNm.Text, "", m.Uname)
-		} else { // typedef -> replace
+		} else if decl.GetObjType() == D1_Typedef { // typedef -> replace
 			base = *decl.(*A1DeclTypedef).Type
+		} else if decl.GetObjType() == D1_Template { // template -> replace
+			base = *decl.(*A1DeclTemplate).Type
+		} else { // struct, enum -> name
+			base.Init(T1_Name, tgtNm.Location, tgtNm.Text, "", m.Uname)
 		}
 
 	} else if tp.CanPop(1) { // auto, primitive
@@ -971,4 +960,915 @@ func (a1 *A1Parser) parseExpr(tp *front.TokenProvider, m *A1Module, cur *A1StatS
 	}
 }
 
-// raw, struct, enum, func, typedef
+// toplevel declaration parser
+func (a1 *A1Parser) parseToplevel(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) []A1Decl {
+	isDefine := false
+	isConst := false
+	isVolatile := false
+	isExtern := false
+	isExported := false
+	isVaArg := false
+	for tp.CanPop(1) {
+		tkn := tp.Seek()
+		switch tkn.ObjType {
+		case front.KEY_INCLUDE: // include
+			tp.Pop()
+			return []A1Decl{a1.parseInclude(tp, m, cur)}
+
+		case front.KEY_TEMPLATE: // template
+			tp.Pop()
+			return a1.parseTemplate(tp, m, cur)
+
+		case front.OP_SEMICOLON: // empty statement
+			tp.Pop()
+			return nil
+
+		case front.KEY_STRUCT: // struct
+			tp.Pop()
+			return []A1Decl{a1.parseDeclStruct(tp, m, cur, isExported)}
+
+		case front.KEY_ENUM: // enum
+			tp.Pop()
+			return []A1Decl{a1.parseDeclEnum(tp, m, cur, isExported)}
+
+		// tags
+		case front.KEY_DEFINE:
+			tp.Pop()
+			isDefine = true
+		case front.KEY_CONST:
+			tp.Pop()
+			isConst = true
+		case front.KEY_VOLATILE:
+			tp.Pop()
+			isVolatile = true
+		case front.KEY_EXTERN:
+			tp.Pop()
+			isExtern = true
+		case front.KEY_EXPORT:
+			tp.Pop()
+			isExported = true
+		case front.KEY_VA_ARG:
+			tp.Pop()
+			isVaArg = true
+
+		case front.KEY_RAW_C, front.KEY_RAW_IR: // raw code
+			tkn = tp.Pop()
+			code := tp.Pop()
+			if code.ObjType != front.LIT_STR {
+				a1.Logger.Log(fmt.Sprintf("E0401 expected string, got %s at %s", code.Text, a1.Logger.GetLoc(code.Location)), 5, true)
+			}
+			var res A1DeclRaw
+			if tkn.ObjType == front.KEY_RAW_C {
+				res.Init(D1_RawC, tkn.Location, code.Text)
+			} else {
+				res.Init(D1_RawIR, tkn.Location, code.Text)
+			}
+			return []A1Decl{&res}
+
+		case front.KEY_TYPEDEF: // typedef
+			tkn = tp.Pop()
+			if tkn.ObjType != front.ID {
+				a1.Logger.Log(fmt.Sprintf("E0402 expected name, got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			if !m.IsNameUsable(tkn.Text) {
+				a1.Logger.Log(fmt.Sprintf("E0403 name %s is not usable at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			t, err := m.parseType(tp, cur, a1.Arch)
+			if err != nil {
+				a1.Logger.Log(err.Error(), 5, true)
+			}
+			var res A1DeclTypedef
+			res.Init(tkn.Location, tkn.Text, t, isExported)
+			cur.Decls[tkn.Text] = &res
+			return []A1Decl{&res}
+
+		default:
+			t, err := m.parseType(tp, cur, a1.Arch)
+			if err != nil {
+				a1.Logger.Log(err.Error(), 5, true)
+			}
+			if tp.Match([]front.TokenType{front.ID, front.OP_SEMICOLON}) || tp.Match([]front.TokenType{front.ID, front.OP_ASSIGN}) { // var declaration
+				v := a1.parseDeclVar(tp, m, cur, t, isDefine, isConst, isVolatile, isExtern, isExported)
+				if !m.IsNameUsable(v.Name) {
+					a1.Logger.Log(fmt.Sprintf("E0404 name %s is not usable at %s", v.Name, a1.Logger.GetLoc(tkn.Location)), 5, true)
+				}
+				return []A1Decl{v}
+			} else { // func declaration
+				return []A1Decl{a1.parseDeclFunc(tp, m, cur, t, isVaArg, isExported)}
+			}
+		}
+	}
+	return nil
+}
+
+// statement parser
+func (a1 *A1Parser) parseStat(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) A1Stat {
+	isDefine := false
+	isConst := false
+	isVolatile := false
+	isExtern := false
+	for tp.CanPop(1) {
+		tkn := tp.Seek()
+		switch tkn.ObjType {
+		// tags
+		case front.KEY_DEFINE:
+			tp.Pop()
+			isDefine = true
+		case front.KEY_CONST:
+			tp.Pop()
+			isConst = true
+		case front.KEY_VOLATILE:
+			tp.Pop()
+			isVolatile = true
+		case front.KEY_EXTERN:
+			tp.Pop()
+			isExtern = true
+
+		// control flow
+		case front.OP_LBRACE:
+			return a1.parseStatScope(tp, m, cur)
+		case front.KEY_IF:
+			tp.Pop()
+			return a1.parseStatIf(tp, m, cur)
+		case front.KEY_WHILE:
+			tp.Pop()
+			return a1.parseStatWhile(tp, m, cur)
+		case front.KEY_FOR:
+			tp.Pop()
+			return a1.parseStatFor(tp, m, cur)
+		case front.KEY_SWITCH:
+			tp.Pop()
+			return a1.parseStatSwitch(tp, m, cur)
+
+		case front.OP_SEMICOLON: // empty statement
+			tp.Pop()
+			return nil
+
+		case front.KEY_RAW_C, front.KEY_RAW_IR: // raw code
+			tkn = tp.Pop()
+			code := tp.Pop()
+			if code.ObjType != front.LIT_STR {
+				a1.Logger.Log(fmt.Sprintf("E0405 expected string, got %s at %s", code.Text, a1.Logger.GetLoc(code.Location)), 5, true)
+			}
+			var res A1StatRaw
+			if tkn.ObjType == front.KEY_RAW_C {
+				res.Init(S1_RawC, tkn.Location, code.Text)
+			} else {
+				res.Init(S1_RawIR, tkn.Location, code.Text)
+			}
+			return &res
+
+		case front.KEY_BREAK: // break
+			tp.Pop()
+			var res A1StatCtrl
+			res.Init(S1_Break, tkn.Location, nil)
+			return &res
+
+		case front.KEY_CONTINUE: // continue
+			tp.Pop()
+			var res A1StatCtrl
+			res.Init(S1_Continue, tkn.Location, nil)
+			return &res
+
+		case front.KEY_RETURN: // return
+			tp.Pop()
+			var expr A1Expr = nil
+			if tp.Seek().ObjType != front.OP_SEMICOLON {
+				expr = a1.parseExpr(tp, m, cur)
+			}
+			tkn := tp.Pop()
+			if tkn.ObjType != front.OP_SEMICOLON {
+				a1.Logger.Log(fmt.Sprintf("E0406 expected ';', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			var res A1StatCtrl
+			res.Init(S1_Return, tkn.Location, expr)
+			return &res
+
+		case front.KEY_DEFER: // defer
+			tp.Pop()
+			var res A1StatCtrl
+			res.Init(S1_Defer, tkn.Location, a1.parseExpr(tp, m, cur))
+			tkn := tp.Pop()
+			if tkn.ObjType != front.OP_SEMICOLON {
+				a1.Logger.Log(fmt.Sprintf("E0407 expected ';', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			return &res
+
+		case front.KEY_TYPEDEF: // typedef
+			tkn = tp.Pop()
+			if tkn.ObjType != front.ID {
+				a1.Logger.Log(fmt.Sprintf("E0408 expected name, got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			t, err := m.parseType(tp, cur, a1.Arch)
+			if err != nil {
+				a1.Logger.Log(err.Error(), 5, true)
+			}
+			var d A1DeclTypedef
+			d.Init(tkn.Location, tkn.Text, t, false)
+			var res A1StatDecl
+			res.Init(tkn.Location, &d)
+			cur.Decls[tkn.Text] = &d
+			return &res
+
+		default:
+			if a1.isTypeStart(tp, m) { // var declaration
+				t, err := m.parseType(tp, cur, a1.Arch)
+				if err != nil {
+					a1.Logger.Log(err.Error(), 5, true)
+				}
+				tkn := tp.Pop()
+				var res A1StatDecl
+				res.Init(tkn.Location, a1.parseDeclVar(tp, m, cur, t, isDefine, isConst, isVolatile, isExtern, false))
+				return &res
+			} else {
+				left := a1.parseExpr(tp, m, cur)
+				if left == nil {
+					return nil
+				}
+				tkn = tp.Pop()
+				if tkn.ObjType == front.OP_SEMICOLON { // expr statement
+					var res A1StatExpr
+					res.Init(tkn.Location, left)
+					return &res
+				} else { // assign statement
+					return a1.parseStatAssign(tp, m, cur, left, tkn.ObjType, front.OP_SEMICOLON)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// declaration specific case parser
+func (a1 *A1Parser) parseDeclVar(tp *front.TokenProvider, m *A1Module, cur *A1StatScope, varType *A1Type, isDefine bool, isConst bool, isVolatile bool, isExtern bool, isExported bool) *A1DeclVar {
+	// check name
+	if varType.Size == 0 {
+		a1.Logger.Log(fmt.Sprintf("E0501 variable type cannot be void at %s", a1.Logger.GetLoc(tp.Seek().Location)), 5, true)
+	}
+	tkn := tp.Pop()
+	if tkn.ObjType != front.ID {
+		a1.Logger.Log(fmt.Sprintf("E0502 expected name, got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	if _, ok := cur.Decls[tkn.Text]; ok {
+		a1.Logger.Log(fmt.Sprintf("E0503 name %s is already defined inside scope at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+
+	// variable init
+	tkn = tp.Pop()
+	var init A1Expr = nil
+	if tkn.ObjType == front.OP_ASSIGN {
+		init = a1.parseExpr(tp, m, cur)
+		tkn = tp.Pop()
+	}
+	if tkn.ObjType != front.OP_SEMICOLON {
+		a1.Logger.Log(fmt.Sprintf("E0504 expected ';', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	var res A1DeclVar
+	res.Init(tkn.Location, tkn.Text, varType, init, isExported)
+	res.IsDefine = isDefine
+	res.IsConst = isConst
+	res.IsVolatile = isVolatile
+	res.IsExtern = isExtern
+
+	// check var condition, register to scope
+	if isDefine && (init == nil || init.GetObjType() != E1_Literal) {
+		a1.Logger.Log(fmt.Sprintf("E0505 define variable must be initialized with constexpr at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	if isConst && init == nil {
+		a1.Logger.Log(fmt.Sprintf("E0506 const variable must be initialized at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	if isExtern && init != nil {
+		a1.Logger.Log(fmt.Sprintf("E0507 extern variable cannot be initialized at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	cur.Decls[tkn.Text] = &res
+	return &res
+}
+
+func (a1 *A1Parser) parseDeclFunc(tp *front.TokenProvider, m *A1Module, cur *A1StatScope, retType *A1Type, isVaArg bool, isExported bool) *A1DeclFunc {
+	// parse name
+	tkn := tp.Seek()
+	var body A1StatScope
+	body.Init(tkn.Location, cur)
+	var res A1DeclFunc
+	if tp.Match([]front.TokenType{front.ID, front.OP_DOT, front.ID}) { // method
+		nm0 := tp.Pop().Text
+		tp.Pop()
+		nm1 := tp.Pop().Text
+		res.Init(tkn.Location, nm0+"."+nm1, nm0, nm1, &body, isExported)
+	} else if tp.Seek().ObjType == front.ID { // function
+		nm := tp.Pop().Text
+		res.Init(tkn.Location, nm, "", "", &body, isExported)
+	} else {
+		a1.Logger.Log(fmt.Sprintf("E0508 expected name, got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	if !m.IsNameUsable(res.Name) {
+		a1.Logger.Log(fmt.Sprintf("E0509 name %s is not usable at %s", res.Name, a1.Logger.GetLoc(res.Loc)), 5, true)
+	}
+
+	// parse params
+	var ft A1Type
+	ft.Init(T1_Func, tkn.Location, "()", "", "")
+	ft.Direct = retType
+	tkn = tp.Pop()
+	if tkn.ObjType != front.OP_LPAREN {
+		a1.Logger.Log(fmt.Sprintf("E0510 expected '(', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	if tp.Seek().ObjType != front.OP_RPAREN {
+		for tp.CanPop(1) {
+			// push to func type
+			t, err := m.parseType(tp, cur, a1.Arch)
+			if err != nil {
+				a1.Logger.Log(err.Error(), 5, true)
+			}
+			tkn = tp.Pop()
+			if tkn.ObjType != front.ID {
+				a1.Logger.Log(fmt.Sprintf("E0511 expected name, got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			res.Params = append(res.Params, tkn.Text)
+			ft.Indirect = append(ft.Indirect, *t)
+
+			// push to func body
+			var d A1DeclVar
+			d.Init(tkn.Location, tkn.Text, t, nil, false)
+			d.IsParam = true
+			body.Decls[tkn.Text] = &d
+			var s A1StatDecl
+			s.Init(tkn.Location, &d)
+			body.Body = append(body.Body, &s)
+		}
+	}
+	tkn = tp.Pop()
+	if tkn.ObjType != front.OP_RPAREN {
+		a1.Logger.Log(fmt.Sprintf("E0512 expected ')', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	res.Type = &ft
+
+	// parse body, check func
+	body.Body = append(body.Body, a1.parseStatScope(tp, m, &body))
+	if res.StructNm != "" { // first arg of method is struct*
+		isValid := true
+		if len(res.Type.Indirect) == 0 {
+			isValid = false
+		} else {
+			isValid = res.Type.Indirect[0].Check([]A1TypeT{T1_Ptr, T1_Name})
+		}
+		if isValid {
+			isValid = res.Type.Indirect[0].Direct.Name == res.StructNm
+		}
+		if !isValid {
+			a1.Logger.Log(fmt.Sprintf("E0513 first arg of method must be %s* at %s", res.StructNm, a1.Logger.GetLoc(res.Loc)), 5, true)
+		}
+	}
+	if isVaArg { // last arg is void*[] or void*[] int[]
+		isVa := true
+		isVa_ad := true
+		if len(res.Type.Indirect) < 1 {
+			isVa = false
+		} else {
+			isVa = res.Type.Indirect[len(res.Type.Indirect)-1].Check([]A1TypeT{T1_Slice, T1_Ptr, T1_Primitive})
+			if isVa {
+				isVa = res.Type.Indirect[len(res.Type.Indirect)-1].Direct.Direct.Name == "void"
+			}
+		}
+		if len(res.Type.Indirect) < 2 {
+			isVa_ad = false
+		} else {
+			isVa_ad = res.Type.Indirect[len(res.Type.Indirect)-2].Check([]A1TypeT{T1_Slice, T1_Ptr, T1_Primitive}) && res.Type.Indirect[len(res.Type.Indirect)-1].Check([]A1TypeT{T1_Slice, T1_Primitive})
+			if isVa_ad {
+				isVa_ad = res.Type.Indirect[len(res.Type.Indirect)-2].Direct.Direct.Name == "void" && res.Type.Indirect[len(res.Type.Indirect)-1].Direct.Name == "int"
+			}
+		}
+		if !isVa && !isVa_ad {
+			a1.Logger.Log(fmt.Sprintf("E0514 last arg of va_func must be void*[] at %s", a1.Logger.GetLoc(res.Loc)), 5, true)
+		}
+		res.IsVaArg = true
+		res.IsVaArg_ad = isVa_ad
+	}
+
+	cur.Decls[tkn.Text] = &res
+	return &res
+}
+
+func (a1 *A1Parser) parseDeclStruct(tp *front.TokenProvider, m *A1Module, cur *A1StatScope, isExported bool) *A1DeclStruct {
+	// parse name, {
+	tkn := tp.Pop()
+	if tkn.ObjType != front.ID {
+		a1.Logger.Log(fmt.Sprintf("E0515 expected name, got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	if !m.IsNameUsable(tkn.Text) {
+		a1.Logger.Log(fmt.Sprintf("E0516 name %s is not usable at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	var res A1DeclStruct
+	res.Init(tkn.Location, tkn.Text, isExported)
+	tkn = tp.Pop()
+	if tkn.ObjType != front.OP_LBRACE {
+		a1.Logger.Log(fmt.Sprintf("E0517 expected '{', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+
+	// parse members, }
+	for tp.CanPop(1) {
+		t, err := m.parseType(tp, cur, a1.Arch)
+		if err != nil {
+			a1.Logger.Log(err.Error(), 5, true)
+		}
+		tkn = tp.Pop()
+		if tkn.ObjType != front.ID {
+			a1.Logger.Log(fmt.Sprintf("E0518 expected name, got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		res.MemTypes = append(res.MemTypes, *t)
+		res.MemNames = append(res.MemNames, tkn.Text)
+		res.MemOffsets = append(res.MemOffsets, -1)
+		tkn = tp.Seek()
+		if tkn.ObjType == front.OP_RBRACE {
+			break
+		} else if tkn.ObjType == front.OP_SEMICOLON || tkn.ObjType == front.OP_COMMA {
+			tp.Pop()
+			if tp.Seek().ObjType == front.OP_RBRACE {
+				break
+			}
+		} else {
+			a1.Logger.Log(fmt.Sprintf("E0519 expected ';', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+	}
+
+	// finish parsing
+	tkn = tp.Pop()
+	if tkn.ObjType != front.OP_RBRACE {
+		a1.Logger.Log(fmt.Sprintf("E0520 expected '}', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	var t A1Type
+	t.Init(T1_Name, tkn.Location, res.Name, "", m.Uname)
+	res.Type = &t
+	cur.Decls[res.Name] = &res
+	return &res
+}
+
+func (a1 *A1Parser) parseDeclEnum(tp *front.TokenProvider, m *A1Module, cur *A1StatScope, isExported bool) *A1DeclEnum {
+	// parse name, {
+	tkn := tp.Pop()
+	if tkn.ObjType != front.ID {
+		a1.Logger.Log(fmt.Sprintf("E0521 expected name, got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	if !m.IsNameUsable(tkn.Text) {
+		a1.Logger.Log(fmt.Sprintf("E0522 name %s is not usable at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	var res A1DeclEnum
+	res.Init(tkn.Location, tkn.Text, isExported)
+	tkn = tp.Pop()
+	if tkn.ObjType != front.OP_LBRACE {
+		a1.Logger.Log(fmt.Sprintf("E0523 expected '{', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+
+	// parse members, }
+	var prev int64 = 0
+	var maxV int64 = 0
+	var minV int64 = 0
+	for tp.CanPop(1) {
+		// check name
+		tkn = tp.Pop()
+		if tkn.ObjType != front.ID {
+			a1.Logger.Log(fmt.Sprintf("E0524 expected name, got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		if _, ok := res.Members[tkn.Text]; ok {
+			a1.Logger.Log(fmt.Sprintf("E0525 name %s is already used at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		nm := tkn.Text
+
+		// init with value
+		tkn = tp.Seek()
+		if tkn.ObjType == front.OP_ASSIGN {
+			tp.Pop()
+			v := a1.parseExpr(tp, m, cur)
+			if v == nil || v.GetObjType() != E1_Literal || v.(*A1ExprLiteral).Value.ObjType != front.LitInt {
+				a1.Logger.Log(fmt.Sprintf("E0526 expected int constexpr at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+			} else {
+				prev = v.(*A1ExprLiteral).Value.Value.(int64)
+			}
+		}
+
+		// init with prev + 1
+		res.Members[nm] = prev
+		prev++
+		if prev > maxV {
+			maxV = prev
+		}
+		if prev < minV {
+			minV = prev
+		}
+		tkn = tp.Seek()
+		if tkn.ObjType == front.OP_RBRACE {
+			break
+		} else if tkn.ObjType == front.OP_SEMICOLON || tkn.ObjType == front.OP_COMMA {
+			tp.Pop()
+			if tp.Seek().ObjType == front.OP_RBRACE {
+				break
+			}
+		} else {
+			a1.Logger.Log(fmt.Sprintf("E0527 expected ',', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+	}
+
+	// finish parsing
+	tkn = tp.Pop()
+	if tkn.ObjType != front.OP_RBRACE {
+		a1.Logger.Log(fmt.Sprintf("E0528 expected '}', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	var t A1Type
+	t.Init(T1_Name, tkn.Location, res.Name, "", m.Uname)
+	if maxV <= 127 && minV >= -128 {
+		t.Size = 1
+	} else if maxV <= 32767 && minV >= -32768 {
+		t.Size = 2
+	} else if maxV <= 2147483647 && minV >= -2147483648 {
+		t.Size = 4
+	} else {
+		t.Size = 8
+	}
+	t.Align = t.Size
+	res.Type = &t
+	cur.Decls[res.Name] = &res
+	return &res
+}
+
+// statement specific case parser
+func (a1 *A1Parser) parseStatAssign(tp *front.TokenProvider, m *A1Module, cur *A1StatScope, left A1Expr, asn front.TokenType, expEnd front.TokenType) *A1StatAssign {
+	var assignTp A1StatT
+	switch asn {
+	case front.OP_ASSIGN:
+		assignTp = S1_Assign
+	case front.OP_ASSIGN_ADD:
+		assignTp = S1_AssignAdd
+	case front.OP_ASSIGN_SUB:
+		assignTp = S1_AssignSub
+	case front.OP_ASSIGN_MUL:
+		assignTp = S1_AssignMul
+	case front.OP_ASSIGN_DIV:
+		assignTp = S1_AssignDiv
+	case front.OP_ASSIGN_MOD:
+		assignTp = S1_AssignMod
+	default:
+		assignTp = S1_Assign
+		a1.Logger.Log(fmt.Sprintf("E0601 invalid assignment operator at %s", a1.Logger.GetLoc(tp.Seek().Location)), 5, true)
+	}
+	var res A1StatAssign
+	res.Init(assignTp, left.GetLocation(), left, a1.parseExpr(tp, m, cur))
+	tkn := tp.Pop()
+	if tkn.ObjType != expEnd {
+		a1.Logger.Log(fmt.Sprintf("E0602 invalid assignment end at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	return &res
+}
+
+func (a1 *A1Parser) parseStatScope(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) *A1StatScope {
+	tkn := tp.Pop()
+	if tkn.ObjType != front.OP_LBRACE {
+		a1.Logger.Log(fmt.Sprintf("E0603 expected '{', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	var res A1StatScope
+	res.Init(tkn.Location, cur)
+	for tp.CanPop(1) {
+		tkn = tp.Seek()
+		if tkn.ObjType == front.OP_RBRACE {
+			tp.Pop()
+			break
+		}
+		st := a1.parseStat(tp, m, &res)
+		if st != nil {
+			res.Body = append(res.Body, st)
+		}
+	}
+	return &res
+}
+
+func (a1 *A1Parser) parseStatIf(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) *A1StatIf {
+	tkn := tp.Pop()
+	if tkn.ObjType != front.OP_LPAREN {
+		a1.Logger.Log(fmt.Sprintf("E0604 expected '(', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	cond := a1.parseExpr(tp, m, cur)
+	if cond == nil {
+		a1.Logger.Log(fmt.Sprintf("E0605 expected condition expr at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	tkn = tp.Pop()
+	if tkn.ObjType != front.OP_RPAREN {
+		a1.Logger.Log(fmt.Sprintf("E0606 expected ')', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	thenStat := a1.parseStat(tp, m, cur)
+	if thenStat == nil {
+		a1.Logger.Log(fmt.Sprintf("E0607 expected then statement at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	var elseStat A1Stat = nil
+	if tp.Seek().ObjType == front.KEY_ELSE {
+		tp.Pop()
+		elseStat = a1.parseStat(tp, m, cur)
+		if elseStat == nil {
+			a1.Logger.Log(fmt.Sprintf("E0608 expected else statement at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+	}
+	var res A1StatIf
+	res.Init(cond.GetLocation(), cond, thenStat, elseStat)
+	return &res
+}
+
+func (a1 *A1Parser) parseStatWhile(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) *A1StatWhile {
+	tkn := tp.Pop()
+	if tkn.ObjType != front.OP_LPAREN {
+		a1.Logger.Log(fmt.Sprintf("E0609 expected '(', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	cond := a1.parseExpr(tp, m, cur)
+	if cond == nil {
+		a1.Logger.Log(fmt.Sprintf("E0610 expected condition expr at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	tkn = tp.Pop()
+	if tkn.ObjType != front.OP_RPAREN {
+		a1.Logger.Log(fmt.Sprintf("E0611 expected ')', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	body := a1.parseStat(tp, m, cur)
+	if body == nil {
+		a1.Logger.Log(fmt.Sprintf("E0612 expected body statement at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	var res A1StatWhile
+	res.Init(cond.GetLocation(), cond, body)
+	return &res
+}
+
+func (a1 *A1Parser) parseStatFor(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) A1Stat {
+	// for var decl scope
+	tkn := tp.Pop()
+	if tkn.ObjType != front.OP_LPAREN {
+		a1.Logger.Log(fmt.Sprintf("E0613 expected '(', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	var res A1Stat = nil
+	var scope A1StatScope
+	scope.Init(tkn.Location, cur)
+
+	if tp.Match([]front.TokenType{front.KEY_AUTO, front.ID, front.OP_COMMA, front.ID, front.OP_COLON}) { // auto i, r :
+		tp.Pop()
+		tkn_i := tp.Pop()
+		tp.Pop()
+		tkn_r := tp.Pop()
+		tp.Pop()
+		var di A1DeclVar
+		di.Init(tkn_i.Location, tkn_i.Text, nil, nil, false)
+		var si A1StatDecl
+		si.Init(tkn.Location, &di)
+		var dr A1DeclVar
+		dr.Init(tkn_r.Location, tkn_r.Text, nil, nil, false)
+		var sr A1StatDecl
+		sr.Init(tkn.Location, &dr)
+		scope.Body = append(scope.Body, &si)
+		scope.Body = append(scope.Body, &sr)
+		scope.Decls[tkn_i.Text] = &di
+		scope.Decls[tkn_r.Text] = &dr
+		scope.IsForeach = true // foreach var is declared in scope
+		res = &scope
+
+		iter := a1.parseExpr(tp, m, cur)
+		if iter == nil {
+			a1.Logger.Log(fmt.Sprintf("E0614 expected iterator expr at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		tkn = tp.Pop()
+		if tkn.ObjType != front.OP_RPAREN {
+			a1.Logger.Log(fmt.Sprintf("E0615 expected ')', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		body := a1.parseStat(tp, m, &scope)
+		if body == nil {
+			a1.Logger.Log(fmt.Sprintf("E0616 expected body statement at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		var f A1StatForeach
+		f.Init(tkn.Location, tkn_i.Text, tkn_r.Text, iter, body)
+		scope.Body = append(scope.Body, &f)
+
+	} else if tp.Match([]front.TokenType{front.ID, front.OP_COMMA, front.ID, front.OP_COLON}) { // i, r :
+		tkn_i := tp.Pop()
+		tp.Pop()
+		tkn_r := tp.Pop()
+		tp.Pop()
+
+		iter := a1.parseExpr(tp, m, cur)
+		if iter == nil {
+			a1.Logger.Log(fmt.Sprintf("E0617 expected iterator expr at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		tkn = tp.Pop()
+		if tkn.ObjType != front.OP_RPAREN {
+			a1.Logger.Log(fmt.Sprintf("E0618 expected ')', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		body := a1.parseStat(tp, m, cur) // no pre-decl required
+		if body == nil {
+			a1.Logger.Log(fmt.Sprintf("E0619 expected body statement at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		var f A1StatForeach
+		f.Init(tkn.Location, tkn_i.Text, tkn_r.Text, iter, body)
+		res = &f
+
+	} else { // classic for
+		initSt := a1.parseStat(tp, m, cur)
+		cond := a1.parseExpr(tp, m, cur)
+		tkn = tp.Pop()
+		if tkn.ObjType != front.OP_SEMICOLON {
+			a1.Logger.Log(fmt.Sprintf("E0620 expected ';', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+
+		var incSt A1Stat = nil
+		if tp.Seek().ObjType != front.OP_RPAREN {
+			left := a1.parseExpr(tp, m, cur)
+			tkn = tp.Pop()
+			if tkn.ObjType == front.OP_RPAREN { // for_inc is expr
+				var st A1StatExpr
+				st.Init(tkn.Location, left)
+				incSt = &st
+			} else { // for_inc is assign
+				incSt = a1.parseStatAssign(tp, m, cur, left, tkn.ObjType, front.OP_RPAREN)
+			}
+		}
+
+		if initSt == nil { // no init
+			body := a1.parseStat(tp, m, cur)
+			if body == nil {
+				a1.Logger.Log(fmt.Sprintf("E0621 expected body statement at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			var f A1StatFor
+			f.Init(tkn.Location, cond, incSt, body)
+			res = &f
+		} else { // var init is in scope
+			res = &scope
+			scope.Body = append(scope.Body, initSt)
+			body := a1.parseStat(tp, m, &scope)
+			if body == nil {
+				a1.Logger.Log(fmt.Sprintf("E0622 expected body statement at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			var f A1StatFor
+			f.Init(tkn.Location, cond, incSt, body)
+			scope.Body = append(scope.Body, &f)
+		}
+	}
+	return res
+}
+
+func (a1 *A1Parser) parseStatSwitch(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) *A1StatSwitch {
+	// get switch condition
+	tkn := tp.Pop()
+	if tkn.ObjType != front.OP_LPAREN {
+		a1.Logger.Log(fmt.Sprintf("E0623 expected '(', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	cond := a1.parseExpr(tp, m, cur)
+	if cond == nil {
+		a1.Logger.Log(fmt.Sprintf("E0624 expected condition expr at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	tkn = tp.Pop()
+	if tkn.ObjType != front.OP_RPAREN {
+		a1.Logger.Log(fmt.Sprintf("E0625 expected ')', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	var res A1StatSwitch
+	res.Init(tkn.Location, cond)
+
+	// get switch body
+	tkn = tp.Pop()
+	if tkn.ObjType != front.OP_LBRACE {
+		a1.Logger.Log(fmt.Sprintf("E0626 expected '{', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	wasFall := false
+	wasDefault := false
+	for tp.CanPop(1) {
+		tkn = tp.Seek()
+		switch tkn.ObjType {
+		case front.KEY_CASE:
+			if wasDefault {
+				a1.Logger.Log(fmt.Sprintf("E0627 case cannot be after default at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			cond := a1.parseExpr(tp, m, cur)
+			if cond == nil || cond.GetObjType() != E1_Literal || cond.(*A1ExprLiteral).Value.ObjType != front.LitInt {
+				a1.Logger.Log(fmt.Sprintf("E0628 case must be int constexpr at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			i := cond.(*A1ExprLiteral).Value.Value.(int64)
+			for _, v := range res.CaseConds {
+				if v == i {
+					a1.Logger.Log(fmt.Sprintf("E0629 duplicate case %d at %s", i, a1.Logger.GetLoc(tkn.Location)), 5, true)
+				}
+			}
+			res.CaseConds = append(res.CaseConds, i)
+			res.CaseFalls = append(res.CaseFalls, false)
+			res.CaseBodies = append(res.CaseBodies, make([]A1Stat, 0))
+			wasFall = false
+
+		case front.KEY_DEFAULT:
+			if wasDefault {
+				a1.Logger.Log(fmt.Sprintf("E0630 double default at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			res.DefaultBody = make([]A1Stat, 0)
+			wasDefault = true
+			wasFall = false
+
+		case front.KEY_FALL:
+			if len(res.CaseConds) == 0 {
+				a1.Logger.Log(fmt.Sprintf("E0631 fall before case at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			if wasFall {
+				a1.Logger.Log(fmt.Sprintf("E0632 double fall at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			res.CaseFalls[len(res.CaseFalls)-1] = true
+			wasFall = true
+
+		case front.OP_RBRACE:
+			tp.Pop()
+			return &res
+
+		default:
+			if len(res.CaseConds) == 0 {
+				a1.Logger.Log(fmt.Sprintf("E0631 statement before case at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			body := a1.parseStat(tp, m, cur)
+			if body == nil {
+				a1.Logger.Log(fmt.Sprintf("E0632 expected body statement at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+			if wasDefault {
+				res.DefaultBody = append(res.DefaultBody, body)
+			} else {
+				res.CaseBodies[len(res.CaseBodies)-1] = append(res.CaseBodies[len(res.CaseBodies)-1], body)
+			}
+		}
+	}
+	return &res
+}
+
+// module parsing
+func (a1 *A1Parser) parseInclude(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) *A1DeclInclude {
+	tkn := tp.Pop()
+	args := make([]A1Type, 0)
+	if tkn.ObjType == front.OP_LT { // template include
+		for tp.CanPop(1) {
+			t, err := m.parseType(tp, cur, a1.Arch)
+			if err != nil {
+				a1.Logger.Log(err.Error(), 5, true)
+			}
+			args = append(args, *t)
+			tkn = tp.Pop()
+			if tkn.ObjType == front.OP_GT {
+				break
+			} else if tkn.ObjType != front.OP_COMMA {
+				a1.Logger.Log(fmt.Sprintf("E0701 expected '>', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+			}
+		}
+		tkn = tp.Pop()
+	}
+
+	// get path, name
+	if tkn.ObjType != front.LIT_STR {
+		a1.Logger.Log(fmt.Sprintf("E0702 expected module path, got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	nm := tp.Pop()
+	if tkn.ObjType != front.ID {
+		a1.Logger.Log(fmt.Sprintf("E0703 expected module name, got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	if !m.IsNameUsable(nm.Text) {
+		a1.Logger.Log(fmt.Sprintf("E0704 module name %s is not usable at %s", nm.Text, a1.Logger.GetLoc(nm.Location)), 5, true)
+	}
+
+	// make new module
+	var res A1DeclInclude
+	pos := a1.FindModule(tkn.Text)
+	if pos >= 0 && len(args) == 0 {
+		res.Init(tkn.Location, nm.Text, tkn.Text, a1.Modules[pos].Uname, args)
+	} else {
+		if len(args) == 0 {
+			a1.ChunkCount++
+		}
+		mm := a1.Parse(tkn.Text, args, a1.ChunkCount)
+		a1.Modules = append(a1.Modules, *mm)
+		res.Init(tkn.Location, nm.Text, tkn.Text, mm.Uname, args)
+	}
+	cur.Decls[nm.Text] = &res
+	return &res
+}
+
+func (a1 *A1Parser) parseTemplate(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) []A1Decl {
+	res := make([]A1Decl, 0)
+	tkn := tp.Pop()
+	if tkn.ObjType != front.OP_LT {
+		a1.Logger.Log(fmt.Sprintf("E0705 expected '<', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+	}
+	for tp.CanPop(1) {
+		tkn = tp.Pop()
+		if tkn.ObjType != front.ID {
+			a1.Logger.Log(fmt.Sprintf("E0706 expected template name, got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		if !m.IsNameUsable(tkn.Text) {
+			a1.Logger.Log(fmt.Sprintf("E0707 template name %s is not usable at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+		var d A1DeclTemplate
+		d.Init(tkn.Location, tkn.Text)
+		cur.Decls[tkn.Text] = &d
+		res = append(res, &d)
+		tkn = tp.Pop()
+		if tkn.ObjType == front.OP_GT {
+			break
+		} else if tkn.ObjType != front.OP_COMMA {
+			a1.Logger.Log(fmt.Sprintf("E0708 expected '>', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+		}
+	}
+	return res
+}
+
+func (a1 *A1Parser) Parse(path string, args []A1Type, chunkID int) *A1Module {
+	return nil
+}

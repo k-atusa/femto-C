@@ -1,4 +1,0 @@
-# .clangd
-# clangd가 컴파일에 사용할 플래그를 설정합니다.
-CompileFlags:
-  Add: [ -std=c++23 ]
