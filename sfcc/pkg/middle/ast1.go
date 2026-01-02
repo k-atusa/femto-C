@@ -5,6 +5,7 @@ package middle
 import (
 	"fmt"
 	"slices"
+	"sync"
 
 	"../front"
 )
@@ -1349,8 +1350,13 @@ func (a1 *A1Parser) parseDeclFunc(tp *front.TokenProvider, m *A1Module, cur *A1S
 	}
 	res.Type = &ft
 
-	// parse body, check func
-	body.Body = append(body.Body, a1.parseStatScope(tp, m, &body))
+	// jump/parse body, check func
+	if a1.Mt_flag {
+		res.tp_pos = tp.Pos
+		a1.jumpScope(tp)
+	} else {
+		body.Body = append(body.Body, a1.parseStatScope(tp, m, &body))
+	}
 	if res.StructNm != "" { // method
 		d := m.FindDecl(res.StructNm, false)
 		if d == nil || d.GetObjType() != D1_Struct { // check struct exists
@@ -2021,7 +2027,6 @@ func (a1 *A1Parser) parseTemplate(tp *front.TokenProvider, m *A1Module, cur *A1S
 }
 
 func (a1 *A1Parser) parseSrc(path string, args []A1Type, chunkID int) *A1Module {
-	defer a1.Logger.Log(fmt.Sprintf("AST1 generated %s", path), 3, false)
 	// find unique name
 	fname := front.GetFileName(path)
 	if len(fname) > a1.NameCut {
@@ -2154,6 +2159,13 @@ func (a1 *A1Parser) parseSrc(path string, args []A1Type, chunkID int) *A1Module 
 			}
 		}
 	}
+
+	// set token provider for later func parsing
+	if a1.Mt_flag {
+		m.tkns = &tp
+	} else {
+		m.tkns = nil
+	}
 	return &m
 }
 
@@ -2166,22 +2178,26 @@ func (a1 *A1Parser) jumpDecl(tp *front.TokenProvider, m *A1Module, cur *A1StatSc
 			}
 		}
 	} else { // function declaration
-		count := 0
-		for tp.CanPop(1) {
-			if tp.Pop().ObjType == front.OP_LBRACE {
-				count++
-				break
-			}
+		a1.jumpScope(tp)
+	}
+}
+
+func (a1 *A1Parser) jumpScope(tp *front.TokenProvider) {
+	count := 0
+	for tp.CanPop(1) {
+		if tp.Pop().ObjType == front.OP_LBRACE {
+			count++
+			break
 		}
-		for tp.CanPop(1) {
-			tkn := tp.Pop()
-			if tkn.ObjType == front.OP_LBRACE {
-				count++
-			} else if tkn.ObjType == front.OP_RBRACE {
-				count--
-				if count == 0 {
-					break
-				}
+	}
+	for tp.CanPop(1) {
+		tkn := tp.Pop()
+		if tkn.ObjType == front.OP_LBRACE {
+			count++
+		} else if tkn.ObjType == front.OP_RBRACE {
+			count--
+			if count == 0 {
+				break
 			}
 		}
 	}
@@ -2322,4 +2338,27 @@ func (a1 *A1Parser) completeStruct(sDecl *A1DeclStruct, m *A1Module) bool {
 	}
 	a1.Logger.Log(fmt.Sprintf("calculated size of struct %s at %s", sDecl.Name, a1.Logger.GetLoc(sDecl.Loc)), 1, false)
 	return true
+}
+
+// multithread func_decl parsing
+func (a1 *A1Parser) parseMulti(wg *sync.WaitGroup, idx int) {
+	defer func() {
+		e := recover()
+		if e == nil {
+			a1.Mt_ret <- false
+		} else {
+			a1.Logger.Log(fmt.Sprintf("PANIC: %s", e), 5, false)
+			a1.Mt_ret <- true
+		}
+		wg.Done()
+	}()
+	m := &a1.Modules[idx]
+	m.tkns.Pos = 0
+	for _, r := range m.Code.Body {
+		if r.GetObjType() == S1_Decl && r.(*A1StatDecl).Decl.GetObjType() == D1_Func {
+			funcDecl := r.(*A1StatDecl).Decl.(*A1DeclFunc)
+			m.tkns.Pos = funcDecl.tp_pos
+			funcDecl.Body.Body = append(funcDecl.Body.Body, a1.parseStatScope(m.tkns, m, m.Code))
+		}
+	}
 }

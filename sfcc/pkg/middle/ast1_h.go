@@ -3,7 +3,9 @@
 package middle
 
 import (
+	"fmt"
 	"strings"
+	"sync"
 
 	"../front"
 )
@@ -532,12 +534,14 @@ func (d *A1DeclVar) Init(loc front.Loc, name string, t *A1Type, initExpr A1Expr,
 
 type A1DeclFunc struct {
 	A1DeclB
-	StructNm   string
-	FuncNm     string
+	StructNm   string // for method
+	FuncNm     string // for method
 	Params     []string
 	Body       *A1StatScope
 	IsVaArg    bool // void*[], void*[] int[]
 	IsVaArg_ad bool // void*[] int[]
+
+	tp_pos int // for later func parsing
 }
 
 func (d *A1DeclFunc) Init(loc front.Loc, fullNm string, structNm string, funcNm string, body *A1StatScope, isExported bool) {
@@ -552,6 +556,7 @@ func (d *A1DeclFunc) Init(loc front.Loc, fullNm string, structNm string, funcNm 
 	d.Body = body
 	d.IsVaArg = false
 	d.IsVaArg_ad = false
+	d.tp_pos = -1
 }
 
 type A1DeclStruct struct {
@@ -594,8 +599,9 @@ type A1Module struct {
 	Code       *A1StatScope
 	IsFinished bool
 
-	tmpArgs []A1Type // template args
-	tmpUsed int      // template used
+	tmpArgs []A1Type             // template args
+	tmpUsed int                  // template used
+	tkns    *front.TokenProvider // for later func parsing
 }
 
 func (m *A1Module) Init(path string, uname string, chunkID int, args []A1Type) {
@@ -606,6 +612,7 @@ func (m *A1Module) Init(path string, uname string, chunkID int, args []A1Type) {
 	m.IsFinished = false
 	m.tmpArgs = args
 	m.tmpUsed = 0
+	m.tkns = nil
 }
 
 func (m *A1Module) FindDecl(name string, chkExported bool) A1Decl {
@@ -676,6 +683,10 @@ type A1Parser struct {
 	ChunkCount int
 	NameCut    int
 	Modules    []A1Module
+
+	Mt_flag bool
+	Mt_wg   sync.WaitGroup
+	Mt_ret  chan bool
 }
 
 func (p *A1Parser) Init(arch int, log *front.CplrMsg) {
@@ -688,6 +699,7 @@ func (p *A1Parser) Init(arch int, log *front.CplrMsg) {
 	p.ChunkCount = 0
 	p.NameCut = 16
 	p.Modules = make([]A1Module, 0, 16)
+	p.Mt_flag = true
 }
 
 func (p *A1Parser) FindModule(path string) int {
@@ -708,10 +720,28 @@ func (p *A1Parser) GetModule(uname string) int {
 	return -1
 }
 
-func (a1 *A1Parser) Parse(path string) {
+func (p *A1Parser) Parse(path string) {
 	// parse main source
-	m := a1.parseSrc(path, nil, a1.ChunkCount)
+	m := p.parseSrc(path, nil, p.ChunkCount)
 	if m != nil {
-		a1.Modules = append(a1.Modules, *m)
+		p.Modules = append(p.Modules, *m)
 	}
+
+	// multithread func_decl parsing
+	if p.Mt_flag {
+		p.Mt_wg.Add(len(p.Modules))
+		p.Mt_ret = make(chan bool, len(p.Modules))
+		for i := range p.Modules {
+			go p.parseMulti(&p.Mt_wg, i)
+		}
+		p.Mt_wg.Wait()
+		close(p.Mt_ret)
+
+		for ret := range p.Mt_ret {
+			if ret {
+				panic("PANIC")
+			}
+		}
+	}
+	p.Logger.Log(fmt.Sprintf("AST1 generated %s", path), 3, false)
 }
