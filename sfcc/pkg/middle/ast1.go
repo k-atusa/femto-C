@@ -2075,7 +2075,8 @@ func (a1 *A1Parser) parseSrc(path string, args []A1Type, chunkID int) *A1Module 
 	for tp.CanPop(1) {
 		tkn := tp.Seek()
 		switch tkn.ObjType {
-		case front.KEY_INCLUDE, front.KEY_TEMPLATE, front.KEY_STRUCT, front.KEY_ENUM, front.KEY_TYPEDEF: // parse now
+		case front.KEY_INCLUDE, front.KEY_TEMPLATE, front.KEY_STRUCT, front.KEY_ENUM, front.KEY_TYPEDEF,
+			front.KEY_DEFINE, front.KEY_CONST, front.KEY_VOLATILE, front.KEY_EXTERN: // parse now
 			for _, d := range a1.parseToplevel(&tp, &m, &scope) {
 				var st A1StatDecl
 				st.Init(d.GetLocation(), d)
@@ -2086,7 +2087,11 @@ func (a1 *A1Parser) parseSrc(path string, args []A1Type, chunkID int) *A1Module 
 		case front.OP_SEMICOLON:
 			tp.Pop()
 		case front.KEY_EXPORT:
-			if tp.Match([]front.TokenType{front.KEY_EXPORT, front.KEY_STRUCT}) || tp.Match([]front.TokenType{front.KEY_EXPORT, front.KEY_ENUM}) || tp.Match([]front.TokenType{front.KEY_EXPORT, front.KEY_TYPEDEF}) {
+			tp.Pop()
+			ord := tp.Pop()
+			tp.Rewind(2)
+			if ord.ObjType == front.KEY_STRUCT || ord.ObjType == front.KEY_ENUM || ord.ObjType == front.KEY_TYPEDEF ||
+				ord.ObjType == front.KEY_DEFINE || ord.ObjType == front.KEY_CONST || ord.ObjType == front.KEY_VOLATILE || ord.ObjType == front.KEY_EXTERN {
 				for _, d := range a1.parseToplevel(&tp, &m, &scope) { // parse now
 					var st A1StatDecl
 					st.Init(d.GetLocation(), d)
@@ -2094,11 +2099,13 @@ func (a1 *A1Parser) parseSrc(path string, args []A1Type, chunkID int) *A1Module 
 				}
 			} else {
 				idx = append(idx, tp.Pos) // add index for later parsing
+				tp.Pop()
 			}
-		case front.KEY_DEFINE, front.KEY_CONST, front.KEY_VOLATILE, front.KEY_EXTERN, front.KEY_VA_ARG:
+		case front.KEY_VA_ARG:
 			idx = append(idx, tp.Pos) // add index for later parsing
+			tp.Pop()
 		default:
-			idx = append(idx, tp.Pos) // var/func are added later
+			idx = append(idx, tp.Pos) // normal var, func are added later
 			a1.jumpDecl(&tp, &m, &scope)
 		}
 	}

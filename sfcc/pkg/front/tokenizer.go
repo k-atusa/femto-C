@@ -426,22 +426,15 @@ func isNumber(text string) TokenType {
 	return LIT_INT
 }
 
-func getHexEscape(c0 byte, c1 byte) byte {
-	if '0' <= c0 && c0 <= '9' {
-		c0 = c0 - '0'
-	} else if 'a' <= c0 && c0 <= 'f' {
-		c0 = c0 - 'a' + 10
-	} else {
-		c0 = c0 - 'A' + 10
+func getHex(c byte) byte {
+	if '0' <= c && c <= '9' {
+		return c - '0'
+	} else if 'a' <= c && c <= 'f' {
+		return c - 'a' + 10
+	} else if 'A' <= c && c <= 'F' {
+		return c - 'A' + 10
 	}
-	if '0' <= c1 && c1 <= '9' {
-		c1 = c1 - '0'
-	} else if 'a' <= c1 && c1 <= 'f' {
-		c1 = c1 - 'a' + 10
-	} else {
-		c1 = c1 - 'A' + 10
-	}
-	return (c0 << 4) | c1
+	return 255
 }
 
 // tokenize source code into tokens
@@ -627,7 +620,7 @@ func Tokenize(source string, filename string, sourceID int) ([]Token, error) {
 				case LIT_FLOAT:
 					f, err := strconv.ParseFloat(numStr, 64)
 					if err != nil {
-						return nil, fmt.Errorf("E0103 number literal conversion fail at %s:%d.%d", filename, line, col)
+						return nil, fmt.Errorf("E0104 number literal conversion fail at %s:%d.%d", filename, line, col)
 					}
 					val.Init(f)
 					tkn.ObjType = LIT_FLOAT
@@ -642,14 +635,14 @@ func Tokenize(source string, filename string, sourceID int) ([]Token, error) {
 			if c == '\\' {
 				status = CharEscape
 			} else if c == '\r' || c == '\n' {
-				return nil, fmt.Errorf("E0104 newline in char literal at %s:%d.%d", filename, line, col)
+				return nil, fmt.Errorf("E0105 newline in char literal at %s:%d.%d", filename, line, col)
 			} else if c == '\'' {
 				if len(buffer) == 0 {
-					return nil, fmt.Errorf("E0105 empty char literal at %s:%d.%d", filename, line, col)
+					return nil, fmt.Errorf("E0106 empty char literal at %s:%d.%d", filename, line, col)
 				}
 				uni := ByteToUni(buffer)
 				if uni == -1 {
-					return nil, fmt.Errorf("E0106 invalid char literal at %s:%d.%d", filename, line, col)
+					return nil, fmt.Errorf("E0107 invalid char literal at %s:%d.%d", filename, line, col)
 				}
 				var v Literal
 				v.Init(int64(uni))
@@ -683,16 +676,19 @@ func Tokenize(source string, filename string, sourceID int) ([]Token, error) {
 			case 'x':
 				var c0, c1 byte
 				if readPos < len(src) {
-					c0 = src[readPos]
+					c0 = getHex(src[readPos])
 					readPos++
 				}
 				if readPos < len(src) {
-					c1 = src[readPos]
+					c1 = getHex(src[readPos])
 					readPos++
 				}
-				buffer = append(buffer, getHexEscape(c0, c1))
+				if c0 == 255 || c1 == 255 {
+					return nil, fmt.Errorf("E0108 invalid hex escape at %s:%d.%d", filename, line, col)
+				}
+				buffer = append(buffer, (c0<<4)|c1)
 			default:
-				return nil, fmt.Errorf("E0108 invalid char escape \\%c at %s:%d.%d", c, filename, line, col)
+				return nil, fmt.Errorf("E0109 invalid char escape \\%c at %s:%d.%d", c, filename, line, col)
 			}
 			status = Char
 
@@ -700,7 +696,7 @@ func Tokenize(source string, filename string, sourceID int) ([]Token, error) {
 			if c == '\\' {
 				status = StringEscape
 			} else if c == '\r' || c == '\n' {
-				return nil, fmt.Errorf("E0109 newline in string literal at %s:%d.%d", filename, line, col)
+				return nil, fmt.Errorf("E0110 newline in string literal at %s:%d.%d", filename, line, col)
 			} else if c == '"' {
 				strVal := string(buffer)
 				var v Literal
@@ -736,16 +732,19 @@ func Tokenize(source string, filename string, sourceID int) ([]Token, error) {
 			case 'x':
 				var c0, c1 byte
 				if readPos < len(src) {
-					c0 = src[readPos]
+					c0 = getHex(src[readPos])
 					readPos++
 				}
 				if readPos < len(src) {
-					c1 = src[readPos]
+					c1 = getHex(src[readPos])
 					readPos++
 				}
-				buffer = append(buffer, getHexEscape(c0, c1))
+				if c0 == 255 || c1 == 255 {
+					return nil, fmt.Errorf("E0111 invalid hex escape at %s:%d.%d", filename, line, col)
+				}
+				buffer = append(buffer, (c0<<4)|c1)
 			default:
-				return nil, fmt.Errorf("E0111 invalid string escape \\%c at %s:%d.%d", c, filename, line, col)
+				return nil, fmt.Errorf("E0112 invalid string escape \\%c at %s:%d.%d", c, filename, line, col)
 			}
 			status = String
 
