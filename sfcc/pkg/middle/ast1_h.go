@@ -398,8 +398,8 @@ type A1StatSwitch struct {
 	Cond        A1Expr
 	CaseConds   []int64
 	CaseFalls   []bool
-	CaseBodies  [][]A1Stat
-	DefaultBody []A1Stat
+	CaseBodies  []A1StatScope
+	DefaultBody *A1StatScope
 }
 
 func (a1 *A1StatSwitch) Init(loc front.Loc, cond A1Expr) {
@@ -408,8 +408,8 @@ func (a1 *A1StatSwitch) Init(loc front.Loc, cond A1Expr) {
 	a1.Cond = cond
 	a1.CaseConds = make([]int64, 0)
 	a1.CaseFalls = make([]bool, 0)
-	a1.CaseBodies = make([][]A1Stat, 0)
-	a1.DefaultBody = make([]A1Stat, 0)
+	a1.CaseBodies = make([]A1StatScope, 0)
+	a1.DefaultBody = nil
 }
 
 // AST1 declaration node
@@ -714,5 +714,4 @@ func (a1 *A1Parser) Parse(path string) {
 	if m != nil {
 		a1.Modules = append(a1.Modules, *m)
 	}
-	// rev size cal : pass for current
 }

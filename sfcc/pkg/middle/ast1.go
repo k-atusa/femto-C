@@ -1747,8 +1747,8 @@ func (a1 *A1Parser) parseStatFor(tp *front.TokenProvider, m *A1Module, cur *A1St
 		res = &f
 
 	} else { // classic for
-		initSt := a1.parseStat(tp, m, cur)  // init_stat is in cur scope
-		cond := a1.parseExpr(tp, m, &scope) // cond_expr is in scope
+		initSt := a1.parseStat(tp, m, &scope) // init var is registered in scope
+		cond := a1.parseExpr(tp, m, &scope)   // cond_expr is in scope
 		tkn = tp.Pop()
 		if tkn.ObjType != front.OP_SEMICOLON {
 			a1.Logger.Log(fmt.Sprintf("E0622 expected ';', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
@@ -1793,9 +1793,9 @@ func (a1 *A1Parser) parseStatFor(tp *front.TokenProvider, m *A1Module, cur *A1St
 	return res
 }
 
-func (a1 *A1Parser) parseStatSwitch(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) *A1StatSwitch {
+func (a1 *A1Parser) parseStatSwitch(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) A1Stat {
 	defer a1.Logger.Log(fmt.Sprintf("parsed switch stat at %s", a1.Logger.GetLoc(tp.Seek().Location)), 1, false)
-	// get switch condition
+	// get switch condition, make switch scope
 	tkn := tp.Pop()
 	if tkn.ObjType != front.OP_LPAREN {
 		a1.Logger.Log(fmt.Sprintf("E0625 expected '(', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
@@ -1845,14 +1845,18 @@ func (a1 *A1Parser) parseStatSwitch(tp *front.TokenProvider, m *A1Module, cur *A
 			}
 			res.CaseConds = append(res.CaseConds, i)
 			res.CaseFalls = append(res.CaseFalls, false)
-			res.CaseBodies = append(res.CaseBodies, make([]A1Stat, 0))
+			var s A1StatScope
+			s.Init(tkn.Location, cur)
+			res.CaseBodies = append(res.CaseBodies, s)
 			wasFall = false
 
 		case front.KEY_DEFAULT: // default comes after case
 			if wasDefault {
 				a1.Logger.Log(fmt.Sprintf("E0633 double default at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
 			}
-			res.DefaultBody = make([]A1Stat, 0)
+			var s A1StatScope
+			s.Init(tkn.Location, cur)
+			res.DefaultBody = &s
 			wasDefault = true
 			wasFall = false
 
@@ -1880,16 +1884,29 @@ func (a1 *A1Parser) parseStatSwitch(tp *front.TokenProvider, m *A1Module, cur *A
 			if wasFall {
 				a1.Logger.Log(fmt.Sprintf("E0638 statement after fall at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
 			}
-			body := a1.parseStat(tp, m, cur)
-			if body == nil {
-				a1.Logger.Log(fmt.Sprintf("E0639 expected body statement at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
-			}
 			if wasDefault {
-				res.DefaultBody = append(res.DefaultBody, body)
+				body := a1.parseStat(tp, m, res.DefaultBody)
+				if body == nil {
+					a1.Logger.Log(fmt.Sprintf("E0639 expected body statement at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+				} else {
+					res.DefaultBody.Body = append(res.DefaultBody.Body, body)
+				}
 			} else {
 				pos := len(res.CaseBodies) - 1
-				res.CaseBodies[pos] = append(res.CaseBodies[pos], body)
+				body := a1.parseStat(tp, m, &res.CaseBodies[pos])
+				if body == nil {
+					a1.Logger.Log(fmt.Sprintf("E0640 expected body statement at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
+				} else {
+					res.CaseBodies[pos].Body = append(res.CaseBodies[pos].Body, body)
+				}
 			}
+		}
+	}
+
+	// check name decl with fall
+	for i := range res.CaseConds {
+		if res.CaseFalls[i] && len(res.CaseBodies[i].Decls) > 0 {
+			a1.Logger.Log(fmt.Sprintf("E0641 name declaration inside falling case at %s", a1.Logger.GetLoc(res.CaseBodies[i].Loc)), 5, true)
 		}
 	}
 	return &res
@@ -1912,6 +1929,8 @@ func (a1 *A1Parser) parseInclude(tp *front.TokenProvider, m *A1Module, cur *A1St
 				break
 			} else if tkn.ObjType != front.OP_COMMA {
 				a1.Logger.Log(fmt.Sprintf("E0701 expected '>', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
+				tp.Rewind(1)
+				break
 			}
 		}
 		tkn = tp.Pop()
@@ -2047,6 +2066,9 @@ func (a1 *A1Parser) parseSrc(path string, args []A1Type, chunkID int) *A1Module 
 	var scope A1StatScope
 	scope.Init(tp.Seek().Location, nil)
 	m.Code = &scope
+	defer func() {
+		m.IsFinished = true
+	}()
 	idx := make([]int, 0, 32) // pass2 index
 
 	// pass1 : parse decl except var/func
@@ -2104,7 +2126,14 @@ func (a1 *A1Parser) parseSrc(path string, args []A1Type, chunkID int) *A1Module 
 			modified = a1.completeStruct(s, &m) || modified
 		}
 	}
-	a1.Logger.Log(fmt.Sprintf("calculated forward size for %s", uname), 2, false)
+
+	// check size
+	for _, s := range calcList {
+		if s.Type.Size <= 0 {
+			a1.Logger.Log(fmt.Sprintf("E0713 cannot decide size of %s at %s", s.Name, a1.Logger.GetLoc(s.Loc)), 5, true)
+		}
+	}
+	a1.Logger.Log(fmt.Sprintf("calculated size for %s", uname), 2, false)
 
 	// pass3 : parse var/func
 	tp.Pos = 0
