@@ -1,3 +1,5 @@
+// test787c : femto-C middle.ast1_h R0
+
 package middle
 
 import (
@@ -594,21 +596,16 @@ type A1Module struct {
 
 	tmpArgs []A1Type // template args
 	tmpUsed int      // template used
-
-	tp  *front.TokenProvider // token provider for pass3
-	idx []int                // pass3 index
 }
 
-func (m *A1Module) Init(path string, uname string, args []A1Type) {
+func (m *A1Module) Init(path string, uname string, chunkID int, args []A1Type) {
 	m.Path = path
 	m.Uname = uname
-	m.ChunkID = -1
+	m.ChunkID = chunkID
 	m.Code = nil
 	m.IsFinished = false
 	m.tmpArgs = args
 	m.tmpUsed = 0
-	m.tp = nil
-	m.idx = make([]int, 0, 32)
 }
 
 func (m *A1Module) FindDecl(name string, chkExported bool) A1Decl {
@@ -677,6 +674,7 @@ type A1Parser struct {
 	Logger     *front.CplrMsg
 	Arch       int
 	ChunkCount int
+	NameCut    int
 	Modules    []A1Module
 }
 
@@ -688,6 +686,7 @@ func (p *A1Parser) Init(arch int, log *front.CplrMsg) {
 	}
 	p.Logger = log
 	p.ChunkCount = 0
+	p.NameCut = 16
 	p.Modules = make([]A1Module, 0, 16)
 }
 
@@ -707,4 +706,13 @@ func (p *A1Parser) GetModule(uname string) int {
 		}
 	}
 	return -1
+}
+
+func (a1 *A1Parser) Parse(path string) {
+	// parse main source
+	m := a1.parseSrc(path, nil, a1.ChunkCount)
+	if m != nil {
+		a1.Modules = append(a1.Modules, *m)
+	}
+	// rev size cal : pass for current
 }

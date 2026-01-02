@@ -1,3 +1,5 @@
+// test787d : femto-C middle.ast1 R0
+
 package middle
 
 import (
@@ -1235,6 +1237,7 @@ func (a1 *A1Parser) parseStat(tp *front.TokenProvider, m *A1Module, cur *A1StatS
 
 // declaration specific case parser
 func (a1 *A1Parser) parseDeclVar(tp *front.TokenProvider, m *A1Module, cur *A1StatScope, varType *A1Type, isDefine bool, isConst bool, isVolatile bool, isExtern bool, isExported bool) *A1DeclVar {
+	defer a1.Logger.Log(fmt.Sprintf("parsed var decl at %s", a1.Logger.GetLoc(tp.Seek().Location)), 1, false)
 	// check type, name
 	if varType.Size == 0 {
 		a1.Logger.Log(fmt.Sprintf("E0501 variable type cannot be void at %s", a1.Logger.GetLoc(tp.Seek().Location)), 5, true)
@@ -1280,6 +1283,7 @@ func (a1 *A1Parser) parseDeclVar(tp *front.TokenProvider, m *A1Module, cur *A1St
 }
 
 func (a1 *A1Parser) parseDeclFunc(tp *front.TokenProvider, m *A1Module, cur *A1StatScope, retType *A1Type, isVaArg bool, isExported bool) *A1DeclFunc {
+	defer a1.Logger.Log(fmt.Sprintf("parsed func decl at %s", a1.Logger.GetLoc(tp.Seek().Location)), 1, false)
 	// parse name
 	tkn := tp.Seek()
 	var body A1StatScope
@@ -1397,6 +1401,7 @@ func (a1 *A1Parser) parseDeclFunc(tp *front.TokenProvider, m *A1Module, cur *A1S
 }
 
 func (a1 *A1Parser) parseDeclStruct(tp *front.TokenProvider, m *A1Module, cur *A1StatScope, isExported bool) *A1DeclStruct {
+	defer a1.Logger.Log(fmt.Sprintf("parsed struct decl at %s", a1.Logger.GetLoc(tp.Seek().Location)), 1, false)
 	// parse name, {
 	tkn := tp.Pop()
 	if tkn.ObjType != front.ID {
@@ -1456,6 +1461,7 @@ func (a1 *A1Parser) parseDeclStruct(tp *front.TokenProvider, m *A1Module, cur *A
 }
 
 func (a1 *A1Parser) parseDeclEnum(tp *front.TokenProvider, m *A1Module, cur *A1StatScope, isExported bool) *A1DeclEnum {
+	defer a1.Logger.Log(fmt.Sprintf("parsed enum decl at %s", a1.Logger.GetLoc(tp.Seek().Location)), 1, false)
 	// parse name, {
 	tkn := tp.Pop()
 	if tkn.ObjType != front.ID {
@@ -1575,6 +1581,9 @@ func (a1 *A1Parser) parseStatAssign(tp *front.TokenProvider, m *A1Module, cur *A
 }
 
 func (a1 *A1Parser) parseStatScope(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) *A1StatScope {
+	a1.Logger.Log(fmt.Sprintf("start parsing scope at %s", a1.Logger.GetLoc(tp.Seek().Location)), 1, false)
+	defer a1.Logger.Log(fmt.Sprintf("end parsing scope at %s", a1.Logger.GetLoc(tp.Seek().Location)), 1, false)
+
 	tkn := tp.Pop()
 	if tkn.ObjType != front.OP_LBRACE {
 		a1.Logger.Log(fmt.Sprintf("E0603 expected '{', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
@@ -1597,6 +1606,7 @@ func (a1 *A1Parser) parseStatScope(tp *front.TokenProvider, m *A1Module, cur *A1
 }
 
 func (a1 *A1Parser) parseStatIf(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) *A1StatIf {
+	defer a1.Logger.Log(fmt.Sprintf("parsed if stat at %s", a1.Logger.GetLoc(tp.Seek().Location)), 1, false)
 	tkn := tp.Pop()
 	if tkn.ObjType != front.OP_LPAREN {
 		a1.Logger.Log(fmt.Sprintf("E0604 expected '(', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
@@ -1629,6 +1639,7 @@ func (a1 *A1Parser) parseStatIf(tp *front.TokenProvider, m *A1Module, cur *A1Sta
 }
 
 func (a1 *A1Parser) parseStatWhile(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) *A1StatWhile {
+	defer a1.Logger.Log(fmt.Sprintf("parsed while stat at %s", a1.Logger.GetLoc(tp.Seek().Location)), 1, false)
 	tkn := tp.Pop()
 	if tkn.ObjType != front.OP_LPAREN {
 		a1.Logger.Log(fmt.Sprintf("E0609 expected '(', got %s at %s", tkn.Text, a1.Logger.GetLoc(tkn.Location)), 5, true)
@@ -1653,6 +1664,7 @@ func (a1 *A1Parser) parseStatWhile(tp *front.TokenProvider, m *A1Module, cur *A1
 }
 
 func (a1 *A1Parser) parseStatFor(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) A1Stat {
+	defer a1.Logger.Log(fmt.Sprintf("parsed for stat at %s", a1.Logger.GetLoc(tp.Seek().Location)), 1, false)
 	// make var_decl scope
 	tkn := tp.Pop()
 	if tkn.ObjType != front.OP_LPAREN {
@@ -1782,6 +1794,7 @@ func (a1 *A1Parser) parseStatFor(tp *front.TokenProvider, m *A1Module, cur *A1St
 }
 
 func (a1 *A1Parser) parseStatSwitch(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) *A1StatSwitch {
+	defer a1.Logger.Log(fmt.Sprintf("parsed switch stat at %s", a1.Logger.GetLoc(tp.Seek().Location)), 1, false)
 	// get switch condition
 	tkn := tp.Pop()
 	if tkn.ObjType != front.OP_LPAREN {
@@ -1884,6 +1897,7 @@ func (a1 *A1Parser) parseStatSwitch(tp *front.TokenProvider, m *A1Module, cur *A
 
 // module parsing
 func (a1 *A1Parser) parseInclude(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) *A1DeclInclude {
+	defer a1.Logger.Log(fmt.Sprintf("parsed include at %s", a1.Logger.GetLoc(tp.Seek().Location)), 1, false)
 	tkn := tp.Pop()
 	args := make([]A1Type, 0)
 	if tkn.ObjType == front.OP_LT { // template include
@@ -1932,7 +1946,7 @@ func (a1 *A1Parser) parseInclude(tp *front.TokenProvider, m *A1Module, cur *A1St
 		if len(args) == 0 {
 			a1.ChunkCount++ // template include must use same chunkID
 		}
-		mm := a1.Parse(path, args, a1.ChunkCount)
+		mm := a1.parseSrc(path, args, a1.ChunkCount)
 		if mm == nil {
 			a1.Logger.Log(fmt.Sprintf("E0706 failed to parse module %s at %s", path, a1.Logger.GetLoc(tkn.Location)), 5, true)
 			return nil
@@ -1945,6 +1959,7 @@ func (a1 *A1Parser) parseInclude(tp *front.TokenProvider, m *A1Module, cur *A1St
 }
 
 func (a1 *A1Parser) parseTemplate(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) []A1Decl {
+	defer a1.Logger.Log(fmt.Sprintf("parsed template at %s", a1.Logger.GetLoc(tp.Seek().Location)), 1, false)
 	res := make([]A1Decl, 0)
 	tkn := tp.Pop()
 	if tkn.ObjType != front.OP_LT {
@@ -1986,6 +2001,289 @@ func (a1 *A1Parser) parseTemplate(tp *front.TokenProvider, m *A1Module, cur *A1S
 	return res
 }
 
-func (a1 *A1Parser) Parse(path string, args []A1Type, chunkID int) *A1Module {
-	return nil
+func (a1 *A1Parser) parseSrc(path string, args []A1Type, chunkID int) *A1Module {
+	defer a1.Logger.Log(fmt.Sprintf("AST1 generated %s", path), 3, false)
+	// find unique name
+	fname := front.GetFileName(path)
+	if len(fname) > a1.NameCut {
+		fname = fname[:a1.NameCut]
+	}
+	count := 0
+	isIn := true
+	uname := fname
+	for isIn {
+		isIn = false
+		if count > 0 {
+			uname = fmt.Sprintf("%s_%d", fname, count)
+		}
+		for i := range a1.Modules {
+			if a1.Modules[i].Uname == uname {
+				isIn = true
+				count++
+				break
+			}
+		}
+	}
+	a1.Logger.Log(fmt.Sprintf("parsing %s as %s", path, uname), 2, false)
+
+	// tokenize source
+	src, err := front.ReadFile(path)
+	if err != nil {
+		a1.Logger.Log(err.Error(), 5, true)
+		return nil
+	}
+	a1.Logger.Paths = append(a1.Logger.Paths, path)
+	tkns, err := front.Tokenize(src, path, len(a1.Modules))
+	if err != nil {
+		a1.Logger.Log(err.Error(), 5, true)
+	}
+	var tp front.TokenProvider
+	tp.Init(tkns)
+	a1.Logger.Log(fmt.Sprintf("tokenized %s as %d tokens", uname, len(tkns)), 2, false)
+
+	// make module
+	var m A1Module
+	m.Init(path, uname, chunkID, args)
+	var scope A1StatScope
+	scope.Init(tp.Seek().Location, nil)
+	m.Code = &scope
+	idx := make([]int, 0, 32) // pass2 index
+
+	// pass1 : parse decl except var/func
+	for tp.CanPop(1) {
+		tkn := tp.Seek()
+		switch tkn.ObjType {
+		case front.KEY_INCLUDE, front.KEY_TEMPLATE, front.KEY_STRUCT, front.KEY_ENUM, front.KEY_TYPEDEF: // parse now
+			for _, d := range a1.parseToplevel(&tp, &m, &scope) {
+				var st A1StatDecl
+				st.Init(d.GetLocation(), d)
+				scope.Body = append(scope.Body, &st)
+			}
+		case front.KEY_RAW_C, front.KEY_RAW_IR:
+			scope.Body = append(scope.Body, a1.parseStat(&tp, &m, &scope))
+		case front.OP_SEMICOLON:
+			tp.Pop()
+		case front.KEY_EXPORT:
+			if tp.Match([]front.TokenType{front.KEY_EXPORT, front.KEY_STRUCT}) || tp.Match([]front.TokenType{front.KEY_EXPORT, front.KEY_ENUM}) || tp.Match([]front.TokenType{front.KEY_EXPORT, front.KEY_TYPEDEF}) {
+				for _, d := range a1.parseToplevel(&tp, &m, &scope) { // parse now
+					var st A1StatDecl
+					st.Init(d.GetLocation(), d)
+					scope.Body = append(scope.Body, &st)
+				}
+			} else {
+				idx = append(idx, tp.Pos) // add index for later parsing
+			}
+		case front.KEY_DEFINE, front.KEY_CONST, front.KEY_VOLATILE, front.KEY_EXTERN, front.KEY_VA_ARG:
+			idx = append(idx, tp.Pos) // add index for later parsing
+		default:
+			idx = append(idx, tp.Pos) // var/func are added later
+			a1.jumpDecl(&tp, &m, &scope)
+		}
+	}
+
+	// check template arg
+	if m.tmpUsed != len(m.tmpArgs) {
+		a1.Logger.Log(fmt.Sprintf("E0712 template arguments do not match (%d given, %d used) for %s", len(m.tmpArgs), m.tmpUsed, uname), 5, true)
+		return nil
+	}
+
+	// pass2 : calculate type size
+	calcList := make([]*A1DeclStruct, 0)
+	for _, st := range scope.Body {
+		if st.GetObjType() == S1_Decl {
+			d := st.(*A1StatDecl).Decl
+			if d.GetObjType() == D1_Struct {
+				calcList = append(calcList, d.(*A1DeclStruct))
+			}
+		}
+	}
+	modified := true
+	for modified {
+		modified = false
+		for _, s := range calcList {
+			modified = a1.completeStruct(s, &m) || modified
+		}
+	}
+	a1.Logger.Log(fmt.Sprintf("calculated forward size for %s", uname), 2, false)
+
+	// pass3 : parse var/func
+	tp.Pos = 0
+	for _, pos := range idx {
+		if tp.Pos <= pos {
+			tp.Pos = pos
+			for _, d := range a1.parseToplevel(&tp, &m, &scope) {
+				var st A1StatDecl
+				st.Init(d.GetLocation(), d)
+				scope.Body = append(scope.Body, &st)
+			}
+		}
+	}
+	return &m
+}
+
+func (a1 *A1Parser) jumpDecl(tp *front.TokenProvider, m *A1Module, cur *A1StatScope) {
+	m.parseType(tp, cur, a1.Arch)
+	if tp.Match([]front.TokenType{front.ID, front.OP_SEMICOLON}) || tp.Match([]front.TokenType{front.ID, front.OP_ASSIGN}) { // variable declaration
+		for tp.CanPop(1) {
+			if tp.Pop().ObjType == front.OP_SEMICOLON {
+				break
+			}
+		}
+	} else { // function declaration
+		count := 0
+		for tp.CanPop(1) {
+			if tp.Pop().ObjType == front.OP_LBRACE {
+				count++
+				break
+			}
+		}
+		for tp.CanPop(1) {
+			tkn := tp.Pop()
+			if tkn.ObjType == front.OP_LBRACE {
+				count++
+			} else if tkn.ObjType == front.OP_RBRACE {
+				count--
+				if count == 0 {
+					break
+				}
+			}
+		}
+	}
+}
+
+// type size calculation
+func (a1 *A1Parser) completeType(tp *A1Type, m *A1Module) bool {
+	// complete subtypes first
+	modified := false
+	if tp.Direct != nil {
+		modified = a1.completeType(tp.Direct, m) || modified
+	}
+	for i := range tp.Indirect {
+		modified = a1.completeType(&tp.Indirect[i], m) || modified
+	}
+	if tp.Size != -1 { // already completed
+		return modified
+	}
+
+	// complete type
+	switch tp.ObjType {
+	case T1_Arr:
+		if tp.Direct.Size > 0 { // get array size by direct type
+			tp.Size = tp.Direct.Size * tp.ArrLen
+			tp.Align = tp.Direct.Align
+			modified = true
+		}
+
+	case T1_Name:
+		// 1. find module that name is used
+		pos := a1.GetModule(tp.SrcUname)
+		if pos < 0 {
+			a1.Logger.Log(fmt.Sprintf("E0801 unknown module %s", tp.SrcUname), 5, true)
+			return modified
+		}
+		tgtMod := &a1.Modules[pos]
+		decl := tgtMod.FindDecl(tp.Name, tgtMod.Uname != m.Uname)
+		if decl == nil {
+			a1.Logger.Log(fmt.Sprintf("E0802 unknown name %s", tp.Name), 5, true)
+			return modified
+		}
+
+		// 2. complete type by declaration
+		if decl.GetObjType() == D1_Struct {
+			structDecl := decl.(*A1DeclStruct)
+			if structDecl.Type.Size > 0 {
+				tp.Size = structDecl.Type.Size
+				tp.Align = structDecl.Type.Align
+				modified = true
+			}
+		} else if decl.GetObjType() == D1_Enum {
+			enumDecl := decl.(*A1DeclEnum)
+			if enumDecl.Type.Size > 0 {
+				tp.Size = enumDecl.Type.Size
+				tp.Align = enumDecl.Type.Align
+				modified = true
+			}
+		} else if decl.GetObjType() == D1_Typedef {
+			typedefDecl := decl.(*A1DeclTypedef) // complete typedef original type first
+			modified = a1.completeType(typedefDecl.Type, tgtMod) || modified
+			if typedefDecl.Type.Size > 0 {
+				tp.Size = typedefDecl.Type.Size
+				tp.Align = typedefDecl.Type.Align
+			}
+		} else if decl.GetObjType() == D1_Template {
+			templateDecl := decl.(*A1DeclTemplate) // complete template arg type first
+			modified = a1.completeType(templateDecl.Type, tgtMod) || modified
+			if templateDecl.Type.Size > 0 {
+				tp.Size = templateDecl.Type.Size
+				tp.Align = templateDecl.Type.Align
+			}
+		} else {
+			a1.Logger.Log(fmt.Sprintf("E0803 name %s is not a type", tp.Name), 5, true)
+		}
+
+	case T1_Foreign:
+		// 1. find include decl that name is used
+		pos := a1.GetModule(tp.SrcUname)
+		if pos < 0 {
+			a1.Logger.Log(fmt.Sprintf("E0804 unknown module %s", tp.SrcUname), 5, true)
+			return modified
+		}
+		tgtMod := &a1.Modules[pos]
+		decl := tgtMod.FindDecl(tp.Name, tgtMod.Uname != m.Uname)
+		if decl == nil || decl.GetObjType() != D1_Include {
+			a1.Logger.Log(fmt.Sprintf("E0805 unknown include %s", tp.Name), 5, true)
+			return modified
+		}
+		includeDecl := decl.(*A1DeclInclude)
+
+		// 2. find actual module that name is used
+		pos = a1.GetModule(includeDecl.TgtUname)
+		if pos < 0 {
+			a1.Logger.Log(fmt.Sprintf("E0806 unknown module %s", includeDecl.TgtUname), 5, true)
+			return modified
+		}
+		tgtMod = &a1.Modules[pos]
+
+		// 3. make name type and complete it
+		var nm_t A1Type
+		nm_t.Init(T1_Name, tp.Loc, tp.Name, "", includeDecl.TgtUname)
+		modified = a1.completeType(&nm_t, tgtMod) || modified
+		if nm_t.Size > 0 {
+			tp.Size = nm_t.Size
+			tp.Align = nm_t.Align
+		}
+	}
+	return modified
+}
+
+func (a1 *A1Parser) completeStruct(sDecl *A1DeclStruct, m *A1Module) bool {
+	modified := false
+	if sDecl.Type.Size > 0 { // already completed
+		return false
+	}
+	for i := range sDecl.MemTypes { // complete member types
+		if sDecl.MemTypes[i].Size <= 0 {
+			modified = a1.completeType(&sDecl.MemTypes[i], m) || modified
+		}
+		if sDecl.MemTypes[i].Size <= 0 { // not completed yet
+			return modified
+		}
+	}
+
+	// calculate size and align
+	sDecl.Type.Size = 0
+	sDecl.Type.Align = 0
+	for i := range sDecl.MemTypes {
+		if sDecl.Type.Size%sDecl.MemTypes[i].Align != 0 { // align padding
+			sDecl.Type.Size += sDecl.MemTypes[i].Align - sDecl.Type.Size%sDecl.MemTypes[i].Align
+		}
+		sDecl.MemOffsets[i] = sDecl.Type.Size // add member
+		sDecl.Type.Size += sDecl.MemTypes[i].Size
+		sDecl.Type.Align = max(sDecl.Type.Align, sDecl.MemTypes[i].Align)
+	}
+	if sDecl.Type.Size%sDecl.Type.Align != 0 { // align padding
+		sDecl.Type.Size += sDecl.Type.Align - sDecl.Type.Size%sDecl.Type.Align
+	}
+	a1.Logger.Log(fmt.Sprintf("calculated size of struct %s at %s", sDecl.Name, a1.Logger.GetLoc(sDecl.Loc)), 1, false)
+	return true
 }

@@ -1,3 +1,5 @@
+// test787a : femto-C front.common R0
+
 package front
 
 import (

@@ -1,3 +1,5 @@
+// test787b : femto-C front.tokenizer R0
+
 package front
 
 import (
