@@ -605,12 +605,14 @@ func (a2 *A2DeclEnum) Init(loc front.Loc, uid int64, name string, srcUname strin
 
 // AST2 module
 type A2Module struct {
+	PathIdx int
 	Uname   string
 	ChunkID int
 	Code    *A2StatScope
 }
 
-func (a2 *A2Module) Init(uname string, chunkID int) {
+func (a2 *A2Module) Init(pathIdx int, uname string, chunkID int) {
+	a2.PathIdx = pathIdx
 	a2.Uname = uname
 	a2.ChunkID = chunkID
 	a2.Code = nil
@@ -618,7 +620,7 @@ func (a2 *A2Module) Init(uname string, chunkID int) {
 
 func (a2 *A2Module) FindDecl(name string) A2Decl {
 	if decl, ok := a2.Code.Decls[name]; ok {
-		return decl
+		return decl // global declaration
 	}
 	return nil
 }
@@ -629,7 +631,8 @@ type A2Context struct { // context for function analysis
 	CurModule *A2Module
 	CurFunc   *A2DeclFunc
 	CurRType  *A2Type
-	Scopes    []*A2StatScope
+	TopScope  *A2StatScope   // toplevel scope
+	Scopes    []*A2StatScope // local scope
 	Loops     []A2StatLoop
 }
 
@@ -638,6 +641,7 @@ func (c *A2Context) Init(mt_idx int, a2 *A2Analyzer) {
 	c.CurModule = &a2.Modules[mt_idx]
 	c.CurFunc = nil
 	c.CurRType = nil
+	c.TopScope = c.CurModule.Code
 	c.Scopes = make([]*A2StatScope, 0, 16)
 	c.Loops = make([]A2StatLoop, 0, 8)
 }
@@ -646,17 +650,41 @@ func (c *A2Context) FindVar(name string) *A2DeclVar {
 	for i := len(c.Scopes) - 1; i >= 0; i-- {
 		if decl, ok := c.Scopes[i].Decls[name]; ok {
 			if decl.GetObjType() == D2_Var {
-				return decl.(*A2DeclVar)
+				return decl.(*A2DeclVar) // local variable
 			}
 		}
 	}
+	if decl, ok := c.TopScope.Decls[name]; ok {
+		if decl.GetObjType() == D2_Var {
+			return decl.(*A2DeclVar) // global variable
+		}
+	}
 	return nil
+}
+
+func (c *A2Context) FindDomain(name string) int {
+	if c.FindVar(name) != nil {
+		return 0 // variable
+	}
+	d := c.CurModule.FindDecl(name)
+	switch d.GetObjType() {
+	case D2_Var:
+		return 0 // variable
+	case D2_Func:
+		return 1 // function
+	case D2_Struct:
+		return 2 // struct
+	case D2_Enum:
+		return 3 // enum
+	}
+	return -1 // not found
 }
 
 type A2Analyzer struct { // global analyzer
 	Logger   *front.CplrMsg
 	Arch     int
 	Modules  []A2Module
+	ModMap   map[string]int
 	UidCount int64
 
 	// analyzer context
@@ -673,11 +701,20 @@ func (a2 *A2Analyzer) Init(logger *front.CplrMsg, arch int, ast1 *A1Parser, mt_c
 	a2.Logger = logger
 	a2.Arch = arch
 	a2.Modules = make([]A2Module, 0)
+	a2.ModMap = make(map[string]int) // module uname -> index
 	a2.UidCount = 0
 	a2.a1 = ast1
 	a2.Mt_flag = mt_cfg > 0 // set (mt_cfg > 0) to enable multithread
 	a2.Mt_wg = sync.WaitGroup{}
 	a2.Mt_ret = make(chan bool, mt_cfg)
+	a2.initTypes()
+}
+
+func (a2 *A2Analyzer) FindModule(uname string) int {
+	if idx, ok := a2.ModMap[uname]; ok {
+		return idx
+	}
+	return -1
 }
 
 func (a2 *A2Analyzer) GetUid() int64 {
@@ -698,4 +735,45 @@ func (a2 *A2Analyzer) LoadType(name string) *A2Type {
 		return v.(*A2Type)
 	}
 	return nil
+}
+
+func (a2 *A2Analyzer) initTypes() {
+	getp := func(name string, size int, align int) *A2Type {
+		var res A2Type
+		res.Init(T2_Primitive, front.Loc{}, name, "")
+		res.Size = size
+		res.Align = align
+		return &res
+	}
+	getd := func(name string, size int, align int, tp A2TypeT, d *A2Type) *A2Type {
+		var res A2Type
+		res.Init(tp, front.Loc{}, name, "")
+		res.Size = size
+		res.Align = align
+		res.Direct = d
+		return &res
+	}
+
+	a2.StoreType("int", getp("int", a2.Arch, a2.Arch))
+	a2.StoreType("i8", getp("i8", 1, 1))
+	a2.StoreType("i16", getp("i16", 2, 2))
+	a2.StoreType("i32", getp("i32", 4, 4))
+	a2.StoreType("i64", getp("i64", 8, 8))
+
+	a2.StoreType("uint", getp("uint", a2.Arch, a2.Arch))
+	a2.StoreType("u8", getp("u8", 1, 1))
+	a2.StoreType("u16", getp("u16", 2, 2))
+	a2.StoreType("u32", getp("u32", 4, 4))
+	a2.StoreType("u64", getp("u64", 8, 8))
+
+	a2.StoreType("f32", getp("f32", 4, 4))
+	a2.StoreType("f64", getp("f64", 8, 8))
+	a2.StoreType("bool", getp("bool", 1, 1))
+	a2.StoreType("void", getp("void", 0, 1))
+
+	a2.StoreType("u8*", getd("*", a2.Arch, a2.Arch, T2_Ptr, a2.LoadType("u8")))
+	a2.StoreType("u8[]", getd("[]", 2*a2.Arch, a2.Arch, T2_Slice, a2.LoadType("u8")))
+	a2.StoreType("int[]", getd("[]", 2*a2.Arch, a2.Arch, T2_Slice, a2.LoadType("int")))
+	a2.StoreType("void*", getd("*", a2.Arch, a2.Arch, T2_Ptr, a2.LoadType("void")))
+	a2.StoreType("void*[]", getd("[]", 2*a2.Arch, a2.Arch, T2_Slice, a2.LoadType("void*")))
 }

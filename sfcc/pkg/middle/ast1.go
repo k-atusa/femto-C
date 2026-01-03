@@ -169,7 +169,7 @@ func (m *A1Module) parseType(tp *front.TokenProvider, cur *A1StatScope, arch int
 			base.Init(T1_Name, tgtNm.Location, tgtNm.Text, "", m.Uname)
 		} else if decl.GetObjType() == D1_Typedef { // local typedef -> replace
 			base = *decl.(*A1DeclTypedef).Type
-		} else if decl.GetObjType() == D1_Template { // local template -> replace
+		} else if decl.GetObjType() == D1_Template { // template -> replace
 			base = *decl.(*A1DeclTemplate).Type
 		} else { // struct, enum -> name
 			base.Init(T1_Name, tgtNm.Location, tgtNm.Text, "", m.Uname)
@@ -1968,10 +1968,12 @@ func (a1 *A1Parser) parseInclude(tp *front.TokenProvider, m *A1Module, cur *A1St
 	if pos >= 0 && len(args) == 0 { // non-template include is reused
 		res.Init(tkn.Location, nm.Text, path, a1.Modules[pos].Uname, args)
 	} else { // should parse new module
-		if len(args) == 0 {
-			a1.ChunkCount++ // template include must use same chunkID
+		c := m.ChunkID      // tmp include must use same chunkID
+		if len(args) == 0 { // non-tmp include must use new chunkID
+			a1.ChunkCount++
+			c = a1.ChunkCount
 		}
-		mm := a1.parseSrc(path, args, a1.ChunkCount)
+		mm := a1.parseSrc(path, args, c)
 		if mm == nil {
 			a1.Logger.Log(fmt.Sprintf("E0706 failed to parse module %s at %s", path, a1.Logger.GetLoc(tkn.Location)), 5, true)
 			return nil

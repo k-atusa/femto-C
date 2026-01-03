@@ -1,3 +1,3 @@
-// test787j : femto-C back.ir R0
+// test787k : femto-C back.ir R0
 
 package back
