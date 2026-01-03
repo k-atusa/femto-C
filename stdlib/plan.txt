@@ -47,7 +47,7 @@ defer 없는 스코프:
   lbl_loop_exit:
   switch _state {
     case _state == 0: (정상 실행)
-      do_nothing
+      step 실행
     case _state == 1: (break)
       단순 루프 탈출, _state = 0
     case _state == 2: (continue)
@@ -56,6 +56,16 @@ defer 없는 스코프:
       스코프 타겟으로 점프
   }
 }
+
+AST2에서의 단일문장 루프 (body가 스코프가 아님):
+-일반 -> 스코프 기록 없이 그대로 파싱 (여기선 defer문 도 일반 표현식문이랑 같으므로)
+-break -> 타겟 점프 그대로 진행 (타겟이 안 바뀜)
+-continue -> 아무것도 안 넣음 (문장이 없는 것과 똑같음)
+-return -> 그대로 return 문 넣음 (타겟이 안 바뀜, 타겟 점프 그대로 진행)
+
+AST3에서의 단일문장 루프:
+정형화를 위해 스코프를 생성해줌, 이후 그대로 변환해서 넣음
+
 
 break:
 _state = 1, 타겟으로 점프
