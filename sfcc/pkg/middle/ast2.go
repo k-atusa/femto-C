@@ -192,3 +192,28 @@ func (a2 *A2Analyzer) convertType(src *A1Type, ct *A2Context) *A2Type {
 	}
 	return &res
 }
+
+// expression conversion
+func (a2 *A2Analyzer) convertExpr(src *A1Expr, ct *A2Context, forcedTp *A2Type, isResUsed bool, assignTo string) A2Expr {
+	return nil
+}
+
+func (a2 *A2Analyzer) convertExprLiteral(src *A1ExprLiteral, ct *A2Context, forcedTp *A2Type, isResUsed bool, assignTo string) *A2ExprLiteral {
+	return nil
+}
+
+func (a2 *A2Analyzer) convertExprLitData(src *A1ExprLitData, ct *A2Context, forcedTp *A2Type, isResUsed bool, assignTo string) *A2ExprLitData {
+	return nil
+}
+
+func (a2 *A2Analyzer) convertExprDotOp(src *A1ExprOp, ct *A2Context, forcedTp *A2Type, isResUsed bool, assignTo string) *A2ExprOp {
+	return nil
+}
+
+func (a2 *A2Analyzer) convertExprOp(src *A1ExprOp, ct *A2Context, forcedTp *A2Type, isResUsed bool, assignTo string) *A2ExprOp {
+	return nil
+}
+
+func (a2 *A2Analyzer) convertExprFcall(src *A1ExprFCall, ct *A2Context, forcedTp *A2Type, isResUsed bool, assignTo string) *A2ExprCall {
+	return nil
+}

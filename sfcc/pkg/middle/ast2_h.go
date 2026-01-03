@@ -338,10 +338,16 @@ func (a2 *A2StatCtrl) Init(tp A2StatT, loc front.Loc, uid int64) {
 
 type A2StatScope struct {
 	A2StatB
+	// name finder
 	Parent *A2StatScope
-	Defers []A2Expr
-	Body   []A2Stat
-	Decls  map[string]A2Decl // name map
+	Decls  map[string]A2Decl
+
+	// control infos
+	Defers     []A2Expr
+	IsFuncBody bool
+	IsLoopBody bool
+
+	Body []A2Stat
 }
 
 func (a2 *A2StatScope) Init(loc front.Loc, uid int64, parent *A2StatScope) {
@@ -350,9 +356,11 @@ func (a2 *A2StatScope) Init(loc front.Loc, uid int64, parent *A2StatScope) {
 	a2.Uid = uid
 	a2.IsReturns = false
 	a2.Parent = parent
-	a2.Defers = make([]A2Expr, 0)
-	a2.Body = make([]A2Stat, 0)
 	a2.Decls = make(map[string]A2Decl)
+	a2.Defers = make([]A2Expr, 0)
+	a2.IsFuncBody = false
+	a2.IsLoopBody = false
+	a2.Body = make([]A2Stat, 0)
 }
 
 type A2StatIf struct {
@@ -631,9 +639,12 @@ type A2Context struct { // context for function analysis
 	CurModule *A2Module
 	CurFunc   *A2DeclFunc
 	CurRType  *A2Type
-	TopScope  *A2StatScope   // toplevel scope
-	Scopes    []*A2StatScope // local scope
-	Loops     []A2StatLoop
+
+	TopScope *A2StatScope   // toplevel scope
+	Scopes   []*A2StatScope // local scope
+	Loops    []A2StatLoop
+
+	PreStats []A2Stat // pre-statements for expr
 }
 
 func (c *A2Context) Init(mt_idx int, a2 *A2Analyzer) {
@@ -644,6 +655,7 @@ func (c *A2Context) Init(mt_idx int, a2 *A2Analyzer) {
 	c.TopScope = c.CurModule.Code
 	c.Scopes = make([]*A2StatScope, 0, 16)
 	c.Loops = make([]A2StatLoop, 0, 8)
+	c.PreStats = nil
 }
 
 func (c *A2Context) FindVar(name string) *A2DeclVar {

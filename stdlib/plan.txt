@@ -1,0 +1,73 @@
+함수:
+{
+  인자 배열 복사
+  상태 변수 _state = 0
+  반환 변수 _ret
+
+  {메인 코드}
+
+  lbl_func_exit:
+  반환 배열 복사/반환 변수 반환
+}
+
+전처리문 있는 루프:
+while (true) {
+  전처리문 실행
+  if (!cond) 단순 루프 탈출
+
+  원래 구문들
+}
+
+일반 스코프:
+{
+  원래 구문들
+
+  lbl_defer2:
+  defer2()
+  lbl_defer1:
+  defer1()
+  lbl_defer0:
+  defer0()
+  if (_state != 0) {스코프 타겟으로 점프}
+}
+
+defer 없는 스코프:
+{
+  원래 구문들
+}
+
+루프 스코프:
+{
+  원래 구문들
+
+  lbl_defer1:
+  defer1()
+  lbl_defer0:
+  defer0()
+  lbl_loop_exit:
+  switch _state {
+    case _state == 0: (정상 실행)
+      do_nothing
+    case _state == 1: (break)
+      단순 루프 탈출, _state = 0
+    case _state == 2: (continue)
+      step 실행, _state = 0
+    case _state == 3: (return)
+      스코프 타겟으로 점프
+  }
+}
+
+break:
+_state = 1, 타겟으로 점프
+
+continue:
+_state = 2, 타겟으로 점프
+
+return:
+_state = 3, 타겟으로 점프
+
+AST2의 파싱:
+- 함수 파싱 시작 시 기본 점프 타겟은 lbl_func_exit
+- 스코프에 진입하면 스코프 종류와 점프 타겟을 기록
+- 루프에 진입하면 스코프 종류와 점프 타겟을 기록, 점프 타겟을 루프 종료로 재설정
+- defer를 만나면 스코프 저장소에 넣음, 점프 타겟을 이 defer로 재설정
