@@ -65,8 +65,8 @@ type A2Expr interface {
 	GetLocation() front.Loc
 	GetObjType() A2ExprT
 	GetType() *A2Type
-	IsLvalue() bool
-	IsConst() bool
+	CheckLvalue() bool
+	CheckConst() bool
 }
 
 type A2ExprB struct {
