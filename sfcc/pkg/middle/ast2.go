@@ -373,7 +373,7 @@ func (a2 *A2Analyzer) convExprLiteral(src *A1ExprLiteral, forcedTp *A2Type) *A2E
 func (a2 *A2Analyzer) convExprLitData(src *A1ExprLitData, ct *A2Context, forcedTp *A2Type) *A2ExprLitData {
 	var res A2ExprLitData
 	if forcedTp == nil && len(src.Elements) == 0 { // cannot infer type
-		a2.Logger.Log(fmt.Sprintf("E1106 need at least one element at %s", a2.Logger.GetLoc(src.Loc)), 5, true)
+		a2.Logger.Log(fmt.Sprintf("E1106 cannot infer type at %s", a2.Logger.GetLoc(src.Loc)), 5, true)
 		return nil
 	}
 
@@ -489,7 +489,7 @@ func (a2 *A2Analyzer) convExprDotOp(src *A1ExprOp, ct *A2Context, forcedTp *A2Ty
 	}
 
 	switch lhs.GetObjType() {
-	case E2_VarName, E2_FuncName: // inst.member
+	case E2_VarName, E2_FuncName, E2_LitData, E2_Op, E2_FuncCall, E2_FptrCall: // inst.member
 		// check struct type
 		var structType *A2Type
 		op := B2_Dot
@@ -507,11 +507,11 @@ func (a2 *A2Analyzer) convExprDotOp(src *A1ExprOp, ct *A2Context, forcedTp *A2Ty
 		if rname[0] < 'A' || rname[0] > 'Z' {
 			if rname[0] == '_' { // private
 				if lhs.GetType().SrcUname != ct.CurModule.Uname || lhs.GetType().Name != ct.CurFunc.StructNm {
-					a2.Logger.Log(fmt.Sprintf("E1205 %s is private at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
+					a2.Logger.Log(fmt.Sprintf("E1206 member %s is private at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
 				}
 			} else { // protected
 				if lhs.GetType().SrcUname != ct.CurModule.Uname {
-					a2.Logger.Log(fmt.Sprintf("E1205 %s is protected at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
+					a2.Logger.Log(fmt.Sprintf("E1207 member %s is protected at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
 				}
 			}
 		}
@@ -520,13 +520,13 @@ func (a2 *A2Analyzer) convExprDotOp(src *A1ExprOp, ct *A2Context, forcedTp *A2Ty
 		pos := a2.FindModule(structType.SrcUname)
 		decl := a2.Modules[pos].FindDecl(structType.Name)
 		if decl == nil || decl.GetObjType() != D2_Struct {
-			a2.Logger.Log(fmt.Sprintf("E1205 cannot find %s at %s", structType.Name, a2.Logger.GetLoc(src.Loc)), 5, true)
+			a2.Logger.Log(fmt.Sprintf("E1208 cannot find struct %s at %s", structType.Name, a2.Logger.GetLoc(src.Loc)), 5, true)
 			return nil
 		}
 		sDecl := decl.(*A2DeclStruct)
 		pos = slices.Index(sDecl.MemNames, rname)
 		if pos < 0 {
-			a2.Logger.Log(fmt.Sprintf("E1205 cannot find %s.%s at %s", structType.Name, rname, a2.Logger.GetLoc(src.Loc)), 5, true)
+			a2.Logger.Log(fmt.Sprintf("E1209 cannot find %s.%s at %s", structType.Name, rname, a2.Logger.GetLoc(src.Loc)), 5, true)
 			return nil
 		}
 
@@ -542,11 +542,11 @@ func (a2 *A2Analyzer) convExprDotOp(src *A1ExprOp, ct *A2Context, forcedTp *A2Ty
 		if rname[0] < 'A' || rname[0] > 'Z' {
 			if rname[0] == '_' { // private
 				if lhs.GetType().SrcUname != ct.CurModule.Uname || lhs.GetType().Name != ct.CurFunc.StructNm {
-					a2.Logger.Log(fmt.Sprintf("E1205 %s is private at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
+					a2.Logger.Log(fmt.Sprintf("E1210 method %s is private at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
 				}
 			} else { // protected
 				if lhs.GetType().SrcUname != ct.CurModule.Uname {
-					a2.Logger.Log(fmt.Sprintf("E1205 %s is protected at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
+					a2.Logger.Log(fmt.Sprintf("E1211 method %s is protected at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
 				}
 			}
 		}
@@ -556,7 +556,7 @@ func (a2 *A2Analyzer) convExprDotOp(src *A1ExprOp, ct *A2Context, forcedTp *A2Ty
 		fname := lhs.GetType().Name + "." + rname
 		decl := a2.Modules[pos].FindDecl(fname)
 		if decl == nil || decl.GetObjType() != D2_Func {
-			a2.Logger.Log(fmt.Sprintf("E1205 cannot find %s at %s", fname, a2.Logger.GetLoc(src.Loc)), 5, true)
+			a2.Logger.Log(fmt.Sprintf("E1212 cannot find %s at %s", fname, a2.Logger.GetLoc(src.Loc)), 5, true)
 			return nil
 		}
 
@@ -568,20 +568,20 @@ func (a2 *A2Analyzer) convExprDotOp(src *A1ExprOp, ct *A2Context, forcedTp *A2Ty
 	case E2_EnumName: // enum.member
 		// check visibility
 		if (rname[0] < 'A' || rname[0] > 'Z') && lhs.GetType().SrcUname != ct.CurModule.Uname {
-			a2.Logger.Log(fmt.Sprintf("E1205 %s is protected at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
+			a2.Logger.Log(fmt.Sprintf("E1213 member %s is protected at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
 		}
 
 		// find member
 		pos := a2.FindModule(lhs.GetType().SrcUname)
 		decl := a2.Modules[pos].FindDecl(lhs.GetType().Name)
 		if decl == nil || decl.GetObjType() != D2_Enum {
-			a2.Logger.Log(fmt.Sprintf("E1205 cannot find %s at %s", lhs.GetType().Name, a2.Logger.GetLoc(src.Loc)), 5, true)
+			a2.Logger.Log(fmt.Sprintf("E1214 cannot find enum %s at %s", lhs.GetType().Name, a2.Logger.GetLoc(src.Loc)), 5, true)
 			return nil
 		}
 		i, ok := decl.(*A2DeclEnum).Members[rname]
 		nm := lhs.GetType().Name + "." + rname
 		if !ok {
-			a2.Logger.Log(fmt.Sprintf("E1205 cannot find %s at %s", nm, a2.Logger.GetLoc(src.Loc)), 5, true)
+			a2.Logger.Log(fmt.Sprintf("E1215 cannot find %s at %s", nm, a2.Logger.GetLoc(src.Loc)), 5, true)
 			return nil
 		}
 
@@ -597,7 +597,137 @@ func (a2 *A2Analyzer) convExprDotOp(src *A1ExprOp, ct *A2Context, forcedTp *A2Ty
 }
 
 func (a2 *A2Analyzer) convExprOp(src *A1ExprOp, ct *A2Context, forcedTp *A2Type) *A2ExprOp {
-	return nil
+	var res A2ExprOp
+	var op A2ExprOpT
+	exptp := ""
+	switch src.SubType {
+	case U1_Plus:
+		op = U2_Plus
+		fallthrough
+	case U1_Minus:
+		op = U2_Minus
+		res.Init(src.Loc, nil, op)
+		res.Operand0 = a2.convExpr(src.Operand0, ct, forcedTp)
+		res.ExprType = res.Operand0.GetType()
+
+		// check type
+		if !res.ExprType.IsThis("int") && !res.ExprType.IsThis("float") {
+			a2.Logger.Log(fmt.Sprintf("E1301 invalid type %s for (+, -) at %s", res.ExprType.Print(), a2.Logger.GetLoc(src.Loc)), 5, true)
+			return nil
+		}
+		return &res
+
+	case U1_Inc:
+		op = U2_Inc
+		exptp = "int"
+		fallthrough
+	case U1_Dec:
+		op = U2_Dec
+		exptp = "int"
+		fallthrough
+	case U1_LogicNot:
+		op = U2_LogicNot
+		exptp = "bool"
+		fallthrough
+	case U1_BitNot:
+		op = U2_BitNot
+		exptp = "int"
+		res.Init(src.Loc, nil, op)
+		res.Operand0 = a2.convExpr(src.Operand0, ct, forcedTp)
+		res.ExprType = res.Operand0.GetType()
+
+		// check type
+		if !res.ExprType.IsThis(exptp) {
+			a2.Logger.Log(fmt.Sprintf("E1302 invalid type %s for (++, --, !, ~) at %s", res.ExprType.Print(), a2.Logger.GetLoc(src.Loc)), 5, true)
+			return nil
+		}
+		return &res
+
+	case U1_Ref: // if operand0 is rvalue, temp var is created
+		if forcedTp == nil {
+			res.Init(src.Loc, nil, U2_Ref)
+			res.Operand0 = a2.convExpr(src.Operand0, ct, nil)
+			var temp A2Type
+			temp.Init(T2_Ptr, src.Loc, "*", "")
+			temp.Direct = res.Operand0.GetType()
+			res.ExprType = &temp
+		} else if forcedTp.IsThis("ptr") {
+			res.Init(src.Loc, forcedTp, U2_Ref)
+			res.Operand0 = a2.convExpr(src.Operand0, ct, forcedTp.Direct)
+		} else {
+			a2.Logger.Log(fmt.Sprintf("E1303 invalid type %s for & at %s", forcedTp.Print(), a2.Logger.GetLoc(src.Loc)), 5, true)
+			return nil
+		}
+		res.IsLvalue = true
+		res.IsConst = res.Operand0.CheckConst()
+		return &res
+
+	case U1_Deref:
+		res.Init(src.Loc, nil, U2_Deref)
+		res.Operand0 = a2.convExpr(src.Operand0, ct, nil)
+		if !res.Operand0.GetType().IsThis("ptr") {
+			a2.Logger.Log(fmt.Sprintf("E1304 invalid type %s for * at %s", res.Operand0.GetType().Print(), a2.Logger.GetLoc(src.Loc)), 5, true)
+		}
+		res.ExprType = res.Operand0.GetType().Direct
+		if res.ExprType.IsThis("void") {
+			a2.Logger.Log(fmt.Sprintf("E1305 cannot dereference void* at %s", a2.Logger.GetLoc(src.Loc)), 5, true)
+		}
+		res.IsLvalue = true
+		res.IsConst = res.Operand0.CheckConst()
+		return &res
+
+	case B1_Index: // op0[op1]
+		res.Init(src.Loc, nil, B2_Index)
+		res.Operand0 = a2.convExpr(src.Operand0, ct, nil)
+		res.Operand1 = a2.convExpr(src.Operand1, ct, nil)
+
+		// check type, lvalue
+		if res.Operand0.GetType().IsThis("arr") || res.Operand0.GetType().IsThis("slice") || res.Operand0.GetType().IsThis("ptr") {
+			res.ExprType = res.Operand0.GetType().Direct
+			res.IsLvalue = true
+			res.IsConst = res.Operand0.CheckConst()
+		} else {
+			a2.Logger.Log(fmt.Sprintf("E1306 invalid type %s for [] at %s", res.Operand0.GetType().Print(), a2.Logger.GetLoc(src.Loc)), 5, true)
+		}
+		if !res.Operand1.GetType().IsThis("int") {
+			a2.Logger.Log(fmt.Sprintf("E1307 invalid type %s for [] at %s", res.Operand1.GetType().Print(), a2.Logger.GetLoc(src.Loc)), 5, true)
+		}
+		if res.ExprType.IsThis("void") {
+			a2.Logger.Log(fmt.Sprintf("E1308 cannot index void* at %s", a2.Logger.GetLoc(src.Loc)), 5, true)
+		}
+		return &res
+
+	case B1_Mul:
+	case B1_Div:
+	case B1_Mod:
+	case B1_Add:
+	case B1_Sub:
+	case B1_Shl:
+	case B1_Shr:
+	case B1_Lt:
+	case B1_Le:
+	case B1_Gt:
+	case B1_Ge:
+	case B1_Eq:
+	case B1_Ne:
+	case B1_BitAnd:
+	case B1_BitXor:
+	case B1_BitOr:
+	case B1_LogicAnd:
+	case B1_LogicOr:
+
+	case C1_Slice: // op0[op1:op2]
+
+	case C1_Cond: // op0? op1: op2
+
+	case U1_Sizeof: // sizeof(op0)
+	case B1_Cast: // cast<tp>(op0)
+	case B1_Make: // make(op0, op1)
+	case U1_Len: // len(op0)
+	case U1_Move: // move(op0)
+	default:
+		return nil
+	}
 }
 
 func (a2 *A2Analyzer) convExprFcall(src *A1ExprFCall, ct *A2Context, forcedTp *A2Type) *A2ExprCall {
