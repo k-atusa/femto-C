@@ -70,8 +70,9 @@ const (
 )
 
 type Literal struct {
-	ObjType LiteralType
-	Value   interface{} // int64, float64, string, bool, nil
+	ObjType  LiteralType
+	Value    interface{} // int64, float64, string, bool, nil
+	EnumInfo string
 }
 
 func (l *Literal) Init(v interface{}) error {
@@ -94,6 +95,7 @@ func (l *Literal) Init(v interface{}) error {
 	default:
 		return fmt.Errorf("E0004 literal init fail: %v", v)
 	}
+	l.EnumInfo = ""
 	return nil
 }
 

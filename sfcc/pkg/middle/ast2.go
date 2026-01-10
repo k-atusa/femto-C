@@ -4,6 +4,7 @@ package middle
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"../front"
@@ -221,28 +222,28 @@ func (a2 *A2Analyzer) convType(src *A1Type, ct *A2Context) *A2Type {
 }
 
 // expression conversion
-func (a2 *A2Analyzer) convExpr(src A1Expr, ct *A2Context, forcedTp *A2Type, isResUsed bool, assignTo string) A2Expr {
+func (a2 *A2Analyzer) convExpr(src A1Expr, ct *A2Context, forcedTp *A2Type) A2Expr {
 	if src == nil {
 		return nil
 	}
 	switch src.GetObjType() {
 	case E1_Literal:
-		if isResUsed {
-			return a2.convExprLiteral(src.(*A1ExprLiteral), forcedTp)
-		} else {
-			return nil
-		}
+		return a2.convExprLiteral(src.(*A1ExprLiteral), forcedTp)
+
 	case E1_LitData:
-		return a2.convExprLitData(src.(*A1ExprLitData), ct, forcedTp, isResUsed, assignTo)
+		return a2.convExprLitData(src.(*A1ExprLitData), ct, forcedTp)
+
 	case E1_Op:
 		op := src.(*A1ExprOp)
 		if op.SubType == B1_Dot {
-			return a2.convExprDotOp(op, ct, forcedTp, isResUsed, assignTo)
+			return a2.convExprDotOp(op, ct, forcedTp)
 		} else {
-			return a2.convExprOp(op, ct, forcedTp, isResUsed, assignTo)
+			return a2.convExprOp(op, ct, forcedTp)
 		}
+
 	case E1_FCall:
-		return a2.convExprFcall(src.(*A1ExprFCall), ct, forcedTp, isResUsed, assignTo)
+		return a2.convExprFcall(src.(*A1ExprFCall), ct, forcedTp)
+
 	case E1_Name: // single name is var/func inside module
 		var res A2ExprName
 		nm := src.(*A1ExprName)
@@ -265,6 +266,7 @@ func (a2 *A2Analyzer) convExpr(src A1Expr, ct *A2Context, forcedTp *A2Type, isRe
 			a2.Logger.Log(fmt.Sprintf("E1102 need type %s, got %s at %s", forcedTp.Print(), res.ExprType.Print(), a2.Logger.GetLoc(nm.Loc)), 5, true)
 		}
 		return &res
+
 	default:
 		a2.Logger.Log(fmt.Sprintf("E1103 invalid expression type at %s", a2.Logger.GetLoc(src.GetLocation())), 5, true)
 	}
@@ -359,24 +361,245 @@ func (a2 *A2Analyzer) convExprLiteral(src *A1ExprLiteral, forcedTp *A2Type) *A2E
 	}
 
 	if nonConv {
-		a2.Logger.Log(fmt.Sprintf("E1104 need type %s, got %s at %s", forcedTp.Print(), litType.Print(), a2.Logger.GetLoc(src.Loc)), 5, true)
+		a2.Logger.Log(fmt.Sprintf("E1105 need type %s, got %s at %s", forcedTp.Print(), litType.Print(), a2.Logger.GetLoc(src.Loc)), 5, true)
 	}
 	res.Init(src.Loc, litType, src.Value)
+	if forcedTp.IsThis("enum") {
+		res.Value.EnumInfo = forcedTp.SrcUname + "." + forcedTp.Name
+	}
 	return &res
 }
 
-func (a2 *A2Analyzer) convExprLitData(src *A1ExprLitData, ct *A2Context, forcedTp *A2Type, isResUsed bool, assignTo string) *A2ExprLitData {
+func (a2 *A2Analyzer) convExprLitData(src *A1ExprLitData, ct *A2Context, forcedTp *A2Type) *A2ExprLitData {
+	var res A2ExprLitData
+	if forcedTp == nil && len(src.Elements) == 0 { // cannot infer type
+		a2.Logger.Log(fmt.Sprintf("E1106 need at least one element at %s", a2.Logger.GetLoc(src.Loc)), 5, true)
+		return nil
+	}
+
+	if forcedTp == nil { // auto array
+		var tp A2Type
+		tp.Init(T2_Arr, src.Loc, fmt.Sprintf("[%d]", len(src.Elements)), "")
+		tp.ArrLen = len(src.Elements)
+		res.Init(src.Loc, &tp)
+		res.Elements = append(res.Elements, a2.convExpr(src.Elements[0], ct, nil))
+		res.ExprType.Direct = res.Elements[0].GetType()
+		for i := 1; i < len(src.Elements); i++ {
+			res.Elements = append(res.Elements, a2.convExpr(src.Elements[i], ct, res.ExprType.Direct))
+		}
+		return &res
+
+	} else if forcedTp.IsThis("arr") || forcedTp.IsThis("slice") { // arr, slice
+		if forcedTp.IsThis("arr") && forcedTp.ArrLen < len(src.Elements) {
+			a2.Logger.Log(fmt.Sprintf("E1107 arr[%d] cannot contain %d elements at %s", forcedTp.ArrLen, len(src.Elements), a2.Logger.GetLoc(src.Loc)), 5, true)
+			return nil
+		}
+		res.Init(src.Loc, forcedTp)
+		for _, r := range src.Elements {
+			res.Elements = append(res.Elements, a2.convExpr(r, ct, forcedTp.Direct))
+		}
+		return &res
+
+	} else if forcedTp.IsThis("struct") { // struct
+		pos := a2.FindModule(forcedTp.SrcUname)
+		if pos < 0 {
+			a2.Logger.Log(fmt.Sprintf("E1108 cannot find module %s at %s", forcedTp.SrcUname, a2.Logger.GetLoc(src.Loc)), 5, true)
+			return nil
+		}
+		decl := a2.Modules[pos].FindDecl(forcedTp.Name)
+		if decl == nil || decl.GetObjType() != D2_Struct {
+			a2.Logger.Log(fmt.Sprintf("E1109 cannot find struct %s.%s at %s", forcedTp.SrcUname, forcedTp.Name, a2.Logger.GetLoc(src.Loc)), 5, true)
+			return nil
+		}
+		sDecl := decl.(*A2DeclStruct)
+		if len(src.Elements) != len(sDecl.MemTypes) {
+			a2.Logger.Log(fmt.Sprintf("E1110 struct %s.%s has %d members, got %d at %s", forcedTp.SrcUname, forcedTp.Name, len(sDecl.MemTypes), len(src.Elements), a2.Logger.GetLoc(src.Loc)), 5, true)
+			return nil
+		}
+		res.Init(src.Loc, forcedTp)
+		for i, r := range src.Elements {
+			res.Elements = append(res.Elements, a2.convExpr(r, ct, &sDecl.MemTypes[i]))
+		}
+		return &res
+
+	} else { // invalid
+		a2.Logger.Log(fmt.Sprintf("E1111 invalid type %s for literal data at %s", forcedTp.Print(), a2.Logger.GetLoc(src.Loc)), 5, true)
+		return nil
+	}
+}
+
+func (a2 *A2Analyzer) convExprDotOp(src *A1ExprOp, ct *A2Context, forcedTp *A2Type) A2Expr {
+	var lhs A2Expr
+	rname := src.Operand1.(*A1ExprName).Name
+
+	if src.Operand1.GetObjType() == E1_Name { // LHS is name
+		lname := src.Operand0.(*A1ExprName).Name
+		switch ct.FindDomain(lname) {
+		case 0, 1: // var.x, func.x
+			lhs = a2.convExpr(src.Operand0, ct, nil)
+		case 2: // struct.x
+			decl := ct.CurModule.FindDecl(lname).(*A2DeclStruct)
+			var temp A2ExprName
+			temp.Init(E2_StructName, src.Operand0.GetLocation(), decl)
+			lhs = &temp
+		case 3: // enum.x
+			decl := ct.CurModule.FindDecl(lname).(*A2DeclEnum)
+			var temp A2ExprName
+			temp.Init(E2_EnumName, src.Operand0.GetLocation(), decl)
+			lhs = &temp
+		default: // inc.x
+			d1 := a2.a1.Modules[a2.a1.GetModule(ct.CurModule.Uname)].FindDecl(lname, false)
+			if d1 == nil || d1.GetObjType() != D1_Include {
+				a2.Logger.Log(fmt.Sprintf("E1201 cannot find include name %s at %s", lname, a2.Logger.GetLoc(src.Loc)), 5, true)
+				return nil
+			}
+			pos := a2.FindModule(d1.(*A1DeclInclude).TgtUname)
+			if pos < 0 {
+				a2.Logger.Log(fmt.Sprintf("E1202 cannot find module %s at %s", d1.(*A1DeclInclude).TgtUname, a2.Logger.GetLoc(src.Loc)), 5, true)
+				return nil
+			}
+			d2 := a2.Modules[pos].FindDecl(rname)
+			if d2 == nil {
+				a2.Logger.Log(fmt.Sprintf("E1203 cannot find %s.%s at %s", lname, rname, a2.Logger.GetLoc(src.Loc)), 5, true)
+				return nil
+			}
+
+			var temp A2ExprName
+			switch d2.GetObjType() {
+			case D2_Var:
+				temp.Init(E2_VarName, src.Operand0.GetLocation(), d2)
+			case D2_Func:
+				temp.Init(E2_FuncName, src.Operand0.GetLocation(), d2)
+			case D2_Struct:
+				temp.Init(E2_StructName, src.Operand0.GetLocation(), d2)
+			case D2_Enum:
+				temp.Init(E2_EnumName, src.Operand0.GetLocation(), d2)
+			default:
+				a2.Logger.Log(fmt.Sprintf("E1204 cannot find %s.%s at %s", lname, rname, a2.Logger.GetLoc(src.Loc)), 5, true)
+				return nil
+			}
+			lhs = &temp
+		}
+
+	} else { // LHS is expr
+		lhs = a2.convExpr(src.Operand0, ct, nil)
+	}
+	if lhs == nil {
+		return nil
+	}
+
+	switch lhs.GetObjType() {
+	case E2_VarName, E2_FuncName: // inst.member
+		// check struct type
+		var structType *A2Type
+		op := B2_Dot
+		if lhs.GetType().IsThis("struct") {
+			structType = lhs.GetType()
+		} else if lhs.GetType().IsThis("ptr") && lhs.GetType().Direct.IsThis("struct") {
+			op = B2_Arrow
+			structType = lhs.GetType().Direct
+		} else {
+			a2.Logger.Log(fmt.Sprintf("E1205 invalid access .%s at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
+			return nil
+		}
+
+		// check visibility
+		if rname[0] < 'A' || rname[0] > 'Z' {
+			if rname[0] == '_' { // private
+				if lhs.GetType().SrcUname != ct.CurModule.Uname || lhs.GetType().Name != ct.CurFunc.StructNm {
+					a2.Logger.Log(fmt.Sprintf("E1205 %s is private at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
+				}
+			} else { // protected
+				if lhs.GetType().SrcUname != ct.CurModule.Uname {
+					a2.Logger.Log(fmt.Sprintf("E1205 %s is protected at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
+				}
+			}
+		}
+
+		// find member
+		pos := a2.FindModule(structType.SrcUname)
+		decl := a2.Modules[pos].FindDecl(structType.Name)
+		if decl == nil || decl.GetObjType() != D2_Struct {
+			a2.Logger.Log(fmt.Sprintf("E1205 cannot find %s at %s", structType.Name, a2.Logger.GetLoc(src.Loc)), 5, true)
+			return nil
+		}
+		sDecl := decl.(*A2DeclStruct)
+		pos = slices.Index(sDecl.MemNames, rname)
+		if pos < 0 {
+			a2.Logger.Log(fmt.Sprintf("E1205 cannot find %s.%s at %s", structType.Name, rname, a2.Logger.GetLoc(src.Loc)), 5, true)
+			return nil
+		}
+
+		// return op
+		var res A2ExprOp
+		res.Init(src.Loc, &sDecl.MemTypes[pos], op)
+		res.Operand0 = lhs
+		res.AccessPos = pos
+		return &res
+
+	case E2_StructName: // struct.method
+		// check visibility
+		if rname[0] < 'A' || rname[0] > 'Z' {
+			if rname[0] == '_' { // private
+				if lhs.GetType().SrcUname != ct.CurModule.Uname || lhs.GetType().Name != ct.CurFunc.StructNm {
+					a2.Logger.Log(fmt.Sprintf("E1205 %s is private at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
+				}
+			} else { // protected
+				if lhs.GetType().SrcUname != ct.CurModule.Uname {
+					a2.Logger.Log(fmt.Sprintf("E1205 %s is protected at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
+				}
+			}
+		}
+
+		// find method
+		pos := a2.FindModule(lhs.GetType().SrcUname)
+		fname := lhs.GetType().Name + "." + rname
+		decl := a2.Modules[pos].FindDecl(fname)
+		if decl == nil || decl.GetObjType() != D2_Func {
+			a2.Logger.Log(fmt.Sprintf("E1205 cannot find %s at %s", fname, a2.Logger.GetLoc(src.Loc)), 5, true)
+			return nil
+		}
+
+		// return func_name
+		var temp A2ExprName
+		temp.Init(E2_FuncName, lhs.GetLocation(), decl)
+		return &temp
+
+	case E2_EnumName: // enum.member
+		// check visibility
+		if (rname[0] < 'A' || rname[0] > 'Z') && lhs.GetType().SrcUname != ct.CurModule.Uname {
+			a2.Logger.Log(fmt.Sprintf("E1205 %s is protected at %s", rname, a2.Logger.GetLoc(src.Loc)), 5, true)
+		}
+
+		// find member
+		pos := a2.FindModule(lhs.GetType().SrcUname)
+		decl := a2.Modules[pos].FindDecl(lhs.GetType().Name)
+		if decl == nil || decl.GetObjType() != D2_Enum {
+			a2.Logger.Log(fmt.Sprintf("E1205 cannot find %s at %s", lhs.GetType().Name, a2.Logger.GetLoc(src.Loc)), 5, true)
+			return nil
+		}
+		i, ok := decl.(*A2DeclEnum).Members[rname]
+		nm := lhs.GetType().Name + "." + rname
+		if !ok {
+			a2.Logger.Log(fmt.Sprintf("E1205 cannot find %s at %s", nm, a2.Logger.GetLoc(src.Loc)), 5, true)
+			return nil
+		}
+
+		// return literal
+		var l front.Literal
+		l.Init(i)
+		l.EnumInfo = nm
+		var temp A2ExprLiteral
+		temp.Init(src.Loc, decl.GetType(), l)
+		return &temp
+	}
 	return nil
 }
 
-func (a2 *A2Analyzer) convExprDotOp(src *A1ExprOp, ct *A2Context, forcedTp *A2Type, isResUsed bool, assignTo string) *A2ExprOp {
+func (a2 *A2Analyzer) convExprOp(src *A1ExprOp, ct *A2Context, forcedTp *A2Type) *A2ExprOp {
 	return nil
 }
 
-func (a2 *A2Analyzer) convExprOp(src *A1ExprOp, ct *A2Context, forcedTp *A2Type, isResUsed bool, assignTo string) *A2ExprOp {
-	return nil
-}
-
-func (a2 *A2Analyzer) convExprFcall(src *A1ExprFCall, ct *A2Context, forcedTp *A2Type, isResUsed bool, assignTo string) *A2ExprCall {
+func (a2 *A2Analyzer) convExprFcall(src *A1ExprFCall, ct *A2Context, forcedTp *A2Type) *A2ExprCall {
 	return nil
 }

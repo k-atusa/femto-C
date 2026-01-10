@@ -398,7 +398,7 @@ func (a1 *A1StatForeach) Init(loc front.Loc, var_i string, var_r string, iter A1
 type A1StatSwitch struct {
 	A1StatB
 	Cond        A1Expr
-	CaseConds   []int64
+	CaseConds   []front.Literal // int64 literal
 	CaseFalls   []bool
 	CaseBodies  []A1StatScope
 	DefaultBody *A1StatScope
@@ -408,7 +408,7 @@ func (a1 *A1StatSwitch) Init(loc front.Loc, cond A1Expr) {
 	a1.ObjType = S1_Switch
 	a1.Loc = loc
 	a1.Cond = cond
-	a1.CaseConds = make([]int64, 0)
+	a1.CaseConds = make([]front.Literal, 0)
 	a1.CaseFalls = make([]bool, 0)
 	a1.CaseBodies = make([]A1StatScope, 0)
 	a1.DefaultBody = nil

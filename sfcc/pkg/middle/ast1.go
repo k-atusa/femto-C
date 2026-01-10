@@ -665,7 +665,11 @@ func (a1 *A1Parser) foldNode(tgt A1Expr, m *A1Module, cur *A1StatScope) *front.L
 			}
 			if decl.GetObjType() == D1_Enum && op.Operand1.GetObjType() == E1_Name { // enum.member
 				name1 := op.Operand1.(*A1ExprName).Name
-				return m.FindLiteral(name0+"."+name1, false)
+				l := m.FindLiteral(name0+"."+name1, false)
+				if l != nil {
+					l.EnumInfo = m.Uname + "." + name0
+				}
+				return l
 			}
 			if decl.GetObjType() == D1_Include {
 				pos := a1.FindModule(decl.(*A1DeclInclude).TgtPath)
@@ -681,7 +685,11 @@ func (a1 *A1Parser) foldNode(tgt A1Expr, m *A1Module, cur *A1StatScope) *front.L
 					if o.SubType == B1_Dot && o.Operand0.GetObjType() == E1_Name && o.Operand1.GetObjType() == E1_Name {
 						name1 := o.Operand0.(*A1ExprName).Name
 						name2 := o.Operand1.(*A1ExprName).Name
-						return a1.Modules[pos].FindLiteral(name1+"."+name2, true)
+						l := a1.Modules[pos].FindLiteral(name1+"."+name2, true)
+						if l != nil {
+							l.EnumInfo = a1.Modules[pos].Uname + "." + name1
+						}
+						return l
 					}
 				}
 			}
@@ -1838,10 +1846,10 @@ func (a1 *A1Parser) parseStatSwitch(tp *front.TokenProvider, m *A1Module, cur *A
 			if cond == nil || cond.GetObjType() != E1_Literal || cond.(*A1ExprLiteral).Value.ObjType != front.LitInt {
 				a1.Logger.Log(fmt.Sprintf("E0630 case must be int constexpr at %s", a1.Logger.GetLoc(tkn.Location)), 5, true)
 			}
-			i := cond.(*A1ExprLiteral).Value.Value.(int64)
+			i := cond.(*A1ExprLiteral).Value
 			for _, v := range res.CaseConds {
-				if v == i {
-					a1.Logger.Log(fmt.Sprintf("E0631 duplicate case %d at %s", i, a1.Logger.GetLoc(tkn.Location)), 5, true)
+				if v.Value.(int64) == i.Value.(int64) {
+					a1.Logger.Log(fmt.Sprintf("E0631 duplicate case %d at %s", i.Value.(int64), a1.Logger.GetLoc(tkn.Location)), 5, true)
 				}
 			}
 			tkn = tp.Pop()

@@ -267,6 +267,16 @@ type A2StatLoop interface {
 	SetLoopBody(body A2Stat)
 }
 
+type A2StatJump struct {
+	Scope *A2StatScope // scope to escape
+	Index int          // defer index
+}
+
+func (a2 *A2StatJump) Init(scope *A2StatScope, index int) {
+	a2.Scope = scope
+	a2.Index = index
+}
+
 type A2StatRaw struct {
 	A2StatB
 	Code string
@@ -325,10 +335,7 @@ type A2StatCtrl struct {
 	A2StatB
 	RetValue A2Expr     // for return
 	Loop     A2StatLoop // break, continue tgt
-	DeferIdx int
-	// Loop == nil -> escape_tgt is func_exit
-	// Loop != nil, idx == -1 -> escape_tgt is loop_exit
-	// Loop != nil, idx != -1 -> escape_tgt is loop.defer[idx]
+	Escape   A2StatJump // escape tgt
 }
 
 func (a2 *A2StatCtrl) Init(tp A2StatT, loc front.Loc, uid int64) {
@@ -338,7 +345,7 @@ func (a2 *A2StatCtrl) Init(tp A2StatT, loc front.Loc, uid int64) {
 	a2.IsReturns = tp == S2_Return
 	a2.RetValue = nil
 	a2.Loop = nil
-	a2.DeferIdx = -1
+	a2.Escape.Init(nil, -1)
 }
 
 type A2StatScope struct {
@@ -348,11 +355,10 @@ type A2StatScope struct {
 	Decls  map[string]A2Decl
 
 	// control infos
-	Defers       []A2Expr   // saved same as declared order (non-stacked now)
-	Out_Loop     A2StatLoop // escape tgt
-	Out_DeferIdx int        // escape tgt
-	IsFuncBody   bool
-	IsLoopBody   bool
+	Defers     []A2Expr   // saved same as declared order (non-stacked now)
+	Escape     A2StatJump // escape tgt
+	IsFuncBody bool
+	IsLoopBody bool
 
 	Body []A2Stat
 }
@@ -365,11 +371,10 @@ func (a2 *A2StatScope) Init(loc front.Loc, uid int64, parent *A2StatScope) {
 	a2.Parent = parent
 	a2.Decls = make(map[string]A2Decl)
 	a2.Defers = make([]A2Expr, 0)
-	a2.Out_Loop = nil
-	a2.Out_DeferIdx = -1
 	a2.IsFuncBody = false
 	a2.IsLoopBody = false
 	a2.Body = make([]A2Stat, 0)
+	a2.Escape.Init(nil, -1)
 }
 
 type A2StatIf struct {
@@ -431,13 +436,13 @@ func (a2 *A2StatFor) SetLoopBody(bodyStat A2Stat) {
 
 type A2StatForeach struct {
 	A2StatB
-	Var_i string
-	Var_r string
+	Var_i *A2DeclVar
+	Var_r *A2DeclVar
 	Iter  A2Expr
 	Body  A2Stat
 }
 
-func (a2 *A2StatForeach) Init(loc front.Loc, uid int64, var_i string, var_r string, iter A2Expr, bodyStat A2Stat) {
+func (a2 *A2StatForeach) Init(loc front.Loc, uid int64, var_i *A2DeclVar, var_r *A2DeclVar, iter A2Expr, bodyStat A2Stat) {
 	a2.ObjType = S2_Foreach
 	a2.Loc = loc
 	a2.Uid = uid
@@ -651,12 +656,8 @@ type A2Context struct { // context for function analysis
 
 	TopScope *A2StatScope   // toplevel scope
 	Scopes   []*A2StatScope // local scope
-	Loops    []A2StatLoop
-
-	Out_Loop     A2StatLoop // escape tgt
-	Out_DeferIdx int        // escape tgt
-
-	PreStats []A2Stat // pre-statements for expr
+	Loops    []A2StatLoop   // loop info
+	Escape   A2StatJump     // escape tgt
 }
 
 func (c *A2Context) Init(mt_idx int, a2 *A2Analyzer) {
@@ -667,9 +668,7 @@ func (c *A2Context) Init(mt_idx int, a2 *A2Analyzer) {
 	c.TopScope = c.CurModule.Code
 	c.Scopes = make([]*A2StatScope, 0, 16)
 	c.Loops = make([]A2StatLoop, 0, 8)
-	c.Out_Loop = nil
-	c.Out_DeferIdx = -1
-	c.PreStats = nil
+	c.Escape.Init(nil, -1)
 }
 
 func (c *A2Context) FindVar(name string) *A2DeclVar {
